@@ -56,6 +56,8 @@ def match_symptoms(description: str, crop: str | None = None) -> list[dict]:
 
 
 MIN_MATCH = 0.3
+INSECT_WORDS = re.compile(r"\b(aphids?|insects?|caterpillars?|larvae?|worms?|beetles?|bugs?|mites?|whitefl(y|ies)|"
+                          r"armyworms?|thrips|grubs?|weevils?)\b", re.IGNORECASE)
 
 
 def _vote(answer: str) -> str:
@@ -87,6 +89,10 @@ def classify_photo(description: str, subject_answers: list[str], healthy_answer:
     votes = [_vote(a) for a in subject_answers]
     top = max(set(votes), key=votes.count) if votes else "unclear"
     category = top if votes.count(top) >= 2 else "unclear"
+    # If the AI's own description names an insect or pest, it is a pest photo whatever the weed/crop votes say
+    # (that question is meaningless for a close-up of insects on a crop).
+    if INSECT_WORDS.search(description or ""):
+        category = "insect"
     healthy = _yes_no(healthy_answer)
     signs = None if healthy is None else not healthy
     found = match_symptoms(description, crop)
@@ -95,7 +101,7 @@ def classify_photo(description: str, subject_answers: list[str], healthy_answer:
         candidates = weeds or [{"pest": "Weed (species unclear)", "type": "Weed", "score": 0.5,
                                 "matched": [f"AI: weed in {votes.count('weed')} of {len(votes)} checks"],
                                 "host_crops": []}]
-    elif signs is False:
+    elif signs is False and category != "insect":
         candidates = []
     else:
         candidates = [c for c in found if c["type"] != "Weed" and c["score"] >= MIN_MATCH

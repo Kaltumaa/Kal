@@ -36,9 +36,18 @@ CREATE TABLE IF NOT EXISTS field_scans (
     description TEXT, candidates_json TEXT NOT NULL DEFAULT '[]',
     status TEXT NOT NULL DEFAULT 'UNVERIFIED' CHECK (status IN ('UNVERIFIED','VERIFIED','DISMISSED')),
     created_at TEXT NOT NULL, reviewed_by TEXT, reviewed_at TEXT, pest_alert_id INTEGER,
+    officer_finding TEXT, officer_note TEXT,
     CHECK (status = 'UNVERIFIED' OR reviewed_by IS NOT NULL)
 );
 """
+
+
+def _ensure(conn) -> None:
+    conn.executescript(SCHEMA)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(field_scans)")}
+    for col in ("officer_finding", "officer_note"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE field_scans ADD COLUMN {col} TEXT")   # fixed names, no user input
 
 
 class ScanError(ValueError):
@@ -87,7 +96,7 @@ def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
     hid = sanitizer.normalise_text(household_id).upper()[:32] or None
     crop = sanitizer.normalise_crop(crop) if crop else None
     with connect() as conn:
-        conn.executescript(SCHEMA)
+        _ensure(conn)
         if hid and not crop:
             row = conn.execute("SELECT active_crop FROM plots WHERE upper(household_id)=?", (hid,)).fetchone()
             crop = sanitizer.normalise_crop(row["active_crop"]) if row else None
@@ -136,7 +145,7 @@ def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
 
 def list_scans() -> list[dict]:
     with connect() as conn:
-        conn.executescript(SCHEMA)
+        _ensure(conn)
         rows = [dict(r) for r in conn.execute("SELECT * FROM field_scans ORDER BY id DESC LIMIT 50")]
     for r in rows:
         r["candidates"] = json.loads(r.pop("candidates_json") or "[]")
@@ -145,7 +154,7 @@ def list_scans() -> list[dict]:
 
 def image_bytes(scan_id: int) -> bytes | None:
     with connect() as conn:
-        conn.executescript(SCHEMA)
+        _ensure(conn)
         row = conn.execute("SELECT image_file FROM field_scans WHERE id=?", (scan_id,)).fetchone()
     if not row:
         return None
@@ -153,7 +162,27 @@ def image_bytes(scan_id: int) -> bytes | None:
     return path.read_bytes() if path.exists() and path.parent == SCAN_DIR else None
 
 
-def review(scan_id: int, officer_name: str, decision: str, pest: str | None = None, severity: str = "MEDIUM") -> dict:
+def farmer_view(household_id: str) -> list[dict]:
+    """What a farmer may see about their own photos: status and the OFFICER's finding only, never the AI's guess."""
+    with connect() as conn:
+        _ensure(conn)
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, created_at, status, reviewed_by, reviewed_at, officer_finding, officer_note "
+            "FROM field_scans WHERE household_id = ? ORDER BY id DESC", (household_id,))]
+    for r in rows:
+        r["waiting"] = r["status"] == "UNVERIFIED"
+    return rows
+
+
+def submit_for_review(image_b64: str, household_id: str) -> dict:
+    """Farmer submission: the photo is analysed for the officer, but the farmer only gets a receipt."""
+    res = analyse(image_b64, household_id, None)
+    return {"scan_id": res["scan_id"], "status": "WAITING_FOR_OFFICER",
+            "message": "Sent to your extension officer for review. You will see the result in Notifications."}
+
+
+def review(scan_id: int, officer_name: str, decision: str, pest: str | None = None, severity: str = "MEDIUM",
+           note: str = "") -> dict:
     """Named officer verifies (-> verified pest_alert used by the agent) or dismisses a scan."""
     officer = validate_signature(officer_name)
     if decision not in ("VERIFIED", "DISMISSED"):
@@ -162,7 +191,7 @@ def review(scan_id: int, officer_name: str, decision: str, pest: str | None = No
         raise ApprovalError("Severity must be LOW, MEDIUM or HIGH.")
     alert_id = None
     with connect() as conn:
-        conn.executescript(SCHEMA)
+        _ensure(conn)
         scan = conn.execute("SELECT * FROM field_scans WHERE id=?", (scan_id,)).fetchone()
         if scan is None or scan["status"] != "UNVERIFIED":
             raise ApprovalError("Scan not found or already reviewed.")
@@ -187,6 +216,12 @@ def review(scan_id: int, officer_name: str, decision: str, pest: str | None = No
                 (zone, pest_name, lat, lon, None, severity, config.today().isoformat(),
                  f"Field scan #{scan_id} verified by {officer}"))
             alert_id = cur.lastrowid
+        finding = sanitizer.normalise_text(pest)[:60] if decision == "VERIFIED" else "No problem found"
+        note_clean, note_hits = sanitizer.scrub_free_text(note, 300)
+        if note_hits:
+            raise ApprovalError("The note to the farmer contains instruction-like text.")
+        conn.execute("UPDATE field_scans SET officer_finding=?, officer_note=? WHERE id=?",
+                     (finding, note_clean, scan_id))
         conn.execute("UPDATE field_scans SET status=?, reviewed_by=?, reviewed_at=?, pest_alert_id=? WHERE id=?",
                      (decision, officer, telemetry.now_iso(), alert_id, scan_id))
     telemetry.record(f"scan-review-{scan_id}", "officer", "review_field_scan",

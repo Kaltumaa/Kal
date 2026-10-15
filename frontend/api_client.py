@@ -108,9 +108,10 @@ def scan_image(scan_id: int) -> bytes | None:
         return None
 
 
-def review_scan(scan_id: int, officer_name: str, decision: str, pest: str | None = None, severity: str = "MEDIUM"):
+def review_scan(scan_id: int, officer_name: str, decision: str, pest: str | None = None, severity: str = "MEDIUM",
+                note: str = ""):
     return _req("POST", f"/scans/{scan_id}/review", json={"officer_name": officer_name, "decision": decision,
-                                                          "pest": pest, "severity": severity})
+                                                          "pest": pest, "severity": severity, "note": note})
 
 
 def forum_topics():
@@ -198,3 +199,15 @@ def reminder_done(reminder_id: int):
 
 def farms_plan():
     return _req("GET", "/farms/plan")
+
+
+def submit_photo(household_id: str, image_b64: str):
+    return _req("POST", f"/farms/{household_id}/photos", json={"image_b64": image_b64}, timeout=600)
+
+
+def my_photos(household_id: str):
+    return _req("GET", f"/farms/{household_id}/photos")
+
+
+def notifications(household_id: str):
+    return _req("GET", f"/farms/{household_id}/notifications")

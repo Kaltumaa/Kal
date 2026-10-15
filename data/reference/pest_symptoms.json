@@ -15,7 +15,8 @@
       "caterpillar",
       "larva",
       "chewed",
-      "eaten"
+      "eaten",
+      "armyworm"
     ],
     "type": "Pest"
   },
@@ -36,7 +37,8 @@
       "white",
       "rot",
       "water-soaked",
-      "wilted"
+      "wilted",
+      "blight"
     ],
     "type": "Disease"
   },
@@ -56,7 +58,11 @@
       "sooty",
       "small green",
       "small black",
-      "ants"
+      "ants",
+      "aphid",
+      "aphids",
+      "black insects",
+      "green insects"
     ],
     "type": "Pest"
   },
@@ -70,7 +76,8 @@
       "cracked stem",
       "seedling",
       "maggot",
-      "yellowing"
+      "yellowing",
+      "bean fly"
     ],
     "type": "Pest"
   },

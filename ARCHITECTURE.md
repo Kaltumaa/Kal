@@ -58,7 +58,8 @@ safety ordering is tested code; the model adds agency (tool choice) and language
 7. **Citations:** sending requires an officer citation that references at least one of the draft's own records.
    It is stored with the approval.
 
-The same pattern gates photos: a field-scan report becomes a pest alert only when a named officer verifies it.
+The same pattern gates photos: the farmer never sees the AI's guess. A photo becomes a pest alert, and a result
+the farmer can see, only when a named officer verifies it.
 The app has an **officer view** (all farms, the only place advice is approved) and a **farmer view** (own farm, signed
 advice only, plot-history entries and photo reports). The switch is a demo convenience, not authentication.
 

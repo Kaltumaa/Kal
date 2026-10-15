@@ -89,6 +89,9 @@ weed photo produced "holes and chewed edges" from the vision model, and the matc
 - **Fix:** neutral questions, a three-way majority vote on weed vs crop, a health check, and type and host-crop
   filtering. The same photo now returns "Weed (species unclear)" with no pest.
 - **Regression test:** `test_weed_photo_is_never_turned_into_a_pest`.
+- **Second real case, fixed:** a black-bean-aphid photo was voted "weed" although the description said "likely
+  aphids". When the description names an insect, the photo is now treated as a pest photo; it returns Aphids
+  (test `test_insects_named_in_description_beat_weed_votes`).
 - **Still open:** with three votes the model still calls a synthetic damaged maize leaf a weed. *Next:* a larger
   vision model (e.g. `qwen2.5vl:3b`) and a small labelled photo set as a proper eval.
 

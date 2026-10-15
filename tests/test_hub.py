@@ -180,3 +180,34 @@ def test_every_farm_plan_uses_plot_history_and_calendar(temp_db, tmp_path, monke
     assert plan["HH-DS-006"]["plan"] == "SECURITY_LOCK" and plan["HH-DS-006"]["notes"] == []
     assert plan["HH-DS-002"]["plan"] == "HOLD" and any("Same crop" in n for n in plan["HH-DS-002"]["notes"])
     assert plan["HH-DS-001"]["plan"] == "PLANT"
+
+
+def test_farmer_never_sees_ai_output_only_the_officer_result(temp_db, tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from crop_pilot import config
+    from crop_pilot.api.main import app
+    monkeypatch.setattr(config, "CHECKPOINT_DB_PATH", tmp_path / "ck.db")
+    monkeypatch.setattr(fieldscan, "SCAN_DIR", tmp_path)
+    monkeypatch.setattr(fieldscan, "_describe", lambda b64: ("Maize leaf with ragged holes and frass in the whorl",
+                                                             {"latency_ms": 1, "tokens": 0}))
+    monkeypatch.setattr(fieldscan, "_classify", lambda b64: ({"subjects": ["a crop", "a crop", "a crop"],
+                                                              "healthy": "No"}, {"latency_ms": 1, "tokens": 0}))
+    with TestClient(app) as c:
+        receipt = c.post("/farms/HH-DS-003/photos", json={"image_b64": PNG_1PX}).json()
+        assert set(receipt) == {"scan_id", "status", "message"}               # no description, no candidates
+        mine = c.get("/farms/HH-DS-003/photos").json()
+        assert mine[0]["waiting"] and "candidates" not in mine[0] and "description" not in mine[0]
+        assert c.get("/farms/HH-DS-003/notifications").json() == []          # nothing until the officer acts
+        c.post(f"/scans/{receipt['scan_id']}/review", json={"officer_name": "Wanjiru Kamau", "decision": "VERIFIED",
+                                                            "pest": "Fall Armyworm", "severity": "HIGH",
+                                                            "note": "Spray early morning."})
+        note = c.get("/farms/HH-DS-003/notifications").json()[0]
+        assert note["kind"] == "photo" and "Fall Armyworm" in note["body"] and note["from"] == "Wanjiru Kamau"
+
+
+def test_insects_named_in_description_beat_weed_votes():
+    # Real case: black bean aphids on a bean stem; votes said "weed, weed, insect" but the description said aphids.
+    desc = ("A close-up of a plant with green leaves and black insects on them. The insects are likely aphids. "
+            "The plant appears healthy.")
+    out = knowledge.classify_photo(desc, ["a weed", "a weed", "insects"], "unclear", "Beans")
+    assert out["category"] == "insect" and out["candidates"][0]["pest"] == "Aphids"

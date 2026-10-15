@@ -292,6 +292,7 @@ class ScanReview(BaseModel):
     decision: str = Field(..., pattern="^(VERIFIED|DISMISSED)$")
     pest: str | None = Field(None, max_length=60)
     severity: str = Field("MEDIUM", pattern="^(LOW|MEDIUM|HIGH)$")
+    note: str = Field("", max_length=300)
 
 
 @app.post("/scans")
@@ -321,7 +322,7 @@ def scan_image(scan_id: int):
 def review_scan(scan_id: int, req: ScanReview):
     _require_db()
     try:
-        return fieldscan.review(scan_id, req.officer_name, req.decision, req.pest, req.severity)
+        return fieldscan.review(scan_id, req.officer_name, req.decision, req.pest, req.severity, req.note)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -573,3 +574,50 @@ def farms_plan():
                     "draft_status": latest["status"] if latest else None,
                     "advisory_id": latest["id"] if latest else None})
     return out
+
+
+# --- Farmer side: photo submissions and notifications ---------------------------------------------------------
+class FarmerPhoto(BaseModel):
+    image_b64: str = Field(..., max_length=9_000_000)
+
+
+@app.post("/farms/{household_id}/photos")
+def farmer_submit_photo(household_id: str, req: FarmerPhoto):
+    """Farmer upload. Returns a receipt only: the AI's suggestion goes to the officer, never to the farmer."""
+    _require_db()
+    with connect() as conn:
+        if conn.execute("SELECT 1 FROM plots WHERE household_id = ?", (household_id,)).fetchone() is None:
+            raise HTTPException(404, detail="Farm not found")
+    try:
+        return fieldscan.submit_for_review(req.image_b64, household_id)
+    except fieldscan.ScanError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+@app.get("/farms/{household_id}/photos")
+def farmer_photos(household_id: str):
+    _require_db()
+    return fieldscan.farmer_view(household_id)
+
+
+@app.get("/farms/{household_id}/notifications")
+def farmer_notifications(household_id: str):
+    """Everything an officer has sent this farmer, newest first: signed advice and photo results.
+    Plus the farmer's own reminders that are due. Never drafts or AI output."""
+    _require_db()
+    items = []
+    for o in approval.outbox():
+        if o["household_id"] == household_id:
+            items.append({"when": o["queued_at"], "kind": "advice", "title": "Advice from your extension officer",
+                          "body": o["message"], "from": o["officer_signature"]})
+    for sc in fieldscan.farmer_view(household_id):
+        if not sc["waiting"]:
+            body = f"Result: {sc['officer_finding']}." + (f" {sc['officer_note']}" if sc["officer_note"] else "")
+            items.append({"when": sc["reviewed_at"], "kind": "photo", "title": f"Your photo #{sc['id']} was reviewed",
+                          "body": body, "from": sc["reviewed_by"]})
+    today = config.today().isoformat()
+    for r in farm_reminders.list_reminders(household_id):
+        if not r["done"] and r["due_date"] <= today:
+            items.append({"when": r["due_date"], "kind": "reminder", "title": "Reminder due",
+                          "body": f"{r['action'].title()}" + (f": {r['note']}" if r["note"] else ""), "from": "you"})
+    return sorted(items, key=lambda x: x["when"] or "", reverse=True)

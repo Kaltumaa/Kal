@@ -25,7 +25,7 @@ filesystem MCP server), and [Ollama](https://ollama.com) installed locally. If O
 It switches to deterministic gathering and template messages, and every draft carries the
 `llm_unavailable_deterministic_gathering` flag so this is never hidden.
 
-Other targets: `make test` (41 unit, gate, reflection and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
+Other targets: `make test` (45 unit, gate, reflection, injection and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
 `make evals-quick` (deterministic, ~1 min), `make clean`, `make help`.
 
 ## What is in the Control Desk
@@ -36,7 +36,7 @@ Other targets: `make test` (41 unit, gate, reflection and boundary tests), `make
 | | **Review queue** | Opens with **every farm this week**: Plant now / Spray now / Hold / Ready for harvest / Needs data / Record locked, with the reason from that farm's plot history, crop stage, area rainfall and confirmed pests (a rule preview, no model), and a Draft advice button. Then run the agent for one household or a **whole ward** (a household cluster, timed against the by-hand baseline); each draft shows an urgency state (**When to plant / When to spray / When to hold / Ready for harvest**) and a **Farm & plot history** tab. Sending (**🚀 Send Local Advisory Notification to Farmer**) needs the officer's name, a confirmation and a **citation** that references the draft's own records. **This is the human gate.** A draft whose rainfall forecast has since changed cannot be signed until the agent is re-run |
 | | **Farms** | One farm at a time (by farmer name): plot history and rotation risk, a **crop-calendar timeline** with today's position and the stages when pests can damage the crop, the ward's weather pattern, and every draft and follow-up for that household |
 | | **Plot history** | Past seasons, rotation risk and the field log. **Farmers add entries** (planting, variety, fertiliser, irrigation, weeding, spraying, harvest) and finished reminders; a planting entry updates the record the agent reads. Read-only for the officer |
-| | **AI Scan** ("Identify plants, weeds & pests") | Take or upload a photo. A **local** vision model (moondream) describes it, the guide suggests the plant, weed or pest ("AI Analysis: … ⏳ Awaiting Verification"), and an officer must **Verify Assessment** before it becomes an alert the agent uses |
+| | **Verify photos** (officer) / **AI Scan** (farmer) | The farmer takes or uploads a photo and sees only "waiting for your officer"; **the AI's guess goes to the officer, never to the farmer**. The officer verifies, overrides or dismisses it with a note, and the farmer gets the officer's answer in **Notifications**. A **local** vision model (moondream) describes it, the guide suggests the plant, weed or pest ("AI Analysis: … ⏳ Awaiting Verification"), and an officer must **Verify Assessment** before it becomes an alert the agent uses |
 | Farmer hub | **Learn** | Guides on pests & diseases, pesticides & safe use, weeds, soils, greenhouse growing and the crop calendar, plus a **"What can I grow?"** tool filled from each ward's season outlook, and a **greenhouse check**: type temperature and humidity, or let a sensor POST them to `/greenhouse/readings`, and get VPD, dew point and what to do |
 | | **Community** | Discussion board for farmers and officers. Posts are scrubbed; instruction-like posts are held for moderation. The agent never reads it: chat is not a verified signal |
 | System | **Activity log** | Every step and decision in plain words, with who approved it; technical details on request |
@@ -83,6 +83,20 @@ The sidebar's **"I am"** switch picks the view:
 
 This switch is a demo convenience, **not authentication**; real logins are a next step. Farmer names are invented for
 the synthetic households, and the codes (e.g. `HH-DS-003`) appear only as references.
+
+## Farmer notifications
+
+A farmer's **Notifications** page lists advice their extension officer signed and sent, results for photos the
+officer reviewed, and their own reminders that are due. Drafts and AI output never appear there.
+
+## Security: SQL injection and prompt injection
+
+- **SQL injection:** every query uses parameter placeholders (`?`); user input is never pasted into SQL text.
+  Inputs are also validated first (lengths, allowed values, patterns). `tests/test_sql_injection.py` attacks the API
+  with classic payloads (`' OR '1'='1`, `; DROP TABLE plots;--`, `UNION SELECT`, …) and checks that no data changed
+  and integrity is intact.
+- **Prompt injection:** free text from records, forum posts, notes and model output is scrubbed. Instruction-like
+  text is redacted or held, and the draft is locked (eval task 6).
 
 ## Activity log (readable audit trail)
 
@@ -193,6 +207,8 @@ tests/         unit, gate and architecture-boundary tests
   - "do the leaves look healthy?".
 
   Matches are filtered by type and host crop, and when the answers disagree the result is "unclear", not a guess.
+  If the description names an insect (e.g. "likely aphids"), the photo is treated as a pest photo: your real
+  aphid photo is now "Aphids" and your weed photo is "Weed (species unclear)".
   It is still a triage aid for the officer, not a diagnosis.
 * The community board has no login; display names are not verified.
 * The officer/farmer switch is not authentication; anyone with the app can pick either view.
