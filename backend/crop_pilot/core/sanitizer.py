@@ -194,13 +194,19 @@ def scrub_plot(row: dict | None, today: date | None = None) -> dict:
 
     history = normalise_history(row.get("crop_history"))
 
-    # Planting date is the more reliable signal; free-text days is the fallback.
+    # GROUND-TRUTH RULE: a structured field the officer entered (here the planting date) always wins over a value
+    # parsed from free text (the "days since planting" box). Free text is only a fallback and never overrides it,
+    # and the narrative field notes are never parsed into numbers at all.
     days: int | None = None
     planted = parse_date(row.get("planting_date"))
     if planted:
         days = (today - planted).days
         if row.get("planting_date") and str(planted) != row.get("planting_date"):
             quality.append(f"planting date parsed {row.get('planting_date')!r} -> {planted.isoformat()}")
+        text_days = parse_days(row.get("days_since_planting"))
+        if text_days is not None and abs(text_days - days) > 3:
+            quality.append(f"free-text days {row.get('days_since_planting')!r} ignored: the entered planting date "
+                           f"({planted.isoformat()}, day {days}) is the record")
     else:
         if row.get("planting_date"):
             quality.append(f"planting date {row.get('planting_date')!r} unreadable")

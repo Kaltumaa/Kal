@@ -1,4 +1,10 @@
-# Pests & diseases of the Nairobi highlands (EDUCATIONAL GUIDANCE)
+# Pests & diseases of the Nairobi highlands (desk guidance, synthetic)
+
+## Officer targets
+- **Fall Armyworm:** scout 20 plants in a W; act at ≥ 10 % fresh damage (≥ 20 % after knee height), from emergence to tasseling.
+- **Late Blight:** in cool (12–20 °C), wet weeks, advise a protectant before rain and removing infected plants the same day.
+- **Aphids:** act only when colonies spread beyond a few plants; soap or neem first.
+- **Report it:** confirm any outbreak with a field visit or *Field scan* so it becomes a verified alert the agent can use.
 
 > Written for this project from general public extension practice. Confirm with your extension officer.
 

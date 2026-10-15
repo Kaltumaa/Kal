@@ -149,7 +149,7 @@ def detail(adv: dict) -> None:
             st.markdown("".join(
                 f'<div class="cp-step"><span class="who">{SERVER_LABEL.get(r["server"], r["server"])}</span>'
                 f'<code>{html.escape(r["tool"])}</code><span class="cp-muted">'
-                f'{"" if r["status"] == "ok" else r["status"] + " · "}{r["latency_ms"] or 0:.0f} ms</span></div>'
+                f'{"✓" if r["status"] == "ok" else r["status"]}</span></div>'
                 for r in rows) or "No steps logged.", unsafe_allow_html=True)
 
 

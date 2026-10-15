@@ -28,7 +28,6 @@ nav = st.navigation({
         st.Page("views/community.py", title="Community", icon=":material/forum:"),
     ],
     "System": [
-        st.Page(system.telemetry, title="Activity log", icon=":material/monitoring:", url_path="telemetry"),
         st.Page(system.outbox, title="Sent messages", icon=":material/outbox:", url_path="sent"),
     ],
 })

@@ -1,4 +1,10 @@
-# Greenhouse growing (EDUCATIONAL GUIDANCE)
+# Greenhouse growing (desk guidance, synthetic)
+
+## Officer targets
+- **Daytime:** 21–27 °C for tomato and capsicum. Above 30 °C, tell the farmer to open the side vents and add 30–40 % shade net.
+- **Humidity:** 60–80 %; VPD 0.8–1.2 kPa (use *Check my greenhouse* above). Above 85 %, ventilate mid-morning and water only at the base.
+- **Recommend for greenhouses:** tomato, capsicum, cucumber, seedlings. **Do not recommend:** maize, beans, potato, sorghum.
+- **Every visit:** check for *Tuta* mines and white mould; insist on a footbath and insect netting.
 
 ## Best crops for a small greenhouse in Nairobi
 | Crop | Why greenhouse | Ideal day temp | Notes |
@@ -10,9 +16,3 @@
 | Strawberry | Clean fruit, longer season | 18–24 °C | Raised beds or grow bags |
 
 **Not worth the space:** maize, beans, potato, sorghum. These are field crops.
-
-## Managing the microclimate
-- **Temperature:** open side vents when the inside temperature is above 30 °C; use shade net (30–40 %) in hot months.
-- **Humidity:** keep relative humidity at **60–80 %**. Above 85 % invites blight and mould: ventilate in the morning and water at the base, not the leaves.
-- **Vapour pressure deficit (VPD):** aim for **0.8–1.2 kPa** in the day. Too low means mould; too high means plant stress.
-- **Hygiene:** a footbath at the door, insect-proof netting, remove plant debris, and rotate crop families.

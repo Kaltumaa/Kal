@@ -1,4 +1,8 @@
-# Pest & disease action thresholds — Dagoretti South extension desk (SYNTHETIC GUIDANCE)
+# Pest & disease action thresholds — Dagoretti South extension desk (desk guidance, synthetic)
+
+## Officer targets
+- **Act only on verified alerts** within the action radius: Fall Armyworm 5 km, Late Blight 3 km, aphids 2 km.
+- **Outbreaks older than 30 days** no longer trigger a SPRAY.
 
 > Written for this demo from general public extension practice. Not an official MoA document.
 > An officer must confirm product choice and dose against current PCPB-registered labels.

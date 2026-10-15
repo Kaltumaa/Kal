@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from crop_pilot.database.db import DatabaseUnavailable, connect
 
 log = logging.getLogger("crop_pilot.telemetry")
+audit = logging.getLogger("crop_pilot.audit")   # one line per action in the backend terminal
 
 
 def now_iso() -> str:
@@ -28,6 +29,8 @@ def record(run_id: str, server: str, tool: str, inputs: object, output: object, 
     output_json = json.dumps(output, default=str, ensure_ascii=False)[:20_000]
     call_hash = hashlib.sha256(f"{run_id}|{server}|{tool}|{inputs_json}|{ts}".encode()).hexdigest()[:16]
     tokens = token_count if token_count is not None else estimate_tokens(inputs_json, output_json)
+    audit.info("[audit] %s %s/%s %s by=%s approved_by=%s %.0fms %dtok", run_id, server, tool, status, actor,
+               approved_by or "-", latency_ms, tokens)
     try:
         with connect() as conn:
             cur = conn.execute(

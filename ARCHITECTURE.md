@@ -5,7 +5,7 @@ household-level **Plant / Spray / Hold draft** goes out; a **named officer signs
 
 ```
 Streamlit Control Desk ──HTTP──► FastAPI ──► LangGraph (SQLite checkpointer)
-                                  planner → data_gatherer → advisory_compiler → human_gate ─interrupt─┐
+                    planner → data_gatherer → advisory_compiler → self_check ⟲ (retry once) → commit_draft → human_gate ─┐
                                                │ model picks tools   │ rules decide, model explains  │
                                                ▼                     ▼                               ▼
    MCP (stdio) ─┬─ crop-pilot (ours, 6 tools): get_plot_context · get_rainfall_outlook ·      dispatch/ (API only):
@@ -31,7 +31,14 @@ Streamlit Control Desk ──HTTP──► FastAPI ──► LangGraph (SQLite c
     cited reasons and one SMS tip. They never flip the verdict.
   - The model writes the rationale and SMS and proposes its own verdict. Where it disagrees, the rules win and the
     officer sees `model_disagreement`.
-  - The compiler then calls `draft_advisory`, followed by `schedule_followup` (e.g. re-scout 7 days after SPRAY).
+- **self_check (reflection):** before anything is written, this node checks the draft:
+  - the most stringent rain signal wins (no PLANT or SPRAY during a washout or unsafe-spray reading);
+  - the ward is in Dagoretti South;
+  - the evidence and sources are complete;
+  - the SMS is valid.
+
+  On a problem it loops back to `data_gatherer` once; if the check fails again, the draft is withheld as NEEDS_DATA.
+- **commit_draft:** calls `draft_advisory`, then `schedule_followup` (e.g. re-scout 7 days after SPRAY).
 - **human_gate:** a LangGraph `interrupt()`. Only the API resumes it, after `dispatch` validates a named officer.
 
 **Why rules decide and the model explains:** a 3B model on a CPU must not decide whether to spray before a storm. The

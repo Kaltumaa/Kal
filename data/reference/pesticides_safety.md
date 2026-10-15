@@ -1,4 +1,10 @@
-# Pesticides: classes and safe use (EDUCATIONAL GUIDANCE)
+# Pesticides: classes and safe use (desk guidance, synthetic)
+
+## Officer targets
+- **Before advising a spray:** damage above the action threshold *and* spray-safety OK (no rain in 6–24 h).
+- **Name the class, not a dose:** the farmer follows the PCPB-registered label for dose and pre-harvest interval.
+- **Every spray SMS mentions:** gloves, mask, early-morning spraying, and the harvest waiting period.
+- **Resistance:** rotate the mode of action (IRAC/FRAC group) between sprays.
 
 > Only use products **registered by the Pest Control Products Board (PCPB)** for that crop and pest. Always follow the label for dose,
 > pre-harvest interval and re-entry time. This page gives no doses on purpose.

@@ -1,4 +1,5 @@
-"""Activity log (audit trail) and Sent messages (with the manual backup form)."""
+"""Sent messages (with the manual backup form). The audit trail lives in the database, the API (/telemetry)
+and the backend terminal, not in the officer's menu."""
 from __future__ import annotations
 
 import pandas as pd
@@ -6,35 +7,6 @@ import streamlit as st
 
 import api_client as api
 import ui
-
-
-def telemetry() -> None:
-    ui.header("Activity log", "Every tool call, model call, blocked attempt and officer decision.")
-    try:
-        rows = api.telemetry()
-    except api.ApiError as exc:
-        st.warning(f"Unavailable: {exc.detail}")
-        return
-    if not rows:
-        st.caption("Nothing logged yet.")
-        return
-    df = pd.DataFrame(rows)
-    runs = ["All runs"] + sorted(df["run_id"].unique().tolist(), reverse=True)
-    pick = st.selectbox("Run", runs)
-    if pick != "All runs":
-        df = df[df["run_id"] == pick]
-    m = st.columns(4)
-    m[0].metric("Actions logged", len(df))
-    m[1].metric("MCP tool calls", int(df["server"].isin(["crop-pilot", "filesystem"]).sum()))
-    m[2].metric("Model tokens", f'{int(df.loc[df["server"] == "ollama", "token_estimate"].fillna(0).sum()):,}')
-    m[3].metric("Blocked attempts", int((df["status"] == "blocked").sum()))
-    view = df[["ts", "run_id", "server", "tool", "actor", "status", "latency_ms", "token_estimate", "approved_by",
-               "inputs_json", "output_json"]].rename(columns={
-        "ts": "Time", "run_id": "Run", "server": "Server", "tool": "Tool", "actor": "Actor", "status": "Status",
-        "latency_ms": "ms", "token_estimate": "Tokens", "approved_by": "Approved by", "inputs_json": "Inputs",
-        "output_json": "Output"})
-    st.dataframe(view, hide_index=True, width="stretch", height=480,
-                 column_config={"ms": st.column_config.NumberColumn(format="%.0f")})
 
 
 def outbox() -> None:

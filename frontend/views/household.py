@@ -88,7 +88,47 @@ with right:
         for line in pat.get("advice", []):
             st.caption(line)
 
-st.subheader("Advice for this household")
+draft = next((a for a in p["advisories"] if a["status"] in ("PENDING_REVIEW", "SECURITY_LOCK", "NEEDS_DATA")), None)
+if draft:
+    with st.container(border=True):
+        st.markdown("### 🤖 AI Generated Advisory Draft (Review Required)")
+        st.markdown(ui.badges(draft["verdict"], draft["status"]) + "  Nothing has been sent to the farmer.")
+        st.write(draft["rationale"])
+        st.caption("Sources: " + " · ".join(draft["sources"]))
+        can_send = draft["status"] == "PENDING_REVIEW" and not draft.get("forecast_changed")
+        if draft.get("forecast_changed"):
+            st.warning(f"The rainfall forecast changed since this draft ({draft['forecast_changed']}). Draft new "
+                       "advice above before sending.", icon=":material/update:")
+        elif draft["status"] != "PENDING_REVIEW":
+            st.warning("This draft cannot be sent (security lock or missing data). Review it in the Review queue.",
+                       icon=":material/block:")
+        editing = st.session_state.get(f"edit-{draft['id']}", False)
+        msg = st.text_area("SMS to the farmer", draft["farmer_message"] or "", max_chars=320, height=90,
+                           disabled=not (editing and can_send), key=f"msg-{draft['id']}")
+        if can_send:
+            c = st.columns([1.4, 1.6, 1.2])
+            name = c[0].text_input("Your full name (signature)", key=f"sig-{draft['id']}",
+                                   placeholder="e.g. Wanjiru Kamau")
+            ok = c[1].checkbox("I have checked the evidence and take responsibility for this advice.",
+                               key=f"ok-{draft['id']}")
+            b = st.columns([1.3, 1.3, 2])
+            if b[0].button("✅ Verify & Broadcast via SMS", type="primary", key=f"send-{draft['id']}", width="stretch"):
+                if not ok:
+                    st.error("Tick the confirmation box first.")
+                else:
+                    try:
+                        r = api.approve(draft["id"], name, msg)
+                        st.toast(f"Signed by {r['officer']}. SMS queued (simulated).", icon=":material/check:")
+                        st.session_state.pop(f"edit-{draft['id']}", None)
+                        st.rerun()
+                    except api.ApiError as exc:
+                        st.error(str(exc.detail))
+            if b[1].button("✏️ Edit Text Advisory Field" if not editing else "Lock text", key=f"editbtn-{draft['id']}",
+                           width="stretch"):
+                st.session_state[f"edit-{draft['id']}"] = not editing
+                st.rerun()
+
+st.subheader("Advisory history")
 if p["advisories"]:
     st.dataframe(pd.DataFrame([{"Drafted": a["created_at"][:16].replace("T", " "), "Advice": a["verdict"] or "—",
                                 "Status": ui.STATUS_TEXT.get(a["status"], a["status"]),

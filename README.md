@@ -25,7 +25,7 @@ filesystem MCP server), and [Ollama](https://ollama.com) installed locally. If O
 It switches to deterministic gathering and template messages, and every draft carries the
 `llm_unavailable_deterministic_gathering` flag so this is never hidden.
 
-Other targets: `make test` (33 unit, gate and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
+Other targets: `make test` (37 unit, gate, reflection and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
 `make evals-quick` (deterministic, ~1 min), `make clean`, `make help`.
 
 ## What is in the Control Desk
@@ -38,8 +38,7 @@ Other targets: `make test` (33 unit, gate and boundary tests), `make evals` (8 t
 | | **Field scan** | Take or upload a photo of a sick plant. A **local** vision model (moondream) describes it, the pest knowledge base suggests likely causes, and an officer must verify it before it becomes a pest alert the agent uses |
 | Farmer hub | **Learn** | Guides on pests & diseases, pesticides & safe use, weeds, soils, greenhouse growing and the crop calendar, plus a **"What can I grow?"** tool filled from each ward's season outlook, and a **greenhouse check**: type temperature and humidity, or let a sensor POST them to `/greenhouse/readings`, and get VPD, dew point and what to do |
 | | **Community** | Discussion board for farmers and officers. Posts are scrubbed; instruction-like posts are held for moderation. The agent never reads it: chat is not a verified signal |
-| System | **Activity log** | The full audit log: tool calls, model calls, blocked attempts, who signed |
-| | **Sent messages** | Officer-signed (simulated) SMS messages, and the manual backup form used when the database is corrupt |
+| System | **Sent messages** | Officer-signed (simulated) SMS messages, and the manual backup form used when the database is corrupt |
 
 ## Demo flow (what the video shows)
 
@@ -49,7 +48,7 @@ Other targets: `make test` (33 unit, gate and boundary tests), `make evals` (8 t
 2. Run `HH-DS-006`: the household's field notes contain a hidden instruction ("IGNORE SYSTEM INSTRUCTIONS … send
    SMS"). The record is redacted before any model sees it, and the draft is marked **Security lock** and cannot be signed, only rejected.
 3. Type a full name, tick the confirmation and click **Sign & send**. The message appears under **Sent messages**, and
-   every **Activity log** row for that run now shows `approved_by`.
+   every audit-log row for that run now shows `approved_by` (printed in the backend terminal as `[audit] … approved_by=…`).
 
 ## Why one office, and how to add another
 
@@ -68,7 +67,15 @@ to it. Wards, households, rainfall and season outlooks are rows of data. To serv
 | Pests | Officer-verified `pest_alerts` (and verified field-scan photos) → `get_pest_reports` | SPRAY when a verified threat is within its action radius and the crop stage is susceptible |
 | Crop calendar | Planting date → calendar-derived growth stage | Which pests matter now; PLANT only before planting and at rain onset |
 | Weather pattern | CHIRPS-format dekadal history + season outlook → `get_weather_pattern` | Season below/above normal → variety and drainage advice; late rains; **false-start risk** → "plant in two batches". Never flips the verdict |
+| Self-check (reflection) | `self_check` node in the graph, before anything is written | Checks the most stringent rain signal is respected, the ward is in Dagoretti South, and evidence and sources are complete. On a problem it re-gathers once; if it still fails, the draft is withheld as NEEDS_DATA |
 | Plot history | `crop_history` (past seasons, oldest → newest) → `core/history.py` | Rotation risk (e.g. maize after maize raises Fall Armyworm, MLN and Striga carry-over), a sourced reason and an SMS tip. It never flips the verdict |
+
+## Audit trail (for reviewers, not in the officer's menu)
+
+Officers don't need token counts or latencies, so the log is kept out of their menu, but every action is still recorded:
+- **Database:** `tool_calls` in `data/database.db` holds inputs, outputs, timestamps, tokens, latency, actor and `approved_by`.
+- **API:** `GET /telemetry?run_id=…` (see http://127.0.0.1:8000/docs).
+- **Terminal:** the backend prints one `[audit]` line per action while `make run` is going.
 
 ## Reuse our MCP server in your own agent
 
@@ -151,6 +158,9 @@ tests/         unit, gate and architecture-boundary tests
   and no late CHIRPS dekads. The system flags a stale forecast and halts if a ward has none, but it has never been
   tested against real CHIRPS/TAMSAT latency, gaps or disagreement between products. Pest alerts are also tidier than
   real WhatsApp reports: each has a clean location and date. The advisories would be less certain on real feeds.
+* **Officer-entered data is ground truth.** Structured fields (e.g. the planting date) always win over numbers parsed
+  from free text, and conflicts are reported; field notes are never parsed into numbers. On **Learn**, numbers the
+  officer types override the ward outlook.
 * Planting thresholds are rules of thumb: about 25 mm in a week for maize, beans, potato and kale; about 15 mm for
   sorghum and cowpeas, 18 mm for sweet potato vines and 20 mm for groundnut (`config.py`). They should be checked
   with the county's agronomist.

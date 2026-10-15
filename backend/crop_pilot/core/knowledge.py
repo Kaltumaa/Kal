@@ -1,6 +1,7 @@
 """Knowledge-base logic: symptom -> pest matching and crop suitability scoring. Pure and deterministic."""
 from __future__ import annotations
 
+import bisect
 import csv
 import json
 import re
@@ -65,28 +66,42 @@ def crops() -> list[dict]:
     return rows
 
 
+# Score tables for the suitability matrix. bisect finds which band a value falls in (O(log n)); the score is a fixed
+# lookup, so the result is fully deterministic and the language model is never involved.
+RAIN_SCORES = {"high": [30, 60, 85, 100, 75, 45], "medium": [15, 45, 75, 100, 70, 40], "low": [5, 35, 65, 100, 70, 40]}
+TEMP_SCORES = [20, 50, 75, 100, 75, 50, 20]
+
+
+def _rain_band(c: dict) -> list[float]:
+    lo, hi = c["season_rain_min_mm"], c["season_rain_max_mm"]
+    return [0.5 * lo, 0.75 * lo, lo, hi, 1.25 * hi]
+
+
+def _temp_band(c: dict) -> list[float]:
+    lo, hi = c["temp_min_c"], c["temp_max_c"]
+    return [lo - 4, lo - 2, lo, hi, hi + 2, hi + 4]
+
+
 def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, greenhouse: bool) -> list[dict]:
-    """Score every crop 0-100 against rainfall, temperature, soil and greenhouse availability."""
+    """Score every crop 0-100 against rainfall, temperature, soil and greenhouse availability (bisect lookup)."""
     out = []
     for c in crops():
-        reasons, score = [], 100.0
-        lo, hi = c["season_rain_min_mm"], c["season_rain_max_mm"]
-        if greenhouse and c["greenhouse"] in ("best", "yes"):
+        reasons = []
+        under_cover = greenhouse and c["greenhouse"] in ("best", "yes")
+        if under_cover:
+            rain_score = 100
             reasons.append("greenhouse controls water")
-        elif season_rain_mm < lo:
-            gap = (lo - season_rain_mm) / lo
-            penalty = gap * (60 if c["drought_tolerance"] == "high" else 100)
-            score -= penalty
-            reasons.append(f"rain {season_rain_mm:.0f} mm below the {lo:.0f} mm it needs")
-        elif season_rain_mm > hi:
-            score -= min(40, (season_rain_mm - hi) / hi * 80)
-            reasons.append(f"rain above {hi:.0f} mm: waterlogging/disease risk")
         else:
-            reasons.append("rainfall in range")
-        tlo, thi = c["temp_min_c"], c["temp_max_c"]
-        if not tlo <= mean_temp_c <= thi:
-            score -= min(50, min(abs(mean_temp_c - tlo), abs(mean_temp_c - thi)) * 8)
-            reasons.append(f"best between {tlo:.0f}–{thi:.0f} °C")
+            band = bisect.bisect_right(_rain_band(c), season_rain_mm)
+            rain_score = RAIN_SCORES.get(c["drought_tolerance"], RAIN_SCORES["medium"])[band]
+            lo, hi = c["season_rain_min_mm"], c["season_rain_max_mm"]
+            reasons.append("rainfall in range" if lo <= season_rain_mm <= hi else
+                           f"rain {season_rain_mm:.0f} mm below the {lo:.0f} mm it needs" if season_rain_mm < lo else
+                           f"rain above {hi:.0f} mm: waterlogging/disease risk")
+        temp_score = TEMP_SCORES[bisect.bisect_right(_temp_band(c), mean_temp_c)]
+        if temp_score < 100 and not c["temp_min_c"] <= mean_temp_c <= c["temp_max_c"]:
+            reasons.append(f"best between {c['temp_min_c']:.0f}–{c['temp_max_c']:.0f} °C")
+        score = min(rain_score, temp_score)
         if soil and soil not in c["soils"]:
             score -= 25
             reasons.append(f"prefers {', '.join(c['soils'])}")

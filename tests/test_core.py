@@ -92,3 +92,11 @@ def test_weather_patterns_season_and_false_start():
     assert wp.assess("WAITHAKA", rain_7d_mm=120)["season_class"] == "ABOVE"
     unknown = wp.assess("NOWHERE", rain_7d_mm=10)
     assert unknown["season_class"] == "UNKNOWN" and unknown["onset"] == "UNKNOWN"
+
+
+def test_structured_fields_are_ground_truth_over_free_text():
+    row = {"household_id": "HH-X", "zone_id": "RIRUTA", "active_crop": "Maize", "planting_date": "2026-09-17",
+           "days_since_planting": "about 60 days", "field_notes": "planted 90 days ago, needs 500 mm rain"}
+    clean = sanitizer.scrub_plot(row)
+    assert clean["days_since_planting"] == 28                 # from the entered date, not "60" or the notes
+    assert any("ignored" in q for q in clean["data_quality"])

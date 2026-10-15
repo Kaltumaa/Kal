@@ -1,4 +1,9 @@
-# Crop calendar — Nairobi highlands, ~1,700 m (SYNTHETIC GUIDANCE)
+# Crop calendar — Nairobi highlands, ~1,700 m (desk guidance, synthetic)
+
+## Officer targets
+- **Plant:** maize, beans, potato and kale when ≥ 25 mm of rain is expected over 7 days; sorghum and cowpeas at ≥ 15 mm.
+- **False start:** if the last 20 days were under 60 % of normal, advise planting in two batches.
+- **Pest-watch window:** Fall Armyworm on maize days 0–75; bean fly on beans days 0–35.
 
 Short rains: onset usually mid-October to early November. Long rains: March to May.
 Planting rule of thumb used by this desk: plant once ≥ 25 mm of rain is expected over 7 days and no storm / washout warning is active.

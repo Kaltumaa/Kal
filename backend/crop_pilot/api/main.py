@@ -5,6 +5,7 @@ Run:  uvicorn crop_pilot.api.main:app --port 8000   (with PYTHONPATH=backend)
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import time
 from contextlib import asynccontextmanager
@@ -23,6 +24,10 @@ from crop_pilot.dispatch import approval
 from crop_pilot.dispatch import followups as desk_followups
 from crop_pilot.fieldscan import service as fieldscan
 from crop_pilot.greenhouse import readings as gh_readings
+
+
+logging.basicConfig(level=logging.WARNING, format="%(message)s")
+logging.getLogger("crop_pilot.audit").setLevel(logging.INFO)   # audit trail in the backend terminal
 
 
 @asynccontextmanager

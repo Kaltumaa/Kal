@@ -1,4 +1,9 @@
-# Common weeds and their control (EDUCATIONAL GUIDANCE)
+# Common weeds and their control (desk guidance, synthetic)
+
+## Officer targets
+- **Weed-free window:** keep maize and beans weed-free for the first 6 weeks (2 weedings: weeks 2–3 and 5–6).
+- **Striga:** if it appears in a maize plot, recommend push-pull with Desmodium and a Striga-tolerant variety next season.
+- **Couch grass:** advise rhizome removal in the dry season, before ploughing.
 
 | Weed | Where | Why it matters | Control |
 |---|---|---|---|

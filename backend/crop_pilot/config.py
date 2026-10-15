@@ -40,6 +40,9 @@ PLANTING_RAIN_BY_CROP = {"Sorghum": 15.0, "Cowpeas": 15.0, "Sweet Potato": 18.0,
 WASHOUT_RAIN_72H_MM = 50.0   # flash-washout risk
 WEATHER_STALE_DAYS = 3
 
+# The office this deployment serves. The self-check refuses drafts for plots outside these wards.
+DAGORETTI_SOUTH_WARDS = {"RIRUTA", "WAITHAKA", "MUTUINI", "NGANDO", "UTHIRU"}
+
 # --- Pest threat ------------------------------------------------------------------------
 PEST_RADIUS_KM = {"fall armyworm": 5.0, "late blight": 3.0, "aphids": 2.0, "bean fly": 3.0}
 DEFAULT_PEST_RADIUS_KM = 3.0

@@ -13,6 +13,15 @@ import streamlit as st
 import api_client as api
 import ui
 
+def ai_label(candidates: list[dict]) -> str:
+    """The model's output, always shown as an unverified suggestion."""
+    if not candidates:
+        return "AI Analysis: no clear match to a known pest — ⏳ AWAITING EXTENSION OFFICER CONFIRMATION"
+    top = candidates[0]
+    return (f"AI Analysis: Consistent with **{top['pest']}** ({top['score'] * 100:.0f}% symptom-match score) "
+            "— ⏳ AWAITING EXTENSION OFFICER CONFIRMATION")
+
+
 CROPS = ["From household record", "Maize", "Beans", "Kale", "Potato", "Tomato"]
 
 ui.header("Field scan", "Photograph a sick plant. A local model describes it, the pest guide suggests causes, and an "
@@ -46,6 +55,7 @@ with t_new:
             if not res["vision_available"]:
                 st.warning("The vision model is offline, so the photo was saved for the officer to check by eye.")
             st.write(res["description"] or "—")
+            st.warning(ai_label(res["candidates"]), icon=":material/hourglass_top:")
             if res["candidates"]:
                 st.markdown("**Possible causes**")
                 st.dataframe(pd.DataFrame([{"Cause": x["pest"], "Match": x["score"], "Signs seen": ", ".join(x["matched"])}
@@ -68,24 +78,37 @@ with t_check:
             with body:
                 st.markdown(f"**Scan #{s['id']}** · {s['household_id'] or 'no household'} · {s['crop'] or 'crop unknown'}")
                 st.write(s["description"] or "No description.")
+                st.warning(ai_label(s["candidates"]), icon=":material/hourglass_top:")
+                top = s["candidates"][0]["pest"] if s["candidates"] else None
+                overriding = st.session_state.get(f"override-{s['id']}", False) or top is None
                 with st.form(f"scan-{s['id']}", border=False):
-                    guesses = [x["pest"] for x in s["candidates"]]
                     f = st.columns([1.4, 1, 1.4])
-                    pest = f[0].selectbox("Confirmed cause", list(dict.fromkeys(
-                        guesses + ["Fall Armyworm", "Late Blight", "Aphids", "Bean fly", "Other"])))
+                    if overriding:
+                        pest = f[0].selectbox("Your diagnosis", ["Fall Armyworm", "Late Blight", "Aphids", "Bean fly",
+                                                                 "Maize Lethal Necrosis", "Other pest or disease",
+                                                                 "Not a pest (dismiss)"])
+                    else:
+                        pest = top
+                        f[0].text_input("AI suggestion", top, disabled=True)
                     sev = f[1].selectbox("Severity", ["MEDIUM", "HIGH", "LOW"])
                     name = f[2].text_input("Your full name")
-                    b = st.columns([1, 1, 2])
-                    ok = b[0].form_submit_button("Verify", type="primary", width="stretch")
-                    no = b[1].form_submit_button("Dismiss", width="stretch")
+                    b = st.columns([1.3, 1.3, 1.5])
+                    confirm = b[0].form_submit_button("Confirm & Log Pest Alert", type="primary", width="stretch")
+                    override = (b[1].form_submit_button("Override Diagnosis", width="stretch") if not overriding
+                                else False)
                     try:
-                        if ok:
-                            r = api.review_scan(s["id"], name, "VERIFIED", pest, sev)
-                            st.toast(f"Pest alert #{r['pest_alert_id']} created. The agent will use it.",
-                                     icon=":material/check:")
+                        if override:
+                            st.session_state[f"override-{s['id']}"] = True
                             st.rerun()
-                        if no:
-                            api.review_scan(s["id"], name, "DISMISSED")
+                        if confirm:
+                            if pest == "Not a pest (dismiss)":
+                                api.review_scan(s["id"], name, "DISMISSED")
+                                st.toast("Dismissed: not a pest.", icon=":material/check:")
+                            else:
+                                r = api.review_scan(s["id"], name, "VERIFIED", pest, sev)
+                                st.toast(f"Pest alert #{r['pest_alert_id']} logged. The agent will now use it.",
+                                         icon=":material/check:")
+                            st.session_state.pop(f"override-{s['id']}", None)
                             st.rerun()
                     except api.ApiError as exc:
                         st.error(str(exc.detail))

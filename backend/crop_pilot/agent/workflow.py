@@ -1,4 +1,5 @@
-"""LangGraph orchestration: planner -> data_gatherer -> advisory_compiler -> human_gate -> execution_complete.
+"""LangGraph orchestration: planner -> data_gatherer -> advisory_compiler -> self_check -> commit_draft -> human_gate
+-> execution_complete. self_check can loop back to data_gatherer once (reflection with one retry).
 
 * data_gatherer: the local model CHOOSES which MCP tools to call (autonomous tool use). The harness then
   checks evidence coverage and argument correctness, and fills/corrects anything missing.
@@ -42,6 +43,11 @@ class RunState(TypedDict, total=False):
     advisory: dict
     review: dict
     followup: dict
+    draft: dict
+    followup_plan: dict
+    check_attempt: int
+    check_outcome: str
+    check_problems: list[str]
     errors: list[str]
 
 
@@ -417,24 +423,96 @@ async def advisory_compiler_node(state: RunState) -> dict:
     if plot.get("injection_detected"):
         flags.append("prompt_injection_detected")
 
+    draft = {"run_id": run_id, "household_id": state["household_id"], "status": decision["status"],
+             "verdict": decision["verdict"], "farmer_message": message, "rationale": rationale,
+             "sources": sources, "evidence": evidence_summary, "flags": flags,
+             "rule_verdict": decision["verdict"], "model_verdict": model_verdict}
+    kind, days, why = plan_followup(decision, pattern, threat)
+    return {"decision": decision, "draft": draft, "followup_plan": {"kind": kind, "days_from_now": days, "reason": why},
+            "flags": flags}
+
+
+# ------------------------------------------------------------------------------------- reflection
+def check_draft(draft: dict, evidence: dict) -> list[str]:
+    """Self-check before anything is written. Returns the problems found (empty list = pass). Deterministic."""
+    problems = []
+    plot, rain, pests = evidence.get("plot") or {}, evidence.get("rain"), evidence.get("pests")
+    verdict, sources = draft.get("verdict"), draft.get("sources") or []
+    if plot.get("found") and plot.get("zone_id") and plot["zone_id"] not in config.DAGORETTI_SOUTH_WARDS:
+        problems.append(f"ward {plot['zone_id']} is outside Dagoretti South")
+    if plot.get("found") and plot.get("profile_complete") and not plot.get("injection_detected"):
+        if rain is None:
+            problems.append("rainfall evidence missing")
+        if pests is None:
+            problems.append("pest evidence missing")
+    if verdict in ("PLANT", "SPRAY"):
+        # Most stringent signal wins: a washout or unsafe-spray reading only allows HOLD.
+        if rain and (rain.get("washout_risk") or rain.get("spray_band") == "UNSAFE"):
+            problems.append(f"{verdict} is less cautious than the rainfall signal (washout/unsafe): only HOLD is allowed")
+        if not any(s.startswith("plots:") for s in sources) or not any(s.startswith("weather_cache:") for s in sources):
+            problems.append("verdict is missing its plot or rainfall source")
+    if verdict == "SPRAY" and not (pests or {}).get("top_threat"):
+        problems.append("SPRAY without a verified, in-range pest threat")
+    if verdict == "PLANT":
+        if plot.get("growth_stage") != "PRE_PLANTING":
+            problems.append("PLANT advice for a crop that is already in the ground")
+        if rain and rain.get("rain_7d_mm", 0) < agronomy.planting_threshold(plot.get("active_crop")):
+            problems.append("PLANT below the crop's planting-rain threshold")
+    msg = draft.get("farmer_message") or ""
+    if len(msg) > 320 or sanitizer.detect_injection(msg):
+        problems.append("farmer message too long or contains instruction-like text")
+    return problems
+
+
+async def self_check_node(state: RunState) -> dict:
+    """Reflection: validate the draft; retry evidence gathering once, then downgrade instead of writing bad advice."""
+    run_id, draft = state["run_id"], dict(state["draft"])
+    problems = check_draft(draft, state.get("evidence", {}))
+    attempt = state.get("check_attempt", 0)
+    flags = list(state.get("flags", []))
+    if not problems:
+        outcome = "pass"
+    elif attempt < 1:
+        outcome = "retry"
+        flags.append("self_check_retry")
+    else:
+        outcome = "downgrade"
+        flags.append("self_check_failed")
+        draft.update(status="NEEDS_DATA", verdict=None,
+                     farmer_message="Draft withheld: the agent's self-check failed twice. Officer to review the evidence.",
+                     rationale=f"{draft['rationale']} Self-check problems: {'; '.join(problems)}.")
+        draft["flags"] = flags
+    telemetry.record(run_id, "graph", "self_check", {"attempt": attempt + 1, "verdict": state["draft"].get("verdict")},
+                     {"outcome": outcome, "problems": problems}, latency_ms=0,
+                     status="ok" if outcome == "pass" else "error")
+    return {"draft": draft, "flags": flags, "check_attempt": attempt + 1, "check_outcome": outcome,
+            "check_problems": problems}
+
+
+def _after_check(state: RunState) -> str:
+    return "data_gatherer" if state.get("check_outcome") == "retry" else "commit_draft"
+
+
+async def commit_draft_node(state: RunState) -> dict:
+    """Write the checked draft through the MCP write tool, then book the desk's follow-up."""
+    run_id, draft = state["run_id"], dict(state["draft"])
+    draft["flags"] = list(state.get("flags", []))
     followup = None
     async with open_toolbox(run_id, with_filesystem=False) as tb:
-        advisory = await tb.call("draft_advisory", {
-            "run_id": run_id, "household_id": state["household_id"], "status": decision["status"],
-            "verdict": decision["verdict"], "farmer_message": message, "rationale": rationale,
-            "sources": sources, "evidence": evidence_summary, "flags": flags,
-            "rule_verdict": decision["verdict"], "model_verdict": model_verdict,
-        })
+        advisory = await tb.call("draft_advisory", draft)
         if advisory.get("ok"):
-            kind, days, why = plan_followup(decision, pattern, threat)
+            plan = state["followup_plan"]
+            if draft["status"] == "NEEDS_DATA" and state.get("check_outcome") == "downgrade":
+                plan = {"kind": "FIELD_VISIT", "days_from_now": 2,
+                        "reason": "Self-check failed: check the evidence for this household in person."}
             followup = await tb.call("schedule_followup", {"run_id": run_id, "household_id": state["household_id"],
-                                                           "kind": kind, "days_from_now": days, "reason": why})
+                                                           **plan})
     errors = list(state.get("errors", []))
     if not advisory.get("ok"):
         errors.append(f"draft_advisory failed: {advisory.get('error')}")
     if followup is not None and not followup.get("ok"):
         errors.append(f"schedule_followup failed: {followup.get('error')}")
-    return {"decision": decision, "advisory": advisory, "flags": flags, "errors": errors,
+    return {"advisory": advisory, "errors": errors,
             "followup": {k: v for k, v in (followup or {}).items() if k != "_call_id"}}
 
 
@@ -467,12 +545,16 @@ def build_graph(checkpointer=None):
     g.add_node("planner", planner_node)
     g.add_node("data_gatherer", data_gatherer_node)
     g.add_node("advisory_compiler", advisory_compiler_node)
+    g.add_node("self_check", self_check_node)
+    g.add_node("commit_draft", commit_draft_node)
     g.add_node("human_gate", human_gate_node)
     g.add_node("execution_complete", execution_complete_node)
     g.add_edge(START, "planner")
     g.add_edge("planner", "data_gatherer")
     g.add_edge("data_gatherer", "advisory_compiler")
-    g.add_conditional_edges("advisory_compiler", _after_compile, ["human_gate", END])
+    g.add_edge("advisory_compiler", "self_check")
+    g.add_conditional_edges("self_check", _after_check, ["data_gatherer", "commit_draft"])
+    g.add_conditional_edges("commit_draft", _after_compile, ["human_gate", END])
     g.add_edge("human_gate", "execution_complete")
     g.add_edge("execution_complete", END)
     return g.compile(checkpointer=checkpointer)
@@ -495,6 +577,8 @@ async def start_run(graph, household_id: str, officer_note: str = "", run_id: st
         "advisory": {k: v for k, v in (result.get("advisory") or {}).items() if k != "_call_id"},
         "decision": result.get("decision"),
         "followup": result.get("followup"),
+        "self_check": {"outcome": result.get("check_outcome"), "attempts": result.get("check_attempt"),
+                       "problems": result.get("check_problems", [])},
         "flags": result.get("flags", []),
         "errors": result.get("errors", []),
         "llm_used": result.get("llm_used", False),
