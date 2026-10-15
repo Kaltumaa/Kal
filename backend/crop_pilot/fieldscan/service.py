@@ -167,10 +167,15 @@ def farmer_view(household_id: str) -> list[dict]:
     with connect() as conn:
         _ensure(conn)
         rows = [dict(r) for r in conn.execute(
-            "SELECT id, created_at, status, reviewed_by, reviewed_at, officer_finding, officer_note "
-            "FROM field_scans WHERE household_id = ? ORDER BY id DESC", (household_id,))]
+            "SELECT s.id, s.created_at, s.status, s.reviewed_by, s.reviewed_at, s.officer_finding, s.officer_note, "
+            "a.pest AS alert_pest FROM field_scans s LEFT JOIN pest_alerts a ON a.id = s.pest_alert_id "
+            "WHERE s.household_id = ? ORDER BY s.id DESC", (household_id,))]
     for r in rows:
         r["waiting"] = r["status"] == "UNVERIFIED"
+        if not r["waiting"] and not r["officer_finding"]:     # reviews made before findings were stored as text
+            r["officer_finding"] = r["alert_pest"] or ("No problem found" if r["status"] == "DISMISSED"
+                                                        else "Confirmed by your officer")
+        r.pop("alert_pest")
     return rows
 
 
