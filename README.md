@@ -270,9 +270,16 @@ Bring your own data by pointing `CROP_PILOT_DB` at a database with the same sche
 
 ## Field validation (honest status)
 
-We have **not yet** tested this with an extension officer or farmer. Everything about the Dagoretti South desk
-(caseload, the Plant/Spray/Hold decision, SMS as the channel) is our assumption from public descriptions of Kenyan
-extension work. The questions we would take to an officer first:
+**We spoke with one smallholder farmer** (name withheld; no personal details recorded). What they told us:
+- Farmers like them still rely mainly on **traditional methods** and their own experience to decide when to plant
+  and when to spray.
+- They **don't know of any website or app** that gives this kind of help for their own farm.
+- They said there is **real demand** for a tool like this.
+
+This is one conversation, not a study, and it did not test the app itself. We have **not yet** spoken with an
+extension officer. Everything about the Dagoretti South desk (caseload, the Plant/Spray/Hold decision, SMS as the
+channel) is our assumption from public descriptions of Kenyan extension work. The questions we would take to an
+officer first:
 1. Would you trust a drafted SMS enough to sign it after reading the sources, or would you rewrite it?
 2. Which signal arrives first in practice: rainfall forecasts, WhatsApp pest reports, or farmer visits?
 3. Is a typed name an acceptable signature, or does the office need an officer ID?

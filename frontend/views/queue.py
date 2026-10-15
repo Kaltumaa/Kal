@@ -109,7 +109,8 @@ def detail(adv: dict) -> None:
                                 st.error("Tick the confirmation box to send.")
                             else:
                                 r = api.approve(adv["id"], name, msg, citation)
-                                st.toast(f"Signed by {r['officer']}. Message queued.", icon=":material/check:")
+                                st.session_state["just_sent"] = (ui.names().get(adv["household_id"], adv["household_id"]),
+                                                                  r["officer"])
                                 st.rerun()
                         if reject:
                             api.reject(adv["id"], name, "")
@@ -169,7 +170,8 @@ except api.ApiError as exc:
     st.stop()
 
 drafts = [a for a in advs if a["status"] in ("SECURITY_LOCK", "PENDING_REVIEW", "NEEDS_DATA")]
-drafts.sort(key=lambda a: ({"SECURITY_LOCK": 0, "PENDING_REVIEW": 1}.get(a["status"], 2), -a["id"]))
+# Drafts waiting for a signature first; locked drafts (can only be rejected) last.
+drafts.sort(key=lambda a: ({"PENDING_REVIEW": 0, "NEEDS_DATA": 1}.get(a["status"], 2), -a["id"]))
 
 PLAN = {"PLANT": "🌱 Plant now", "SPRAY": "🧴 Spray now", "HOLD": "✋ Hold", "HARVEST": "🧺 Ready for harvest",
         "NEEDS_DATA": "❔ Needs farm data", "SECURITY_LOCK": "⛔ Record locked"}
@@ -202,6 +204,11 @@ with st.container(border=True):
                     st.error(str(exc.detail))
 ward_summary()
 
+sent = st.session_state.pop("just_sent", None)
+if sent:
+    st.toast(f"Sent to {sent[0]}, signed by {sent[1]}.", icon=":material/check_circle:")
+    st.success(f"Sent to **{sent[0]}**, signed by **{sent[1]}**. It is in **Sent messages** and the farmer's "
+               "Notifications.", icon=":material/check_circle:")
 views = [f"Drafts to review ({len(drafts)})", "Every farm this week"]
 default_view = views[0] if drafts else views[1]
 picked = st.segmented_control("Show", views, default=default_view, label_visibility="collapsed")
