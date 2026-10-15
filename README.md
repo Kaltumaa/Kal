@@ -25,7 +25,7 @@ filesystem MCP server), and [Ollama](https://ollama.com) installed locally. If O
 It switches to deterministic gathering and template messages, and every draft carries the
 `llm_unavailable_deterministic_gathering` flag so this is never hidden.
 
-Other targets: `make test` (39 unit, gate, reflection and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
+Other targets: `make test` (40 unit, gate, reflection and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
 `make evals-quick` (deterministic, ~1 min), `make clean`, `make help`.
 
 ## What is in the Control Desk
@@ -33,10 +33,10 @@ Other targets: `make test` (39 unit, gate, reflection and boundary tests), `make
 | Section | Page | What it does |
 |---|---|---|
 | Advisory | **Dashboard** | Rainfall outlook per ward (spray-safety band, planting window, washout risk), a map of households and verified pest alerts, and what is waiting for you |
-| | **Review queue** | Run the agent for one household or a **whole ward** (a household cluster, timed against the by-hand baseline); sign or reject each Plant / Spray / Hold draft. **This is the human gate.** A draft whose rainfall forecast has since changed cannot be signed until the agent is re-run |
+| | **Review queue** | Run the agent for one household or a **whole ward** (a household cluster, timed against the by-hand baseline); each draft shows an urgency state (**When to plant / When to spray / When to hold / Ready for harvest**) and a **Farm & plot history** tab. Sending (**🚀 Send Local Advisory Notification to Farmer**) needs the officer's name, a confirmation and a **citation** that references the draft's own records. **This is the human gate.** A draft whose rainfall forecast has since changed cannot be signed until the agent is re-run |
 | | **Farms** | One farm at a time (by farmer name): plot history and rotation risk, a **crop-calendar timeline** with today's position and the stages when pests can damage the crop, the ward's weather pattern, and every draft and follow-up for that household |
-| | **Plot history** | Past seasons, rotation risk and a **field log**: officers or farmers add planting, variety, fertiliser, irrigation, weeding, spraying or harvest entries. A planting entry updates the farm record, so the next advice uses it |
-| | **Field scan** | Take or upload a photo of a sick plant. A **local** vision model (moondream) describes it, the pest knowledge base suggests likely causes, and an officer must verify it before it becomes a pest alert the agent uses |
+| | **Plot history** | Read-only: past seasons, rotation risk and the field log. The log grows when a farmer ticks a reminder done |
+| | **Identify plant, weed, pests** | Take or upload a photo. A **local** vision model (moondream) describes it, the guide suggests the plant, weed or pest ("AI Analysis: … ⏳ Awaiting Verification"), and an officer must **Verify Assessment** before it becomes an alert the agent uses |
 | Farmer hub | **Learn** | Guides on pests & diseases, pesticides & safe use, weeds, soils, greenhouse growing and the crop calendar, plus a **"What can I grow?"** tool filled from each ward's season outlook, and a **greenhouse check**: type temperature and humidity, or let a sensor POST them to `/greenhouse/readings`, and get VPD, dew point and what to do |
 | | **Community** | Discussion board for farmers and officers. Posts are scrubbed; instruction-like posts are held for moderation. The agent never reads it: chat is not a verified signal |
 | System | **Activity log** | Every step and decision in plain words, with who approved it; technical details on request |
@@ -76,9 +76,10 @@ to it. Wards, households, rainfall and season outlooks are rows of data. To serv
 
 The sidebar's **"I am"** switch picks the view:
 - **Extension officer** sees every farm, runs the agent, and is the **only one who can approve** advice.
-- **Farmer** (e.g. Grace Wanjiku, Mutu-ini) sees only their own farm: crop calendar, plot history, their area's rain,
-  and **advice an officer has already signed**. Farmers can log field actions and report a sick plant (the officer
-  confirms it), but they never see or approve drafts.
+- **Farmer** (e.g. Grace Wanjiku, Mutu-ini) sees only their own farm: crop calendar, alerts, the rainfall numbers
+  and rainfall pattern for their area, plot history (read-only), and **advice an officer has already signed**. They
+  can set **Reminders** (ticking one done adds it to the field log and the activity log) and send photos to identify
+  a plant, weed or pest (an officer verifies). They never see or approve drafts.
 
 This switch is a demo convenience, **not authentication**; real logins are a next step. Farmer names are invented for
 the synthetic households, and the codes (e.g. `HH-DS-003`) appear only as references.

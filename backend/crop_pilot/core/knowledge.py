@@ -51,7 +51,7 @@ def match_symptoms(description: str, crop: str | None = None) -> list[dict]:
         if crop and spec["crops"]:
             score *= 1.5 if crop in spec["crops"] else 0.4
         results.append({"pest": pest, "score": round(min(score, 1.0), 2), "matched": hits,
-                        "host_crops": spec["crops"]})
+                        "host_crops": spec["crops"], "type": spec.get("type", "Pest")})
     return sorted(results, key=lambda r: r["score"], reverse=True)[:3]
 
 
@@ -127,3 +127,13 @@ def season_outlook() -> list[dict]:
             r[k] = float(r[k])
         r["rain_vs_normal_pct"] = round(100 * r["expected_rain_mm"] / r["long_term_mean_mm"])
     return rows
+
+
+def plant_seen(description: str) -> str | None:
+    """Name a crop the photo description mentions (e.g. 'maize leaf'), using the crop-name dictionary."""
+    from crop_pilot.core.sanitizer import CROP_ALIASES
+    text = (description or "").lower()
+    for word, crop in sorted(CROP_ALIASES.items(), key=lambda kv: -len(kv[0])):
+        if re.search(rf"\b{re.escape(word)}\b", text):
+            return crop
+    return None

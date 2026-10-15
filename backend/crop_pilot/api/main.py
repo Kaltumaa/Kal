@@ -26,6 +26,7 @@ from crop_pilot.dispatch import followups as desk_followups
 from crop_pilot.fieldscan import service as fieldscan
 from crop_pilot.greenhouse import readings as gh_readings
 from crop_pilot.plots import actions as plot_actions
+from crop_pilot.plots import reminders as farm_reminders
 
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
@@ -56,6 +57,7 @@ class RunRequest(BaseModel):
 class ApproveRequest(BaseModel):
     officer_name: str = Field(..., max_length=80)
     final_message: str | None = Field(None, max_length=320)
+    citation: str = Field(..., max_length=600)
 
 
 class RejectRequest(BaseModel):
@@ -150,7 +152,7 @@ def advisories(status: str | None = Query(None, pattern="^(PENDING_REVIEW|SECURI
 async def approve(advisory_id: int, req: ApproveRequest):
     _require_db()
     try:
-        result = approval.approve(advisory_id, req.officer_name, req.final_message)
+        result = approval.approve(advisory_id, req.officer_name, req.final_message, req.citation)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
     result["graph"] = await resume_run(app.state.graph, result["run_id"], "APPROVED", result["officer"])
@@ -492,5 +494,36 @@ def log_farm_action(household_id: str, req: PlotAction):
     try:
         return plot_actions.log_action(household_id, req.action, req.action_date, req.crop, req.details,
                                        req.role, req.name)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+# --- Farmer reminders ------------------------------------------------------------------------------------
+class ReminderRequest(BaseModel):
+    due_date: str = Field(..., max_length=10)
+    action: str = Field(..., max_length=20)
+    note: str = Field("", max_length=200)
+
+
+@app.get("/farms/{household_id}/reminders")
+def reminders(household_id: str):
+    _require_db()
+    return farm_reminders.list_reminders(household_id)
+
+
+@app.post("/farms/{household_id}/reminders")
+def create_reminder(household_id: str, req: ReminderRequest):
+    _require_db()
+    try:
+        return farm_reminders.create(household_id, req.due_date, req.action, req.note)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+@app.post("/reminders/{reminder_id}/done")
+def reminder_done(reminder_id: int):
+    _require_db()
+    try:
+        return farm_reminders.mark_done(reminder_id)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))

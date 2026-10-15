@@ -61,7 +61,19 @@ def forecast_change(conn, row) -> str | None:
     return "; ".join(reasons) or None
 
 
-def approve(advisory_id: int, officer_name: str, final_message: str | None = None) -> dict:
+def validate_citation(citation: str | None, sources: list[str]) -> str:
+    """The officer must cite at least one of the draft's own records (exact source reference)."""
+    text, hits = sanitizer.scrub_free_text(citation or "", 600)
+    if hits or not text:
+        raise ApprovalError("Add a citation: name the records this advice rests on (the suggested citation lists them).")
+    if not any(src in text for src in sources):
+        raise ApprovalError("The citation must reference at least one of this draft's records, e.g. "
+                            + ", ".join(sources[:3]) + ".")
+    return text
+
+
+def approve(advisory_id: int, officer_name: str, final_message: str | None = None,
+            citation: str | None = None) -> dict:
     started = time.perf_counter()
     officer = validate_signature(officer_name)
     with connect() as conn:
@@ -73,6 +85,7 @@ def approve(advisory_id: int, officer_name: str, final_message: str | None = Non
         if changed:
             raise ApprovalError(f"The rainfall forecast changed since this draft ({changed}). Re-run the agent for "
                                 "this household and sign the new draft instead.")
+        cited = validate_citation(citation, json.loads(row["sources_json"] or "[]"))
         message = row["farmer_message"]
         if final_message is not None and final_message.strip():
             message, hits = sanitizer.scrub_free_text(final_message, 320)
@@ -80,12 +93,13 @@ def approve(advisory_id: int, officer_name: str, final_message: str | None = Non
                 raise ApprovalError("Edited message contains instruction-like text; not sent.")
         ts = telemetry.now_iso()
         conn.execute("UPDATE pending_advisories SET status='APPROVED', officer_signature=?, reviewed_at=?,"
-                     " transmitted_at=?, farmer_message=? WHERE id=?", (officer, ts, ts, message, advisory_id))
+                     " transmitted_at=?, farmer_message=?, officer_citation=? WHERE id=?",
+                     (officer, ts, ts, message, cited, advisory_id))
         cur = conn.execute("INSERT INTO dispatch_outbox (advisory_id, household_id, message, officer_signature,"
                            " queued_at) VALUES (?,?,?,?,?)", (advisory_id, row["household_id"], message, officer, ts))
         conn.execute("UPDATE tool_calls SET approved_by=? WHERE run_id=?", (officer, row["run_id"]))
         outbox_id = cur.lastrowid
-    telemetry.record(row["run_id"], "officer", "approve_and_dispatch", {"advisory_id": advisory_id},
+    telemetry.record(row["run_id"], "officer", "approve_and_dispatch", {"advisory_id": advisory_id, "citation": cited},
                      {"outbox_id": outbox_id, "channel": "SMS_SIMULATED", "message": message},
                      latency_ms=(time.perf_counter() - started) * 1000, actor=officer, approved_by=officer)
     return {"advisory_id": advisory_id, "run_id": row["run_id"], "status": "APPROVED", "officer": officer,

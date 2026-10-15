@@ -134,3 +134,17 @@ def test_farms_have_names_and_no_real_codes_shown(temp_db, tmp_path, monkeypatch
                                                         "role": "farmer"}).status_code == 200
         assert c.post("/farms/HH-DS-003/actions", json={"action": "WEEDING", "action_date": "2026-10-14",
                                                         "role": "admin"}).status_code == 422
+
+
+def test_reminder_not_logged_until_done(temp_db):
+    import sqlite3
+    from crop_pilot.plots import actions, reminders
+    r = reminders.create("HH-DS-003", "2026-10-20", "WEEDING", "Second weeding")
+    conn = sqlite3.connect(temp_db, isolation_level=None)
+    count = lambda: conn.execute("SELECT COUNT(*) FROM tool_calls").fetchone()[0]   # noqa: E731
+    before = count()
+    assert actions.list_actions("HH-DS-003") == [] and before == count()
+    done = reminders.mark_done(r["reminder_id"])
+    log = actions.list_actions("HH-DS-003")
+    assert done["done"] and len(log) == 1 and log[0]["action"] == "WEEDING" and log[0]["entered_by"] == "Grace Wanjiku"
+    assert count() == before + 1

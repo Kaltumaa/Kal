@@ -98,6 +98,7 @@ def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
         (SCAN_DIR / name).write_bytes(raw)
         conn.execute("UPDATE field_scans SET image_file=? WHERE id=?", (name, scan_id))
     return {"scan_id": scan_id, "household_id": hid, "crop": crop, "description": description,
+            "plant_seen": knowledge.plant_seen(description),
             "candidates": candidates, "model": model_used, "status": "UNVERIFIED",
             "vision_available": status == "ok", "injection_flag": bool(hits)}
 

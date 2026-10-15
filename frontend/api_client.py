@@ -44,9 +44,9 @@ def advisories(status: str | None = None):
     return _req("GET", "/advisories", params={"status": status} if status else None)
 
 
-def approve(advisory_id: int, officer_name: str, final_message: str | None):
+def approve(advisory_id: int, officer_name: str, final_message: str | None, citation: str):
     return _req("POST", f"/advisories/{advisory_id}/approve",
-                json={"officer_name": officer_name, "final_message": final_message})
+                json={"officer_name": officer_name, "final_message": final_message, "citation": citation})
 
 
 def reject(advisory_id: int, officer_name: str, reason: str):
@@ -182,3 +182,15 @@ def log_farm_action(household_id: str, action: str, action_date: str, crop: str 
     return _req("POST", f"/farms/{household_id}/actions", json={"action": action, "action_date": action_date,
                                                                 "crop": crop, "details": details, "role": role,
                                                                 "name": name})
+
+
+def reminders(household_id: str):
+    return _req("GET", f"/farms/{household_id}/reminders")
+
+
+def create_reminder(household_id: str, due_date: str, action: str, note: str):
+    return _req("POST", f"/farms/{household_id}/reminders", json={"due_date": due_date, "action": action, "note": note})
+
+
+def reminder_done(reminder_id: int):
+    return _req("POST", f"/reminders/{reminder_id}/done")

@@ -113,11 +113,35 @@ def what_can_i_grow() -> None:
     st.caption("Scores come from a fixed crop table (rainfall, temperature, soil, greenhouse), not a guess.")
 
 
-with st.expander(":material/potted_plant: **What can I grow?** — best crops for your area's season, soil and greenhouse",
-                 expanded=True):
+BLURB = {"What can I grow?": ("green", "Best crops for your area's season, soil and greenhouse"),
+         "Pests & diseases": ("orange", "Spot Fall Armyworm, blight, aphids and bean fly early"),
+         "Pesticides & safe use": ("red", "Registered options, protective gear, harvest waits"),
+         "Weeds": ("green", "Striga, couch grass and when weeding matters most"),
+         "Soils": ("orange", "pH targets, soil tests and soil care by type"),
+         "Greenhouse growing": ("blue", "Temperature and humidity targets, plus a greenhouse check"),
+         "Crop calendar": ("blue", "Planting rain thresholds and pest-watch windows"),
+         "Pest action thresholds": ("red", "When a confirmed pest is close enough to act on"),
+         "When it is safe to spray": ("blue", "Spray-safety score bands and washout rules")}
+names = ["What can I grow?"] + [t["title"] for t in topics]
+choice = st.session_state.get("learn_topic", names[0])
+for row in range(0, len(names), 3):
+    cols = st.columns(3)
+    for col, name in zip(cols, names[row:row + 3]):
+        color, blurb = BLURB.get(name, ("green", ""))
+        with col.container(border=True, height=150):
+            st.markdown(f"**:{color}[:material/{ICONS.get(name, 'article')}:]&nbsp; {name}**")
+            st.caption(blurb)
+            if st.button("Viewing" if name == choice else "Open", key=f"topic-{name}", width="stretch",
+                         type="primary" if name == choice else "secondary", disabled=name == choice):
+                st.session_state["learn_topic"] = name
+                st.rerun()
+st.divider()
+st.subheader(choice)
+if choice == names[0]:
     what_can_i_grow()
-for t in topics:
-    with st.expander(f":material/{ICONS.get(t['title'], 'article')}: **{t['title']}**"):
-        if t["slug"] == "greenhouse":
-            greenhouse_check()
-        st.markdown(api.knowledge_topic(t["slug"]))
+else:
+    topic = topics[names.index(choice) - 1]
+    if topic["slug"] == "greenhouse":
+        greenhouse_check()
+    with st.container(border=True):
+        st.markdown(api.knowledge_topic(topic["slug"]))

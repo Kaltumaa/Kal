@@ -30,6 +30,19 @@ CREATE TABLE IF NOT EXISTS plots (
     farmer_name         TEXT             -- invented name for the demo; never a real person
 );
 
+-- Farmer's own reminders. Not logged when created; ticking one done adds a field-log entry (and an audit line).
+CREATE TABLE IF NOT EXISTS farmer_reminders (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    household_id TEXT NOT NULL,
+    due_date     TEXT NOT NULL,
+    action       TEXT NOT NULL,
+    note         TEXT,
+    done         INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL,
+    done_at      TEXT,
+    field_log_id INTEGER
+);
+
 -- Plot history log: field actions entered by the officer or reported by the farmer.
 CREATE TABLE IF NOT EXISTS plot_actions (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,6 +209,9 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     columns = {r[1] for r in conn.execute("PRAGMA table_info(plots)")}
     if "farmer_name" not in columns:
         conn.execute("ALTER TABLE plots ADD COLUMN farmer_name TEXT")
+    adv_columns = {r[1] for r in conn.execute("PRAGMA table_info(pending_advisories)")}
+    if "officer_citation" not in adv_columns:
+        conn.execute("ALTER TABLE pending_advisories ADD COLUMN officer_citation TEXT")
     for hid, name in FARMER_NAMES.items():
         conn.execute("UPDATE plots SET farmer_name = ? WHERE household_id = ? AND farmer_name IS NULL", (name, hid))
 

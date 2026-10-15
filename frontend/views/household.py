@@ -92,6 +92,45 @@ with right:
 
 draft = next((a for a in p["advisories"] if a["status"] in ("PENDING_REVIEW", "SECURITY_LOCK", "NEEDS_DATA")), None)
 if not officer:
+    ov = api.overview()
+    zone = plot.get("zone_id")
+    z = next((x for x in ov["zones"] if x["zone_id"] == zone), None)
+    st.subheader("Alerts for my farm")
+    alerts = []
+    if z and z["washout_risk"]:
+        alerts.append(("error", f"Heavy rain coming ({z['rain_72h_mm']:.0f} mm in 3 days): hold field work."))
+    elif z and z["spray_band"] == "UNSAFE":
+        alerts.append(("error", "Rain soon: don't spray now; it would wash off."))
+    elif z and z["spray_band"] == "CAUTION":
+        alerts.append(("warning", "Spray only if no rain is expected for the next 6 hours."))
+    if pat.get("onset") == "FALSE_START_RISK":
+        alerts.append(("warning", "Rain is returning after a dry spell: plant in two batches."))
+    elif pat.get("onset") == "LATE":
+        alerts.append(("info", "The rains are running late in your area. Keep your land ready."))
+    pests_here = sorted({a["pest"] for a in ov["alerts"] if a["verified"] and a["zone_id"] == zone})
+    if pests_here:
+        alerts.append(("warning", f"Confirmed in your area: {', '.join(pests_here)}. Check your crop this week."))
+    if rot.get("risk") in ("ELEVATED", "HIGH"):
+        alerts.append(("warning", rot.get("sms_tip") or rot.get("note")))
+    for kind, text in alerts or [("success", "No alerts for your farm right now.")]:
+        getattr(st, kind)(text)
+
+    st.subheader("Rainfall numbers")
+    st.dataframe(pd.DataFrame([{"Area": ("▶ " if x["zone_id"] == zone else "") + x["zone_id"].title(),
+                                "Next 24 h (mm)": x["rain_24h_mm"], "Next 3 days (mm)": x["rain_72h_mm"],
+                                "Next 7 days (mm)": x["rain_7d_mm"], "Storm": x["storm_risk"].title(),
+                                "Spraying": {"SAFE": "OK", "CAUTION": "Careful", "UNSAFE": "Don't"}[x["spray_band"]],
+                                "Spray score": x["spray_safety_index"]} for x in ov["zones"]]),
+                 hide_index=True, width="stretch",
+                 column_config={"Spray score": st.column_config.ProgressColumn("Spray score", min_value=0,
+                                                                               max_value=100, format="%d")})
+    if pat.get("dekads"):
+        st.markdown(f"**Rainfall pattern in {(zone or '').title()}** (10-day periods, this year vs normal)")
+        st.bar_chart(pd.DataFrame([{"Period": d["period"], "This year (mm)": d["rain_mm"],
+                                    "Normal (mm)": d["normal_mm"]} for d in pat["dekads"]]).set_index("Period"),
+                     stack=False, color=["#1F7A4D", "#C9D6CC"], height=220)
+    st.caption("CHIRPS-style rainfall data (synthetic for this demo).")
+
     sent = [a for a in p["advisories"] if a["status"] == "APPROVED"]
     st.subheader("Advice from your extension officer")
     if not sent:
@@ -120,18 +159,22 @@ if draft:
         msg = st.text_area("SMS to the farmer", draft["farmer_message"] or "", max_chars=320, height=90,
                            disabled=not (editing and can_send), key=f"msg-{draft['id']}")
         if can_send:
+            citation = st.text_area("Citation (required: the records this advice rests on)",
+                                    ui.suggested_citation(draft, api.farm_actions(hid)), height=70, max_chars=600,
+                                    key=f"cite-{draft['id']}")
             c = st.columns([1.4, 1.6, 1.2])
             name = c[0].text_input("Your full name (signature)", key=f"sig-{draft['id']}",
                                    placeholder="e.g. Wanjiru Kamau")
             ok = c[1].checkbox("I have checked the evidence and take responsibility for this advice.",
                                key=f"ok-{draft['id']}")
-            b = st.columns([1.3, 1.3, 2])
-            if b[0].button("✅ Verify & Broadcast via SMS", type="primary", key=f"send-{draft['id']}", width="stretch"):
+            b = st.columns([2.2, 1.3, 1])
+            if b[0].button("🚀 Send Local Advisory Notification to Farmer", type="primary", key=f"send-{draft['id']}",
+                           width="stretch"):
                 if not ok:
                     st.error("Tick the confirmation box first.")
                 else:
                     try:
-                        r = api.approve(draft["id"], name, msg)
+                        r = api.approve(draft["id"], name, msg, citation)
                         st.toast(f"Signed by {r['officer']}. SMS queued (simulated).", icon=":material/check:")
                         st.session_state.pop(f"edit-{draft['id']}", None)
                         st.rerun()

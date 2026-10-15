@@ -121,3 +121,40 @@ def farm_label(hid: str | None) -> str:
     info = st.session_state.get("farm_info", {}).get(hid, {})
     zone = (info.get("zone_id") or "").title()
     return f"{names().get(hid, hid)}" + (f" · {zone}" if zone else "")
+
+
+# --- Urgency and citations ------------------------------------------------------------------------------------
+HARVEST_STAGES = {"MATURITY", "HARVEST_READY", "HARVEST", "POD_FILL_MATURITY", "TUBER_BULKING"}
+URGENCY = {"PLANT": ("When to plant: plant now", "green"), "SPRAY": ("When to spray: spray now", "orange"),
+           "HOLD": ("When to hold: hold", "blue"), "HARVEST": ("Ready for harvest", "violet")}
+
+
+def urgency(verdict: str | None, stage: str | None) -> tuple[str, str]:
+    """Display state from the verdict plus the crop calendar. Harvest readiness is shown, never decided by the AI."""
+    if verdict in (None, "HOLD") and stage in HARVEST_STAGES:
+        return URGENCY["HARVEST"]
+    return URGENCY.get(verdict or "", ("No advice yet", "gray"))
+
+
+def suggested_citation(adv: dict, field_log: list[dict] | None = None) -> str:
+    """A citation built from the draft's own records, for the officer to check before sending."""
+    ev = adv.get("evidence") or {}
+    rain, plot, pattern = ev.get("rain") or {}, ev.get("plot") or {}, ev.get("weather_pattern") or {}
+    srcs = adv.get("sources") or []
+    wx = next((x for x in srcs if x.startswith("weather_cache:")), None)
+    pl = next((x for x in srcs if x.startswith("plots:")), None)
+    pest = next((x for x in srcs if x.startswith("pest_alerts:")), None)
+    parts = []
+    if wx:
+        parts.append(f"{rain.get('rain_7d_mm', '?')} mm 7-day rain forecast ({wx})")
+    if pattern.get("season_anomaly_pct") is not None:
+        parts.append(f"season outlook {pattern['season_anomaly_pct']:+d}% vs normal")
+    if pl:
+        day = plot.get("days_since_planting")
+        parts.append(f"plot record {pl} ({plot.get('active_crop') or 'no crop'}"
+                     + (f", day {day})" if day is not None else ")"))
+    if pest:
+        parts.append(f"confirmed pest report {pest}")
+    if field_log:
+        parts.append(f"plot history entry ID: {field_log[0]['id']}")
+    return "Citing " + ", ".join(parts) if parts else ""

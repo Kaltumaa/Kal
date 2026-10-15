@@ -57,7 +57,10 @@ def detail(adv: dict) -> None:
     with st.container(border=True):
         stage = ui.stage_label(plot.get("growth_stage")).lower() if plot.get("growth_stage") else ""
         st.markdown(f"### {ui.names().get(adv['household_id'], adv['household_id'])}")
-        st.markdown(ui.badges(adv["verdict"], adv["status"]) + f'  <span class="cp-muted">&nbsp;'
+        urg, urg_color = ui.urgency(adv["verdict"], plot.get("growth_stage"))
+        st.markdown(f":{urg_color}-badge[{urg}] "
+                    f":{ui.STATUS_COLOR.get(adv['status'], 'gray')}-badge[{ui.STATUS_TEXT.get(adv['status'], '')}]"
+                    + f'  <span class="cp-muted">&nbsp;'
                     f'{(plot.get("zone_id") or "—").title()} · {plot.get("active_crop") or "no crop recorded"}'
                     f'{" · " + stage if stage else ""}</span>', unsafe_allow_html=True)
 
@@ -91,23 +94,45 @@ def detail(adv: dict) -> None:
             m[3].metric("Nearest pest", f'{threat["distance_km"]} km' if threat else "None",
                         threat["pest"] if threat else None, delta_color="off")
 
-        t_msg, t_ev, t_trace = st.tabs(["Message & signature", "Evidence", "Agent steps"])
+        t_msg, t_farm, t_ev, t_trace = st.tabs(["Message & send", "Farm & plot history", "Evidence", "Agent steps"])
+        with t_farm:
+            prof = api.household_profile(adv["household_id"])
+            rot, pat = prof["rotation"], prof.get("pattern") or {}
+            seasons = (prof["plot"].get("crop_history") or []) + [f"{prof['plot'].get('active_crop') or '—'} (now)"]
+            st.markdown("**Seasons:** " + " → ".join(seasons))
+            st.markdown(f"**Rotation:** {(rot.get('risk') or 'unknown').title()} — {rot.get('note') or ''}")
+            if pat.get("season_anomaly_pct") is not None:
+                st.markdown(f"**Area rainfall:** season outlook {pat['season_expected_mm']:.0f} mm "
+                            f"({pat['season_anomaly_pct']:+d}% vs normal); last 20 days at "
+                            f"{pat.get('recent_pct_of_normal')}% of normal")
+            log = api.farm_actions(adv["household_id"])
+            if log:
+                st.markdown("**Field log (latest)**")
+                st.dataframe(pd.DataFrame([{"ID": a["id"], "Date": a["action_date"], "Action": a["action"].title(),
+                                            "Details": a["details"] or "", "By": a["entered_by"]} for a in log[:5]]),
+                             hide_index=True, width="stretch")
+            else:
+                st.caption("No field-log entries yet for this farm.")
         with t_msg:
             st.write(adv["rationale"])
             if can_sign:
                 with st.form(f"sign-{adv['id']}", border=False):
                     msg = st.text_area("Message to the farmer", adv["farmer_message"] or "", max_chars=320, height=90)
+                    citation = st.text_area("Citation (required: the records this advice rests on)",
+                                            ui.suggested_citation(adv, api.farm_actions(adv["household_id"])),
+                                            height=80, max_chars=600)
                     name = st.text_input("Your full name", placeholder="e.g. Wanjiru Kamau")
                     ok = st.checkbox("I have checked the evidence and take responsibility for this advice.")
-                    b = st.columns([1, 1, 2])
-                    sign = b[0].form_submit_button("Sign & send", type="primary", width="stretch")
+                    b = st.columns([2.2, 1, 1])
+                    sign = b[0].form_submit_button("🚀 Send Local Advisory Notification to Farmer", type="primary",
+                                                   width="stretch")
                     reject = b[1].form_submit_button("Reject", width="stretch")
                     try:
                         if sign:
                             if not ok:
-                                st.error("Tick the confirmation box to sign.")
+                                st.error("Tick the confirmation box to send.")
                             else:
-                                r = api.approve(adv["id"], name, msg)
+                                r = api.approve(adv["id"], name, msg, citation)
                                 st.toast(f"Signed by {r['officer']}. Message queued.", icon=":material/check:")
                                 st.rerun()
                         if reject:
@@ -177,7 +202,9 @@ with left:
     if not drafts:
         st.caption("No drafts waiting.")
         st.stop()
-    table = pd.DataFrame([{"Farm": ui.farm_label(a["household_id"]), "Advice": a["verdict"] or "—",
+    table = pd.DataFrame([{"Farm": ui.farm_label(a["household_id"]),
+                           "Urgency": ui.urgency(a["verdict"], ((a.get("evidence") or {}).get("plot") or {})
+                                                 .get("growth_stage"))[0],
                            "Status": "Forecast changed" if a.get("forecast_changed") else ui.STATUS_TEXT[a["status"]]}
                           for a in drafts])
     wanted = st.session_state.pop("select_advisory", None)

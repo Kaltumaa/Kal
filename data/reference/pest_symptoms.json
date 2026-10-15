@@ -1,9 +1,154 @@
 {
-  "Fall Armyworm": {"crops": ["Maize", "Sorghum"], "keywords": ["window", "pane", "holes", "ragged", "whorl", "frass", "sawdust", "caterpillar", "larva", "chewed", "eaten"]},
-  "Late Blight": {"crops": ["Potato", "Tomato"], "keywords": ["dark", "brown", "black", "lesion", "spot", "patch", "mould", "mold", "white", "rot", "water-soaked", "wilted"]},
-  "Aphids": {"crops": ["Kale", "Beans", "Cabbage"], "keywords": ["insects", "cluster", "curled", "curl", "sticky", "honeydew", "sooty", "small green", "small black", "ants"]},
-  "Bean fly": {"crops": ["Beans"], "keywords": ["wilting", "swollen stem", "cracked stem", "seedling", "maggot", "yellowing"]},
-  "Maize Lethal Necrosis": {"crops": ["Maize"], "keywords": ["yellow", "streak", "dry edges", "necrosis", "dead heart", "chlorosis", "mottled"]},
-  "Tomato leaf miner (Tuta)": {"crops": ["Tomato"], "keywords": ["mine", "tunnel", "blotch", "translucent", "holes in fruit"]},
-  "Nutrient deficiency (not a pest)": {"crops": [], "keywords": ["pale", "yellowing", "purple", "stunted", "uniform yellow"]}
+  "Fall Armyworm": {
+    "crops": [
+      "Maize",
+      "Sorghum"
+    ],
+    "keywords": [
+      "window",
+      "pane",
+      "holes",
+      "ragged",
+      "whorl",
+      "frass",
+      "sawdust",
+      "caterpillar",
+      "larva",
+      "chewed",
+      "eaten"
+    ],
+    "type": "Pest"
+  },
+  "Late Blight": {
+    "crops": [
+      "Potato",
+      "Tomato"
+    ],
+    "keywords": [
+      "dark",
+      "brown",
+      "black",
+      "lesion",
+      "spot",
+      "patch",
+      "mould",
+      "mold",
+      "white",
+      "rot",
+      "water-soaked",
+      "wilted"
+    ],
+    "type": "Disease"
+  },
+  "Aphids": {
+    "crops": [
+      "Kale",
+      "Beans",
+      "Cabbage"
+    ],
+    "keywords": [
+      "insects",
+      "cluster",
+      "curled",
+      "curl",
+      "sticky",
+      "honeydew",
+      "sooty",
+      "small green",
+      "small black",
+      "ants"
+    ],
+    "type": "Pest"
+  },
+  "Bean fly": {
+    "crops": [
+      "Beans"
+    ],
+    "keywords": [
+      "wilting",
+      "swollen stem",
+      "cracked stem",
+      "seedling",
+      "maggot",
+      "yellowing"
+    ],
+    "type": "Pest"
+  },
+  "Maize Lethal Necrosis": {
+    "crops": [
+      "Maize"
+    ],
+    "keywords": [
+      "yellow",
+      "streak",
+      "dry edges",
+      "necrosis",
+      "dead heart",
+      "chlorosis",
+      "mottled"
+    ],
+    "type": "Disease"
+  },
+  "Tomato leaf miner (Tuta)": {
+    "crops": [
+      "Tomato"
+    ],
+    "keywords": [
+      "mine",
+      "tunnel",
+      "blotch",
+      "translucent",
+      "holes in fruit"
+    ],
+    "type": "Pest"
+  },
+  "Nutrient deficiency (not a pest)": {
+    "crops": [],
+    "keywords": [
+      "pale",
+      "yellowing",
+      "purple",
+      "stunted",
+      "uniform yellow"
+    ],
+    "type": "Not a pest"
+  },
+  "Striga (witchweed)": {
+    "type": "Weed",
+    "crops": [
+      "Maize",
+      "Sorghum"
+    ],
+    "keywords": [
+      "striga",
+      "witchweed",
+      "purple flower",
+      "pink flower",
+      "small purple",
+      "parasitic",
+      "stunted maize"
+    ]
+  },
+  "Couch grass": {
+    "type": "Weed",
+    "crops": [],
+    "keywords": [
+      "couch",
+      "grass",
+      "rhizome",
+      "creeping",
+      "runners"
+    ]
+  },
+  "Black-jack (Bidens)": {
+    "type": "Weed",
+    "crops": [],
+    "keywords": [
+      "black-jack",
+      "blackjack",
+      "yellow flower",
+      "spiky seed",
+      "needle seed"
+    ]
+  }
 }

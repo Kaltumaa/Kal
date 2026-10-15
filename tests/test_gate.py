@@ -54,7 +54,11 @@ def test_officer_signature_required_and_recorded(temp_db):
         with pytest.raises(approval.ApprovalError):
             approval.approve(adv, bad)
     assert approval.outbox() == []
-    r = approval.approve(adv, "Wanjiru Kamau")
+    with pytest.raises(approval.ApprovalError):
+        approval.approve(adv, "Wanjiru Kamau")                                  # no citation
+    with pytest.raises(approval.ApprovalError):
+        approval.approve(adv, "Wanjiru Kamau", citation="Looks fine to me")     # cites nothing in the draft
+    r = approval.approve(adv, "Wanjiru Kamau", citation="Citing plots:HH-DS-003 and weather_cache:MUTUINI@2026-10-14")
     assert r["status"] == "APPROVED" and approval.outbox()[0]["officer_signature"] == "Wanjiru Kamau"
 
 

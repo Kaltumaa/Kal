@@ -129,21 +129,21 @@ if zp["dekads"]:
     pc[1].bar_chart(chart, stack=False, color=["#1F7A4D", "#C9D6CC"], height=260)
     pc[1].caption("Rain in each 10-day period (CHIRPS-style, synthetic) against the long-term average.")
 
-st.subheader("Rainfall numbers and map")
-mapcol, numbers = st.columns([1, 2.2], gap="large")
-with mapcol:
-    pts = [{"lat": h["lat"], "lon": h["lon"], "color": "#1F7A4D", "size": 60} for h in ov["households"]
-           if h["lat"] is not None]
-    pts += [{"lat": a["lat"], "lon": a["lon"], "color": "#D64545", "size": 180}
-            for zone in recent_pests.values() for a in zone if a["lat"] is not None]
-    st.map(pd.DataFrame(pts), latitude="lat", longitude="lon", color="color", size="size", zoom=11, height=260)
-    st.caption("Green: farms · Red: confirmed pest reports")
-with numbers:
-    st.dataframe(pd.DataFrame([{"Ward": z["zone_id"].title(), "24 h (mm)": z["rain_24h_mm"],
-                                "3 days (mm)": z["rain_72h_mm"], "7 days (mm)": z["rain_7d_mm"],
-                                "Storm": z["storm_risk"].title(), "Spray score": z["spray_safety_index"]}
-                               for z in ov["zones"]]), hide_index=True, width="stretch")
-    st.caption("Synthetic CHIRPS-style forecast. Spray score below 40 means do not spray.")
+st.subheader("Rainfall numbers")
+st.dataframe(pd.DataFrame([{"Ward": z["zone_id"].title(), "Next 24 h (mm)": z["rain_24h_mm"],
+                            "Next 3 days (mm)": z["rain_72h_mm"], "Next 7 days (mm)": z["rain_7d_mm"],
+                            "Storm": z["storm_risk"].title(),
+                            "Spraying": {"SAFE": "OK", "CAUTION": "Careful", "UNSAFE": "Don't"}[z["spray_band"]],
+                            "Spray score": z["spray_safety_index"],
+                            "Season vs normal": f"{z['pattern'].get('season_anomaly_pct', 0):+d}%",
+                            "Forecast issued": str(z["forecast_issued_at"])[:10]} for z in ov["zones"]]),
+             hide_index=True, width="stretch",
+             column_config={"Spray score": st.column_config.ProgressColumn("Spray score", min_value=0, max_value=100,
+                                                                           format="%d")})
+st.caption("Synthetic CHIRPS-style forecast. A spray score below 40 means do not spray.")
+
+formcol, mapcol = st.columns([2.6, 1], gap="large")
+with formcol:
     with st.expander("A new forecast arrived? Record it"):
         with st.form("new-forecast"):
             st.markdown("**A new forecast arrived?** Record it; drafts built on the old one are blocked until re-run.")
@@ -161,3 +161,10 @@ with numbers:
                     st.rerun()
                 except api.ApiError as exc:
                     st.error(str(exc.detail))
+with mapcol:
+    pts = [{"lat": h["lat"], "lon": h["lon"], "color": "#1F7A4D", "size": 60} for h in ov["households"]
+           if h["lat"] is not None]
+    pts += [{"lat": a["lat"], "lon": a["lon"], "color": "#D64545", "size": 180}
+            for zone in recent_pests.values() for a in zone if a["lat"] is not None]
+    st.map(pd.DataFrame(pts), latitude="lat", longitude="lon", color="color", size="size", zoom=11, height=220)
+    st.caption("Green: farms · Red: confirmed pest reports")

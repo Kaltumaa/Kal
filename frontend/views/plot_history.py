@@ -1,8 +1,5 @@
-"""Plot history: past seasons plus a log of field actions (planting, variety, fertiliser, irrigation...).
-
-Officers log for any farm (with their name); a farmer logs for their own farm. A planting entry updates the farm
-record, so the agent's crop calendar uses it.
-"""
+"""Plot history (read-only): past seasons, rotation risk and the field log. The log grows when a farmer ticks a
+reminder done."""
 from __future__ import annotations
 
 import pandas as pd
@@ -13,7 +10,6 @@ import ui
 
 ACTION_LABEL = {"PLANTING": "Planting", "VARIETY": "Variety / seed", "FERTILISER": "Fertiliser", "IRRIGATION": "Irrigation",
                 "WEEDING": "Weeding", "SPRAYING": "Spraying", "HARVEST": "Harvest", "OBSERVATION": "Observation"}
-CROPS = ["Maize", "Beans", "Kale", "Potato", "Tomato", "Sorghum", "Cowpeas", "Sweet Potato", "Groundnut"]
 
 role, mine = st.session_state.get("role", "officer"), st.session_state.get("my_farm")
 ui.header("Plot history", "What has been grown and done on this plot. Past seasons shape the advice "
@@ -48,25 +44,11 @@ with left:
         st.caption("Nothing logged yet for this plot.")
 
 with right:
-    with st.form("log-action", clear_on_submit=True):
-        st.markdown("**Add to the field log**")
-        c = st.columns(2)
-        action = c[0].selectbox("Action", list(ACTION_LABEL), format_func=ACTION_LABEL.get)
-        when = c[1].date_input("Date", value=pd.Timestamp(st.session_state.get("demo_today", "2026-10-15")).date())
-        crop = st.selectbox("Crop (needed for planting)", ["—"] + CROPS)
-        details = st.text_input("Details", max_chars=300, placeholder="e.g. DH04 seed, 50 kg CAN top-dress, 2 h drip")
-        name = None
-        if role == "officer":
-            name = st.text_input("Your full name (officer)")
-        else:
-            st.caption(f"Saved as reported by {ui.names().get(hid, 'you')} (farmer).")
-        if st.form_submit_button("Save", type="primary", width="stretch"):
-            try:
-                r = api.log_farm_action(hid, action, when.isoformat(), None if crop == "—" else crop, details, role, name)
-                msg = "Saved." + (" The farm record now uses this planting date." if r["updated_record"] else "")
-                st.toast(msg, icon=":material/check:")
-                st.rerun()
-            except api.ApiError as exc:
-                st.error(str(exc.detail))
-    st.caption("A planting entry updates the farm record, so the next advice uses the new crop and date. "
-               "Logging inputs used is history only; the agent never recommends buying inputs.")
+    with st.container(border=True):
+        st.markdown("**How the field log grows**")
+        st.markdown("- Farmers tick their **Reminders** done; each finished job is added here.\n"
+                    "- Entries show who reported them.\n"
+                    "- Past seasons and the planting date come from the farm record the agent reads.")
+        if role == "farmer":
+            st.page_link("views/reminders.py", label="Open my reminders", icon=":material/alarm:")
+    st.caption("This page is read-only. The agent never recommends buying inputs; logged inputs are history only.")

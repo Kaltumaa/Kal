@@ -44,7 +44,7 @@ Streamlit Control Desk ──HTTP──► FastAPI ──► LangGraph (SQLite c
 **Why rules decide and the model explains:** a 3B model on a CPU must not decide whether to spray before a storm. The
 safety ordering is tested code; the model adds agency (tool choice) and language. EVALS.md measures both.
 
-## Human approval is enforced in six independent places
+## Human approval is enforced in seven independent places
 
 1. **No send tool exists:** a test asserts our server's exact tool set, and the borrowed server is filtered to read tools.
 2. **Limited draft statuses:** `draft_advisory` can only write `PENDING_REVIEW`, `SECURITY_LOCK` or `NEEDS_DATA`, and it
@@ -55,6 +55,8 @@ safety ordering is tested code; the model adds agency (tool choice) and language
 5. **Locked or incomplete drafts:** they can only be rejected.
 6. **Changed forecasts:** if a newer forecast changes the spray band, washout risk or 7-day rain, the draft cannot be
    signed until the agent is re-run.
+7. **Citations:** sending requires an officer citation that references at least one of the draft's own records.
+   It is stored with the approval.
 
 The same pattern gates photos: a field-scan report becomes a pest alert only when a named officer verifies it.
 The app has an **officer view** (all farms, the only place advice is approved) and a **farmer view** (own farm, signed
