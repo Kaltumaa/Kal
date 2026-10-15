@@ -1,0 +1,11 @@
+zone_id,year,month,dekad,rain_mm,long_term_mean_mm,source
+RIRUTA,2026,9,3,4.1,9.8,CHIRPS-format synthetic
+RIRUTA,2026,10,1,12.6,18.2,CHIRPS-format synthetic
+WAITHAKA,2026,9,3,6.0,10.4,CHIRPS-format synthetic
+WAITHAKA,2026,10,1,41.3,19.0,CHIRPS-format synthetic
+MUTUINI,2026,9,3,2.2,9.1,CHIRPS-format synthetic
+MUTUINI,2026,10,1,7.5,17.6,CHIRPS-format synthetic
+NGANDO,2026,9,3,3.0,8.7,CHIRPS-format synthetic
+NGANDO,2026,10,1,6.8,16.9,CHIRPS-format synthetic
+UTHIRU,2026,9,3,5.5,10.9,CHIRPS-format synthetic
+UTHIRU,2026,10,1,15.2,19.4,CHIRPS-format synthetic
