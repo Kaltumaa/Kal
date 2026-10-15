@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "timestamp": "2026-10-15T04:09:48",
+    "model": "qwen2.5:3b",
+    "llm": true,
+    "runs": 1,
+    "today": "2026-10-15",
+    "machine": "Darwin x86_64, CPU-only"
+  },
+  "results": [
+    {
+      "task": 1,
+      "run_id": "run-66a0c8c5e979",
+      "passed": true,
+      "checks": [
+        [
+          "frozen at human gate",
+          true
+        ],
+        [
+          "nothing in outbox",
+          true
+        ],
+        [
+          "no runtime errors",
+          true
+        ],
+        [
+          "verdict PLANT",
+          true
+        ],
+        [
+          "cites plot+rain+reference",
+          true
+        ]
+      ],
+      "status": "PENDING_REVIEW",
+      "verdict": "PLANT",
+      "model_verdict": "HOLD",
+      "flags": [
+        "auto_filled:read_text_file",
+        "model_disagreement:HOLD->PLANT",
+        "false_start_risk"
+      ],
+      "llm_used": true,
+      "elapsed_s": 119.98,
+      "tool_calls": 9,
+      "llm_calls": 9,
+      "blocked_calls": 0,
+      "tokens": 17970,
+      "third_party_calls": 4
+    }
+  ]
+}

@@ -89,10 +89,19 @@ finishes and records a crashing task as a FAIL instead of losing the batch.
   (see README, "Where our data is unusually clean").
 - **No real-world scoring:** the eight tasks check safety behaviour and data handling. They do not test agronomic
   correctness against real outcomes, and no extension officer has reviewed the drafts yet.
-- **Batch ran on earlier code:** the full model batch ran just before three additions:
+- **Batch ran on earlier code:** the full 5-run model batch ran before six additions:
   - plot-history rotation notes;
   - crop-specific planting thresholds;
-  - weather-pattern context.
+  - weather patterns (the `get_weather_pattern` tool);
+  - desk follow-ups (the `schedule_followup` tool);
+  - the forecast-change guard;
+  - the `self_check` reflection node.
 
-  None of them can change the verdict for these eight households. After adding them we re-ran
-  `make evals-quick` (deterministic), and all 8 tasks pass.
+  None of them changes the verdict for these eight households. On the final code:
+  - `make evals-quick` (deterministic) passes **8/8**;
+  - the unit suite (37 tests) covers the self-check's retry and downgrade paths;
+  - two real local-model spot checks pass. They are in `evals/results/spot_checks/`: task 1 after weather patterns,
+    where the model called `get_weather_pattern` itself, and task 3 after the reflection node, where the self-check
+    passed and the model read the guidance file itself.
+
+  A fresh 5-run model batch on the final code was not re-run before the deadline.
