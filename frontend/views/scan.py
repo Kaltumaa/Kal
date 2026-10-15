@@ -27,7 +27,7 @@ CROPS = ["From farm record", "Maize", "Beans", "Kale", "Potato", "Tomato", "Sorg
 
 role, mine = st.session_state.get("role", "officer"), st.session_state.get("my_farm")
 officer = role == "officer"
-ui.header("Identify plant, weed, pests",
+ui.header("Identify plants, weeds & pests",
           "Take or upload a photo. A local AI describes it, our guide suggests the plant, weed or pest, and an "
           "extension officer verifies it before it counts as an alert.")
 if officer:

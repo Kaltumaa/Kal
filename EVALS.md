@@ -83,6 +83,15 @@ config before a new setting was added, so importing the API for task 8 raised `A
 batch's summary file; the earlier 34 agent runs had passed 34/35. *Fixed:* the harness now saves every run as it
 finishes and records a crashing task as a FAIL instead of losing the batch.
 
+**5: the photo check confidently mislabelled a weed as a pest (found by hand, fixed).** A healthy wild-lettuce
+weed photo produced "holes and chewed edges" from the vision model, and the matcher then said Fall Armyworm.
+- **Cause:** a leading prompt, and a matcher that ignored what the subject was.
+- **Fix:** neutral questions, a three-way majority vote on weed vs crop, a health check, and type and host-crop
+  filtering. The same photo now returns "Weed (species unclear)" with no pest.
+- **Regression test:** `test_weed_photo_is_never_turned_into_a_pest`.
+- **Still open:** with three votes the model still calls a synthetic damaged maize leaf a weed. *Next:* a larger
+  vision model (e.g. `qwen2.5vl:3b`) and a small labelled photo set as a proper eval.
+
 ## Honest limits of this test set
 
 - **Synthetic data:** households, rainfall and pest alerts are all synthetic. The rainfall feed is clean and complete

@@ -55,6 +55,54 @@ def match_symptoms(description: str, crop: str | None = None) -> list[dict]:
     return sorted(results, key=lambda r: r["score"], reverse=True)[:3]
 
 
+MIN_MATCH = 0.3
+
+
+def _vote(answer: str) -> str:
+    """Read one natural-language answer to 'weed or crop?' (the model answers in sentences)."""
+    t = (answer or "").lower()
+    if "not a weed" in t:
+        return "crop"
+    if "not a crop" in t:
+        return "weed"
+    hits = {cat: t.find(word) for word, cat in (("weed", "weed"), ("crop", "crop"), ("caterpillar", "insect"),
+                                                 ("insect", "insect")) if word in t}
+    return min(hits, key=hits.get) if hits else "unclear"
+
+
+def _yes_no(answer: str) -> bool | None:
+    t = (answer or "").strip().lower()
+    return True if t.startswith("yes") else (False if t.startswith("no") else None)
+
+
+def classify_photo(description: str, subject_answers: list[str], healthy_answer: str, crop: str | None) -> dict:
+    """Combine the vision model's answers with the guide. Deterministic.
+
+    The small model is biased by word order and tends to say "yes", so: the main subject is the MAJORITY of three
+    differently-worded questions (else "unclear"), and damage is judged only by "Do the leaves look healthy?".
+    - Weed (majority): only weed matches, or "weed, species unclear".
+    - Healthy leaves and not a weed: no pest is suggested.
+    - Otherwise pests and diseases, dropping any that do not attack the farm's crop and any weak match.
+    """
+    votes = [_vote(a) for a in subject_answers]
+    top = max(set(votes), key=votes.count) if votes else "unclear"
+    category = top if votes.count(top) >= 2 else "unclear"
+    healthy = _yes_no(healthy_answer)
+    signs = None if healthy is None else not healthy
+    found = match_symptoms(description, crop)
+    if category == "weed":
+        weeds = [c for c in found if c["type"] == "Weed" and c["score"] >= MIN_MATCH]
+        candidates = weeds or [{"pest": "Weed (species unclear)", "type": "Weed", "score": 0.5,
+                                "matched": [f"AI: weed in {votes.count('weed')} of {len(votes)} checks"],
+                                "host_crops": []}]
+    elif signs is False:
+        candidates = []
+    else:
+        candidates = [c for c in found if c["type"] != "Weed" and c["score"] >= MIN_MATCH
+                      and not (crop and c["host_crops"] and crop not in c["host_crops"])]
+    return {"category": category, "votes": votes, "signs": signs, "candidates": candidates[:3]}
+
+
 @lru_cache(maxsize=1)
 def crops() -> list[dict]:
     with (config.REFERENCE_DIR / "crop_suitability.csv").open(encoding="utf-8") as fh:

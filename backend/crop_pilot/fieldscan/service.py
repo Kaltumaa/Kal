@@ -21,9 +21,13 @@ from crop_pilot.dispatch.approval import ApprovalError, validate_signature
 VISION_MODEL = config.VISION_MODEL
 SCAN_DIR = config.DATA_DIR / "scans"
 MAX_IMAGE_BYTES = 6_000_000
-VISION_PROMPT = ("Describe this crop photo for an agricultural extension officer. Name the plant if you can, then "
-                 "describe any visible damage: holes, chewed edges, spots, lesions, discoloration, yellowing, mould, "
-                 "insects or caterpillars. Be specific and brief.")
+# Neutral, natural questions on purpose. A leading prompt ("describe the holes...") made the small model invent
+# damage, it returns nothing for "answer with one word", and its weed/crop answer flips with word order, so we ask
+# three phrasings and take the majority. Damage is judged only by "Do the leaves look healthy?".
+CAPTION_PROMPT = "What plant is shown in this photo, and what condition is it in?"
+SUBJECT_PROMPTS = ["Is this plant a weed or a crop?", "Is this plant a crop or a weed?",
+                   "Is this a cultivated crop plant growing on purpose, or a wild weed?"]
+HEALTH_PROMPT = "Do the leaves look healthy?"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS field_scans (
@@ -41,17 +45,33 @@ class ScanError(ValueError):
     pass
 
 
-def _describe(image_b64: str) -> tuple[str, dict]:
+def _ask(image_b64: str, prompt: str, max_tokens: int) -> tuple[str, dict]:
     started = time.perf_counter()
     with httpx.Client(timeout=config.LLM_TIMEOUT_S * 2) as client:
         r = client.post(f"{config.OLLAMA_HOST}/api/generate", json={
-            "model": VISION_MODEL, "prompt": VISION_PROMPT, "images": [image_b64], "stream": False,
-            "options": {"temperature": 0.2}})
+            "model": VISION_MODEL, "prompt": prompt, "images": [image_b64], "stream": False,
+            "options": {"temperature": 0, "num_predict": max_tokens}})
         r.raise_for_status()
         data = r.json()
-    meta = {"latency_ms": (time.perf_counter() - started) * 1000,
-            "tokens": int(data.get("prompt_eval_count", 0)) + int(data.get("eval_count", 0))}
-    return data.get("response", ""), meta
+    return data.get("response", "").strip(), {"latency_ms": (time.perf_counter() - started) * 1000,
+                                              "tokens": int(data.get("prompt_eval_count", 0))
+                                              + int(data.get("eval_count", 0))}
+
+
+def _describe(image_b64: str) -> tuple[str, dict]:
+    text, meta = _ask(image_b64, CAPTION_PROMPT, 110)
+    if "." in text and not text.rstrip().endswith("."):
+        text = text[: text.rfind(".") + 1]          # drop a sentence cut off by the token limit
+    return text, meta
+
+
+def _classify(image_b64: str) -> tuple[dict, dict]:
+    answers, latency, tokens = [], 0.0, 0
+    for prompt in SUBJECT_PROMPTS + [HEALTH_PROMPT]:
+        text, m = _ask(image_b64, prompt, 24)
+        answers.append(text)
+        latency, tokens = latency + m["latency_ms"], tokens + m["tokens"]
+    return {"subjects": answers[:-1], "healthy": answers[-1]}, {"latency_ms": latency, "tokens": tokens}
 
 
 def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
@@ -76,13 +96,23 @@ def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
     model_used = VISION_MODEL
     try:
         description, meta = _describe(image_b64)
+        answers, meta2 = _classify(image_b64)
+        meta = {"latency_ms": meta["latency_ms"] + meta2["latency_ms"], "tokens": meta["tokens"] + meta2["tokens"]}
         status = "ok"
     except (httpx.HTTPError, ValueError) as exc:
-        description, meta, status = "", {"latency_ms": 0, "tokens": 0, "error": str(exc)[:200]}, "error"
+        description, answers, status = "", {"subjects": [], "healthy": ""}, "error"
+        meta = {"latency_ms": 0, "tokens": 0, "error": str(exc)[:200]}
         model_used = None
-    # The caption is model output about an untrusted photo: treat it as data and scrub it.
+    # Model output about an untrusted photo: treat it as data and scrub it.
     description, hits = sanitizer.scrub_free_text(description, 1200)
-    candidates = knowledge.match_symptoms(description, crop) if not hits else []
+    subjects = [sanitizer.scrub_free_text(a, 160)[0] for a in answers.get("subjects", [])]
+    healthy, _ = sanitizer.scrub_free_text(answers.get("healthy"), 160)
+    verdict = knowledge.classify_photo(description, subjects, healthy, crop) if not hits else \
+        {"category": "unclear", "votes": [], "signs": None, "candidates": []}
+    candidates = verdict["candidates"]
+    signs_label = {True: "yes", False: "no", None: "unclear"}[verdict["signs"]]
+    description = (f"{description} [AI checks: main subject = {verdict['category']} "
+                   f"(votes: {', '.join(verdict['votes']) or 'none'}); damage = {signs_label}]")
     telemetry.record(run_id, "ollama", f"vision:{VISION_MODEL}", {"household_id": hid, "crop": crop, "bytes": len(raw)},
                      {"description": description, "candidates": candidates}, latency_ms=meta["latency_ms"],
                      token_count=meta.get("tokens"), status=status)
@@ -98,7 +128,8 @@ def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
         (SCAN_DIR / name).write_bytes(raw)
         conn.execute("UPDATE field_scans SET image_file=? WHERE id=?", (name, scan_id))
     return {"scan_id": scan_id, "household_id": hid, "crop": crop, "description": description,
-            "plant_seen": knowledge.plant_seen(description),
+            "plant_seen": knowledge.plant_seen(description), "category": verdict["category"],
+            "damage_signs": verdict["signs"],
             "candidates": candidates, "model": model_used, "status": "UNVERIFIED",
             "vision_available": status == "ok", "injection_flag": bool(hits)}
 

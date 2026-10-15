@@ -195,12 +195,50 @@ except api.ApiError as exc:
 drafts = [a for a in advs if a["status"] in ("SECURITY_LOCK", "PENDING_REVIEW", "NEEDS_DATA")]
 drafts.sort(key=lambda a: ({"SECURITY_LOCK": 0, "PENDING_REVIEW": 1}.get(a["status"], 2), -a["id"]))
 
+PLAN = {"PLANT": ("Plant now", "green"), "SPRAY": ("Spray now", "orange"), "HOLD": ("Hold", "blue"),
+        "HARVEST": ("Ready for harvest", "violet"), "NEEDS_DATA": ("Needs farm data", "gray"),
+        "SECURITY_LOCK": ("Record locked", "red")}
+DRAFT = {None: "No draft yet", "PENDING_REVIEW": "Draft waiting for you", "SECURITY_LOCK": "Draft locked",
+         "NEEDS_DATA": "Needs field visit", "APPROVED": "Sent", "REJECTED": "Rejected"}
+st.subheader("Every farm this week")
+st.caption("What each farm should do now according to the safety rules: its own plot history, crop stage, area "
+           "rainfall and confirmed pests. This is a preview: nothing goes to a farmer until the agent drafts it "
+           "and you sign.")
+plan = api.farms_plan()
+for row in range(0, len(plan), 3):
+    cols = st.columns(3)
+    for col, f in zip(cols, plan[row:row + 3]):
+        label, color = PLAN.get(f["plan"], (f["plan"], "gray"))
+        with col.container(border=True, height=290):
+            st.markdown(f"**{f['farmer_name']}** · {(f['zone_id'] or '—').title()}  \n"
+                        f":{color}-badge[{label}] <span class='cp-muted'>{f['crop'] or 'no crop'} · "
+                        f"{ui.stage_label(f['stage']).lower()}"
+                        + (f", day {f['days']}" if f["days"] is not None else "") + "</span>",
+                        unsafe_allow_html=True)
+            why = f["why"]
+            for code, words in ui.STAGES.items():
+                why = why.replace(code, words.lower())
+            st.caption(why[:150])
+            for n in f["notes"][:1]:
+                st.caption(f":material/info: {n}")
+            st.caption(f"Draft: {DRAFT.get(f['draft_status'], f['draft_status'])}")
+            if f["draft_status"] in (None, "APPROVED", "REJECTED") and f["plan"] not in ("SECURITY_LOCK",):
+                if st.button("Draft advice", key=f"draft-{f['household_id']}", width="stretch"):
+                    with st.spinner(f"Drafting for {f['farmer_name']}… (1–3 min on CPU)"):
+                        try:
+                            res = api.run_agent(f["household_id"], "")
+                            st.session_state["select_advisory"] = res["advisory"].get("advisory_id")
+                            st.rerun()
+                        except api.ApiError as exc:
+                            st.error(str(exc.detail))
+st.divider()
+st.subheader("Drafts to review")
 ward_summary()
 left, right = st.columns([1, 2], gap="large")
 with left:
     new_draft()
     if not drafts:
-        st.caption("No drafts waiting.")
+        st.caption("No drafts waiting. Use **Draft advice** on a farm above, or **New draft** for a whole ward.")
         st.stop()
     table = pd.DataFrame([{"Farm": ui.farm_label(a["household_id"]),
                            "Urgency": ui.urgency(a["verdict"], ((a.get("evidence") or {}).get("plot") or {})

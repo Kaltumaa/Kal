@@ -25,7 +25,7 @@ filesystem MCP server), and [Ollama](https://ollama.com) installed locally. If O
 It switches to deterministic gathering and template messages, and every draft carries the
 `llm_unavailable_deterministic_gathering` flag so this is never hidden.
 
-Other targets: `make test` (40 unit, gate, reflection and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
+Other targets: `make test` (41 unit, gate, reflection and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
 `make evals-quick` (deterministic, ~1 min), `make clean`, `make help`.
 
 ## What is in the Control Desk
@@ -33,10 +33,10 @@ Other targets: `make test` (40 unit, gate, reflection and boundary tests), `make
 | Section | Page | What it does |
 |---|---|---|
 | Advisory | **Dashboard** | Rainfall outlook per ward (spray-safety band, planting window, washout risk), a map of households and verified pest alerts, and what is waiting for you |
-| | **Review queue** | Run the agent for one household or a **whole ward** (a household cluster, timed against the by-hand baseline); each draft shows an urgency state (**When to plant / When to spray / When to hold / Ready for harvest**) and a **Farm & plot history** tab. Sending (**🚀 Send Local Advisory Notification to Farmer**) needs the officer's name, a confirmation and a **citation** that references the draft's own records. **This is the human gate.** A draft whose rainfall forecast has since changed cannot be signed until the agent is re-run |
+| | **Review queue** | Opens with **every farm this week**: Plant now / Spray now / Hold / Ready for harvest / Needs data / Record locked, with the reason from that farm's plot history, crop stage, area rainfall and confirmed pests (a rule preview, no model), and a Draft advice button. Then run the agent for one household or a **whole ward** (a household cluster, timed against the by-hand baseline); each draft shows an urgency state (**When to plant / When to spray / When to hold / Ready for harvest**) and a **Farm & plot history** tab. Sending (**🚀 Send Local Advisory Notification to Farmer**) needs the officer's name, a confirmation and a **citation** that references the draft's own records. **This is the human gate.** A draft whose rainfall forecast has since changed cannot be signed until the agent is re-run |
 | | **Farms** | One farm at a time (by farmer name): plot history and rotation risk, a **crop-calendar timeline** with today's position and the stages when pests can damage the crop, the ward's weather pattern, and every draft and follow-up for that household |
-| | **Plot history** | Read-only: past seasons, rotation risk and the field log. The log grows when a farmer ticks a reminder done |
-| | **Identify plant, weed, pests** | Take or upload a photo. A **local** vision model (moondream) describes it, the guide suggests the plant, weed or pest ("AI Analysis: … ⏳ Awaiting Verification"), and an officer must **Verify Assessment** before it becomes an alert the agent uses |
+| | **Plot history** | Past seasons, rotation risk and the field log. **Farmers add entries** (planting, variety, fertiliser, irrigation, weeding, spraying, harvest) and finished reminders; a planting entry updates the record the agent reads. Read-only for the officer |
+| | **AI Scan** ("Identify plants, weeds & pests") | Take or upload a photo. A **local** vision model (moondream) describes it, the guide suggests the plant, weed or pest ("AI Analysis: … ⏳ Awaiting Verification"), and an officer must **Verify Assessment** before it becomes an alert the agent uses |
 | Farmer hub | **Learn** | Guides on pests & diseases, pesticides & safe use, weeds, soils, greenhouse growing and the crop calendar, plus a **"What can I grow?"** tool filled from each ward's season outlook, and a **greenhouse check**: type temperature and humidity, or let a sensor POST them to `/greenhouse/readings`, and get VPD, dew point and what to do |
 | | **Community** | Discussion board for farmers and officers. Posts are scrubbed; instruction-like posts are held for moderation. The agent never reads it: chat is not a verified signal |
 | System | **Activity log** | Every step and decision in plain words, with who approved it; technical details on request |
@@ -184,8 +184,16 @@ tests/         unit, gate and architecture-boundary tests
 * Outbound is **simulated** (a `dispatch_outbox` table). No SMS/USSD gateway is wired in, by design for the challenge.
 * The rainfall cache is static; there is no scheduled CHIRPS/TAMSAT ingest yet.
 * English only; Swahili farmer messages are a next step.
-* The vision model is small (1.9 B) and only *describes* symptoms; matching to a pest is a keyword lookup against
-  `data/reference/pest_symptoms.json`. It is a triage aid for the officer, not a diagnosis.
+* The vision model is small (1.9 B) and unreliable on its own. We found and fixed real failures. A leading
+  prompt made it invent "holes and chewed edges" on a healthy weed, which was then matched to Fall Armyworm. It
+  also returns nothing for "answer with one word", and its weed/crop answer flips with word order. It now gets
+  neutral questions:
+  - "what plant, what condition";
+  - weed-or-crop asked three ways, with the majority deciding;
+  - "do the leaves look healthy?".
+
+  Matches are filtered by type and host crop, and when the answers disagree the result is "unclear", not a guess.
+  It is still a triage aid for the officer, not a diagnosis.
 * The community board has no login; display names are not verified.
 * The officer/farmer switch is not authentication; anyone with the app can pick either view.
 * Greenhouse: **no physical sensor is connected** in this demo. The "Simulate a sensor reading" button posts a random

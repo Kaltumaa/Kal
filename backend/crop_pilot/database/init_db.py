@@ -177,6 +177,9 @@ PLOTS = [
     # Task 7 – potato under verified late blight; used to prove nothing leaves without an officer
     ("HH-DS-007", "UTHIRU", "-1.2655", "36.7158", "Potato>Beans", "Potato", "2026-08-25", "51",
      "VEGETATIVE", "Lower leaves showing dark lesions after cold nights.", 1),
+    # Demo – beans planted in July, now mature: shows the "Ready for harvest" state
+    ("HH-DS-009", "RIRUTA", "-1.2872", "36.7329", "Maize>Beans>Maize", "Beans", "2026-07-05", "",
+     "", "Pods drying on most plants.", 1),
     # Task 8 – ordinary household used for the corrupt-database recovery drill
     ("HH-DS-008", "NGANDO", "-1.3004", "36.7296", "Beans>Maize", "Maize", "2026-08-01", "75",
      "TASSELING", "Crop looks even. Top-dressing done.", 1),
@@ -197,7 +200,7 @@ PESTS = [
 FARMER_NAMES = {
     "HH-DS-001": "Peter Njoroge", "HH-DS-002": "Mary Achieng", "HH-DS-003": "Grace Wanjiku",
     "HH-DS-004": "Joseph Ouma", "HH-DS-005": "Agnes Muthoni", "HH-DS-006": "Samuel Kiprono",
-    "HH-DS-007": "Esther Nduta", "HH-DS-008": "David Mwangi",
+    "HH-DS-007": "Esther Nduta", "HH-DS-008": "David Mwangi", "HH-DS-009": "Ruth Wairimu",
 }
 PLOT_COLUMNS = ("household_id, zone_id, lat, lon, crop_history, active_crop, planting_date, days_since_planting, "
                 "growth_stage, field_notes, is_synthetic")

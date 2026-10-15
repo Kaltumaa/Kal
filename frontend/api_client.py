@@ -194,3 +194,7 @@ def create_reminder(household_id: str, due_date: str, action: str, note: str):
 
 def reminder_done(reminder_id: int):
     return _req("POST", f"/reminders/{reminder_id}/done")
+
+
+def farms_plan():
+    return _req("GET", "/farms/plan")

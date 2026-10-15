@@ -1,5 +1,5 @@
-"""Plot history (read-only): past seasons, rotation risk and the field log. The log grows when a farmer ticks a
-reminder done."""
+"""Plot history: past seasons, rotation risk and the field log. Farmers add entries (and finished reminders);
+the officer view is read-only."""
 from __future__ import annotations
 
 import pandas as pd
@@ -43,12 +43,33 @@ with left:
     else:
         st.caption("Nothing logged yet for this plot.")
 
+CROPS = ["Maize", "Beans", "Kale", "Potato", "Tomato", "Sorghum", "Cowpeas", "Sweet Potato", "Groundnut"]
 with right:
-    with st.container(border=True):
-        st.markdown("**How the field log grows**")
-        st.markdown("- Farmers tick their **Reminders** done; each finished job is added here.\n"
-                    "- Entries show who reported them.\n"
-                    "- Past seasons and the planting date come from the farm record the agent reads.")
-        if role == "farmer":
-            st.page_link("views/reminders.py", label="Open my reminders", icon=":material/alarm:")
-    st.caption("This page is read-only. The agent never recommends buying inputs; logged inputs are history only.")
+    if role == "farmer":
+        with st.form("log-action", clear_on_submit=True, border=True):
+            st.markdown("**Add to my plot history**")
+            c = st.columns(2)
+            action = c[0].selectbox("What did you do?", list(ACTION_LABEL), format_func=ACTION_LABEL.get)
+            when = c[1].date_input("When", value=pd.Timestamp(st.session_state.get("demo_today", "2026-10-15")).date())
+            crop = st.selectbox("Crop (needed for planting)", ["—"] + CROPS)
+            details = st.text_input("Details", max_chars=300,
+                                    placeholder="e.g. DH04 seed, 50 kg CAN top-dress, 2 h drip irrigation")
+            if st.form_submit_button("Save to my plot history", type="primary", width="stretch"):
+                try:
+                    r = api.log_farm_action(hid, action, when.isoformat(), None if crop == "—" else crop, details,
+                                            "farmer", None)
+                    st.toast("Saved." + (" Your crop and planting date are updated, so the next advice uses them."
+                                         if r["updated_record"] else ""), icon=":material/check:")
+                    st.rerun()
+                except api.ApiError as exc:
+                    st.error(str(exc.detail))
+        st.caption("Saved as reported by you (farmer). Planting updates your farm record, so your officer's next "
+                   "advice uses the new crop and date. You can also tick **Reminders** done to add entries.")
+    else:
+        with st.container(border=True):
+            st.markdown("**How the field log grows**")
+            st.markdown("- Farmers add what they did (planting, weeding, fertiliser, irrigation, spraying, harvest).\n"
+                        "- Farmers' finished **Reminders** are added too.\n"
+                        "- Each entry shows who reported it.")
+        st.caption("Read-only for the officer. Logged inputs are history only; the agent never recommends buying "
+                   "inputs.")

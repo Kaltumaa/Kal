@@ -150,5 +150,20 @@
       "spiky seed",
       "needle seed"
     ]
+  },
+  "Wild / prickly lettuce": {
+    "type": "Weed",
+    "crops": [],
+    "keywords": [
+      "lettuce",
+      "toothed",
+      "lobed",
+      "serrated",
+      "spiny",
+      "prickly",
+      "dandelion",
+      "thistle",
+      "milky"
+    ]
   }
 }

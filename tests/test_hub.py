@@ -46,6 +46,9 @@ def test_scan_stays_unverified_until_named_officer(temp_db, tmp_path, monkeypatc
     monkeypatch.setattr(fieldscan, "SCAN_DIR", tmp_path)
     monkeypatch.setattr(fieldscan, "_describe", lambda b64: ("Maize leaf with ragged holes and frass in the whorl",
                                                              {"latency_ms": 1, "tokens": 0}))
+    monkeypatch.setattr(fieldscan, "_classify", lambda b64: ({"subjects": ["It is a crop.", "A crop, not a weed.",
+                                                                           "This is a crop plant."], "healthy": "No"},
+                                                             {"latency_ms": 1, "tokens": 0}))
     res = fieldscan.analyse(PNG_1PX, "HH-DS-003", None)
     assert res["status"] == "UNVERIFIED" and res["candidates"][0]["pest"] == "Fall Armyworm"
     conn = sqlite3.connect(temp_db, isolation_level=None)   # autocommit: a failed write must not hold a lock
@@ -148,3 +151,32 @@ def test_reminder_not_logged_until_done(temp_db):
     log = actions.list_actions("HH-DS-003")
     assert done["done"] and len(log) == 1 and log[0]["action"] == "WEEDING" and log[0]["entered_by"] == "Grace Wanjiku"
     assert count() == before + 1
+
+
+def test_weed_photo_is_never_turned_into_a_pest():
+    # The real failure we fixed: a healthy weed photo, model invented "holes", matcher said Fall Armyworm.
+    desc = "A hand holding a plant with large green toothed leaves; the leaves have holes and chewed edges."
+    real_answers = ["This plant is a weed, not a crop.", "This plant is a crop, not a weed.",
+                    "The image shows a hand holding a leaf from a plant, which appears to be a wild weed."]
+    weed = knowledge.classify_photo(desc, real_answers, "Yes, the leaves appear to be healthy and green", "Beans")
+    assert weed["category"] == "weed" and weed["candidates"][0]["pest"] == "Weed (species unclear)"
+    split = knowledge.classify_photo(desc, ["a weed", "a crop", "not sure"], "Yes", "Beans")
+    assert split["category"] == "unclear" and split["candidates"] == []                 # no majority: no guess
+    lettuce = knowledge.classify_photo("wild lettuce with lobed, toothed, prickly leaves", real_answers, "Yes", None)
+    assert lettuce["candidates"][0]["pest"] == "Wild / prickly lettuce"
+    wrong_host = knowledge.classify_photo("ragged holes and frass in the whorl, a caterpillar",
+                                          ["a crop", "a crop", "a crop"], "No", "Beans")
+    assert all(c["pest"] != "Fall Armyworm" for c in wrong_host["candidates"])      # FAW does not attack beans
+
+
+def test_every_farm_plan_uses_plot_history_and_calendar(temp_db, tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from crop_pilot import config
+    from crop_pilot.api.main import app
+    monkeypatch.setattr(config, "CHECKPOINT_DB_PATH", tmp_path / "ck.db")
+    with TestClient(app) as c:
+        plan = {f["household_id"]: f for f in c.get("/farms/plan").json()}
+    assert plan["HH-DS-009"]["plan"] == "HARVEST"           # beans past day 85 in the crop calendar
+    assert plan["HH-DS-006"]["plan"] == "SECURITY_LOCK" and plan["HH-DS-006"]["notes"] == []
+    assert plan["HH-DS-002"]["plan"] == "HOLD" and any("Same crop" in n for n in plan["HH-DS-002"]["notes"])
+    assert plan["HH-DS-001"]["plan"] == "PLANT"

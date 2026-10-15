@@ -43,7 +43,7 @@ if st.session_state["role"] == "officer":
             st.Page("views/queue.py", title="Review queue", icon=":material/fact_check:"),
             st.Page("views/household.py", title="Farms", icon=":material/home_pin:"),
             st.Page("views/plot_history.py", title="Plot history", icon=":material/history:"),
-            st.Page("views/scan.py", title="Identify plant, weed, pests", icon=":material/photo_camera:"),
+            st.Page("views/scan.py", title="AI Scan", icon=":material/photo_camera:"),
         ],
         "Farmer hub": [
             st.Page("views/learn.py", title="Learn", icon=":material/menu_book:"),
@@ -60,7 +60,7 @@ else:
             st.Page("views/household.py", title="My farm", icon=":material/home_pin:", default=True),
             st.Page("views/plot_history.py", title="Plot history", icon=":material/history:"),
             st.Page("views/reminders.py", title="Reminders", icon=":material/alarm:"),
-            st.Page("views/scan.py", title="Identify plant, weed, pests", icon=":material/photo_camera:"),
+            st.Page("views/scan.py", title="AI Scan", icon=":material/photo_camera:"),
         ],
         "Farmer hub": [
             st.Page("views/learn.py", title="Learn", icon=":material/menu_book:"),

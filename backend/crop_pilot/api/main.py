@@ -527,3 +527,49 @@ def reminder_done(reminder_id: int):
         return farm_reminders.mark_done(reminder_id)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
+
+
+# --- Every farm's plan (rule preview, no model) -----------------------------------------------------------
+HARVEST_STAGES = {"MATURITY", "HARVEST_READY", "HARVEST", "POD_FILL_MATURITY", "TUBER_BULKING"}
+
+
+@app.get("/farms/plan")
+def farms_plan():
+    """For every farm: what the safety rules say right now (plant / spray / hold / ready for harvest) and why,
+    from its own plot history, crop stage, area rainfall and verified pests, plus its draft status. No model call."""
+    _require_db()
+    with connect() as conn:
+        plots = [dict(r) for r in conn.execute("SELECT * FROM plots ORDER BY household_id")]
+        zones = {r["zone_id"]: dict(r) for r in conn.execute("SELECT * FROM weather_cache")}
+        alerts = [dict(r) for r in conn.execute("SELECT * FROM pest_alerts")]
+    advs = approval.list_advisories()
+    out = []
+    for row in plots:
+        plot = sanitizer.scrub_plot(row)
+        zone = zones.get(plot.get("zone_id"))
+        if plot.get("lat") is None and zone:
+            plot["lat"], plot["lon"] = zone["centroid_lat"], zone["centroid_lon"]
+        rain = agronomy.rainfall_outlook(zone) if zone else None
+        pests = agronomy.score_pest_alerts(alerts, plot.get("lat"), plot.get("lon"), plot.get("active_crop"),
+                                           plot.get("growth_stage")) if plot.get("found") else None
+        decision = agronomy.decide(plot, rain, pests)
+        rot = history.rotation(plot.get("active_crop"), plot.get("crop_history") or [])
+        pat = weather_patterns.assess(zone["zone_id"], rain["rain_7d_mm"]) if zone and rain else {}
+        plan = decision["verdict"] if decision["status"] == "PENDING_REVIEW" else decision["status"]
+        if decision["verdict"] in (None, "HOLD") and plot.get("growth_stage") in HARVEST_STAGES \
+                and decision["status"] == "PENDING_REVIEW":
+            plan = "HARVEST"
+        mine = [a for a in advs if a["household_id"] == row["household_id"]]
+        latest = mine[0] if mine else None
+        notes = [] if decision["status"] != "PENDING_REVIEW" else [n for n in (
+            rot.get("sms_tip") if rot.get("risk") in ("ELEVATED", "HIGH") else None,
+            "False-start risk: plant in two batches" if pat.get("onset") == "FALSE_START_RISK" and plan == "PLANT"
+            else None) if n]
+        out.append({"household_id": row["household_id"], "farmer_name": row.get("farmer_name"),
+                    "zone_id": plot.get("zone_id"), "crop": plot.get("active_crop"),
+                    "stage": plot.get("growth_stage"), "days": plot.get("days_since_planting"),
+                    "plan": plan, "why": decision["reasons"][0] if decision["reasons"] else "",
+                    "notes": notes, "rule": decision["rule"],
+                    "draft_status": latest["status"] if latest else None,
+                    "advisory_id": latest["id"] if latest else None})
+    return out
