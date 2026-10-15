@@ -215,19 +215,26 @@ async def main() -> None:
     llm_on = await llm.is_available()
     task_ids = [int(t) for t in args.tasks.split(",")]
     results = []
+    out_dir = ROOT / "evals" / "results"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    partial = out_dir / f"runs-{datetime.now().strftime('%Y%m%dT%H%M%S')}.jsonl"
     for tid in task_ids:
         for i in range(args.runs if tid != 8 else 1):
             with tempfile.TemporaryDirectory() as tmp:
-                res = await one_run(tid, Path(tmp))
+                try:
+                    res = await one_run(tid, Path(tmp))
+                except Exception as exc:  # noqa: BLE001 - a crashing task is a FAIL, not a lost batch
+                    res = {"task": tid, "passed": False, "elapsed_s": 0, "flags": [], "tokens": 0,
+                           "checks": [(f"crashed: {type(exc).__name__}: {exc}"[:200], False)]}
             results.append(res)
+            with partial.open("a", encoding="utf-8") as fh:   # saved as we go: a crash never loses results
+                fh.write(json.dumps(res, default=str) + "\n")
             print(f"task {tid} run {i + 1}: {'PASS' if res['passed'] else 'FAIL'} "
                   f"{res.get('status', '')}/{res.get('verdict', '')} {res['elapsed_s']}s "
                   f"{[n for n, ok in res['checks'] if not ok]}", flush=True)
     meta = {"timestamp": datetime.now().isoformat(timespec="seconds"), "model": config.OLLAMA_MODEL, "llm": llm_on,
             "runs": args.runs, "today": os.environ["CROP_PILOT_TODAY"],
             "machine": f"{os.uname().sysname} {os.uname().machine}, CPU-only"}
-    out_dir = ROOT / "evals" / "results"
-    out_dir.mkdir(parents=True, exist_ok=True)
     stamp = meta["timestamp"].replace(":", "")
     (out_dir / f"{stamp}.json").write_text(json.dumps({"meta": meta, "results": results}, indent=2, default=str))
     summary = summarise(results, meta)
