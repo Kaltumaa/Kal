@@ -227,6 +227,14 @@ tests/         unit, gate and architecture-boundary tests
   deterministic evals pass 8/8 on the final code, but the model-run numbers in EVALS.md describe the earlier build.
 * The 3B model rarely completes its own evidence plan; the harness fills and corrects it (see EVALS.md).
 
+## Online demo (free hosting)
+
+The live link runs on Streamlit Community Cloud. It is free, so it has no room for the local AI models: drafts come
+from the fixed rules (the agent's normal fallback), and photos reach the officer without an AI suggestion. The officer
+review, signing, citations, follow-ups, farmer view and both MCP servers work the same. `frontend/cloud.py` starts the
+backend as its own process there; locally `make run` does that instead. To deploy your own copy: share.streamlit.io →
+Create app → this repo, branch `main`, file `frontend/app.py`, Python 3.12.
+
 ## Licence
 
 MIT. See `LICENSE`.

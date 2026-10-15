@@ -12,6 +12,7 @@ from pathlib import Path
 import streamlit as st
 
 import api_client as api
+import cloud
 import ui
 from views import system
 
@@ -19,6 +20,7 @@ st.set_page_config(page_title="Mkulima Hub", page_icon="🌱", layout="wide")
 ui.setup()
 st.logo(str(Path(__file__).parent / "assets" / "logo.svg"), size="large")
 
+cloud.ensure_backend()
 try:
     health = api.health()
     farms = api.farms() if health["ok"] else []
@@ -84,5 +86,8 @@ with st.sidebar:
     st.markdown('<div class="cp-status"><b>System status</b>' + "".join(
         f'<div><span class="cp-dot {"ok" if ok else "warn"}"></span>{name}</div>' for name, ok in rows)
         + f'<div style="margin-top:6px">Demo date: {health["today"]}</div></div>', unsafe_allow_html=True)
+    if cloud.hosted():
+        st.caption("Online demo: the local AI models are off on free hosting, so drafts come from the fixed rules "
+                   "and photos go to the officer without an AI suggestion. The full version runs on a laptop.")
 
 nav.run()

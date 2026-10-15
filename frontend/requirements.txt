@@ -1,3 +1,13 @@
-streamlit>=1.35
-requests>=2.31
-pandas>=2.0
+# The frontend itself needs only streamlit, requests and pandas.
+# The rest is the backend: the free Streamlit Community Cloud demo runs it in the same process (see cloud.py).
+# Versions match requirements.lock.
+streamlit==1.64.0
+requests==2.34.2
+pandas==3.0.6
+mcp==1.30.0
+fastapi==0.142.2
+uvicorn==0.54.0
+langgraph==1.2.12
+langgraph-checkpoint-sqlite==3.1.1
+aiosqlite==0.22.1
+httpx==0.28.1
