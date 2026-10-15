@@ -20,6 +20,7 @@ nav = st.navigation({
     "Advisory": [
         st.Page("views/home.py", title="Dashboard", icon=":material/dashboard:", default=True),
         st.Page("views/queue.py", title="Review queue", icon=":material/fact_check:"),
+        st.Page("views/household.py", title="Households", icon=":material/home_pin:"),
         st.Page("views/scan.py", title="Field scan", icon=":material/photo_camera:"),
     ],
     "Farmer hub": [

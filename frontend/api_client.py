@@ -157,3 +157,7 @@ def followups(status: str = "OPEN"):
 
 def close_followup(followup_id: int, officer_name: str):
     return _req("POST", f"/followups/{followup_id}/done", json={"officer_name": officer_name})
+
+
+def household_profile(household_id: str):
+    return _req("GET", f"/households/{household_id}/profile")

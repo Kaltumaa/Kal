@@ -90,3 +90,17 @@ def test_greenhouse_sensor_readings_stored_and_validated(temp_db):
     assert readings.history("GH-1")[0]["device_id"] == "esp32-1"
     with pytest.raises(ValueError):
         readings.record("GH 1; DROP", 20, 50, "sensor")
+
+
+def test_household_profile_calendar(temp_db, tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from crop_pilot import config
+    from crop_pilot.api.main import app
+    monkeypatch.setattr(config, "CHECKPOINT_DB_PATH", tmp_path / "ck.db")
+    with TestClient(app) as c:
+        p = c.get("/households/HH-DS-003/profile").json()
+        assert p["plot"]["days_since_planting"] == 28
+        stages = {s["stage"]: s for s in p["calendar"]}
+        assert "Fall Armyworm" in stages["EARLY_VEGETATIVE"]["pests_to_watch"]
+        assert p["pattern"]["zone_id"] == "MUTUINI"
+        assert c.get("/households/NOPE/profile").status_code == 404

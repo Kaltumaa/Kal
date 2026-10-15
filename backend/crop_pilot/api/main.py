@@ -17,7 +17,7 @@ from crop_pilot import config
 from crop_pilot.agent import llm
 from crop_pilot.agent.workflow import build_graph, resume_run, start_run
 from crop_pilot.community import forum
-from crop_pilot.core import agronomy, greenhouse, knowledge, sanitizer, telemetry, weather_patterns
+from crop_pilot.core import agronomy, greenhouse, history, knowledge, sanitizer, telemetry, weather_patterns
 from crop_pilot.database.db import DatabaseUnavailable, connect, health_check
 from crop_pilot.dispatch import approval
 from crop_pilot.dispatch import followups as desk_followups
@@ -386,3 +386,30 @@ def close_followup(followup_id: int, req: CloseFollowup):
         return desk_followups.close(followup_id, req.officer_name)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
+
+
+# --- Household profile: plot history against the crop calendar -----------------------------------------
+@app.get("/households/{household_id}/profile")
+def household_profile(household_id: str):
+    _require_db()
+    hid = sanitizer.normalise_text(household_id).upper()[:32]
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM plots WHERE upper(trim(household_id)) = ?", (hid,)).fetchone()
+        weather = {r["zone_id"]: dict(r) for r in conn.execute("SELECT * FROM weather_cache")}
+    if row is None:
+        raise HTTPException(404, detail="Household not found")
+    plot = sanitizer.scrub_plot(dict(row))
+    crop = plot.get("active_crop")
+    stages, start = [], 0
+    for upper, stage in config.CROP_STAGES.get(crop or "", []):
+        end = min(upper, start + 60) if upper >= 10_000 else upper
+        pests = sorted(p.title() for p, crops in config.PEST_SUSCEPTIBILITY.items() if stage in crops.get(crop, set()))
+        stages.append({"stage": stage, "start_day": start, "end_day": end, "pests_to_watch": pests})
+        start = upper + 1
+    zone = plot.get("zone_id")
+    rain = agronomy.rainfall_outlook(weather[zone]) if zone in weather else None
+    advs = [a for a in approval.list_advisories() if a["household_id"].upper() == hid]
+    return {"plot": plot, "rotation": history.rotation(crop, plot.get("crop_history") or []), "calendar": stages,
+            "rain": rain, "pattern": weather_patterns.assess(zone, rain["rain_7d_mm"] if rain else None) if zone else None,
+            "advisories": advs[:10],
+            "followups": [f for f in desk_followups.list_followups(None) if f["household_id"].upper() == hid]}

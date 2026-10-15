@@ -34,6 +34,7 @@ Other targets: `make test` (24 unit, gate and boundary tests), `make evals` (8 t
 |---|---|---|
 | Advisory | **Dashboard** | Rainfall outlook per ward (spray-safety band, planting window, washout risk), a map of households and verified pest alerts, and what is waiting for you |
 | | **Review queue** | Run the agent for one household or a **whole ward** (a household cluster, timed against the by-hand baseline); sign or reject each Plant / Spray / Hold draft. **This is the human gate.** |
+| | **Households** | One plot at a time: plot history and rotation risk, a **crop-calendar timeline** with today's position and the stages when pests can damage the crop, the ward's weather pattern, and every draft and follow-up for that household |
 | | **Field scan** | Take or upload a photo of a sick plant. A **local** vision model (moondream) describes it, the pest knowledge base suggests likely causes, and an officer must verify it before it becomes a pest alert the agent uses |
 | Farmer hub | **Learn** | Guides on pests & diseases, pesticides & safe use, weeds, soils, greenhouse growing and the crop calendar, plus a **"What can I grow?"** tool filled from each ward's season outlook, and a **greenhouse check**: type temperature and humidity, or let a sensor POST them to `/greenhouse/readings`, and get VPD, dew point and what to do |
 | | **Community** | Discussion board for farmers and officers. Posts are scrubbed; instruction-like posts are held for moderation. The agent never reads it: chat is not a verified signal |
