@@ -207,7 +207,7 @@ def overview():
                            "crop": c.get("active_crop"), "stage": c.get("growth_stage"),
                            "days": c.get("days_since_planting"), "flagged": c.get("injection_detected")})
     return {"zones": [{**agronomy.rainfall_outlook(z), "lat": z["centroid_lat"], "lon": z["centroid_lon"]} for z in zones],
-            "alerts": alerts, "households": households}
+            "alerts": alerts, "households": households, "today": config.today().isoformat()}
 
 
 # --- Knowledge hub ---------------------------------------------------------------------------------

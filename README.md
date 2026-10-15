@@ -129,8 +129,10 @@ tests/         unit, gate and architecture-boundary tests
 
 ## Data: honest notes
 
-* **All household, pest and weather records are synthetic.** No real household data is used. Ward names are real
-  Dagoretti South places; all numbers are invented.
+* **All household, pest and weather records are synthetic.** No real household data is used.
+* The five wards are the real wards of Dagoretti South Constituency, Nairobi: Mutu-ini, Ngando, Riruta,
+  Uthiru/Ruthimitu and Waithaka (source: [NG-CDF Dagoretti South](https://dagoretti-south.ngcdf.go.ke)). Their map
+  points are approximate centroids, and every number attached to them is invented.
 * `weather_cache` holds **CHIRPS-style** values (24 h / 72 h / 7-day rainfall, storm class) that we wrote for the demo. The cache is
   not connected to a live CHIRPS/TAMSAT feed. A production deployment would refresh it from CHIRPS dekadal grids plus a
   national forecast. `data/reference/chirps_dekadal_dagoretti.csv` is also synthetic, in CHIRPS layout.
