@@ -18,6 +18,10 @@ CROP_ALIASES = {
     "kale": "Kale", "sukuma": "Kale", "sukuma wiki": "Kale", "sukumawiki": "Kale",
     "potato": "Potato", "potatoes": "Potato", "viazi": "Potato", "irish potato": "Potato",
     "tomato": "Tomato", "tomatoes": "Tomato", "nyanya": "Tomato",
+    "sorghum": "Sorghum", "mtama": "Sorghum",
+    "cowpeas": "Cowpeas", "cowpea": "Cowpeas", "kunde": "Cowpeas",
+    "sweet potato": "Sweet Potato", "sweet potatoes": "Sweet Potato", "viazi vitamu": "Sweet Potato",
+    "groundnut": "Groundnut", "groundnuts": "Groundnut", "njugu": "Groundnut",
 }
 
 # Patterns that indicate someone is trying to instruct the model through a data field.

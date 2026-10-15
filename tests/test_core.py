@@ -71,3 +71,13 @@ def test_plot_history_rotation_risk():
     good = rotation("Maize", ["Maize", "Beans"])
     assert good["risk"] == "LOW" and "nitrogen" in good["note"] and good["sms_tip"] is None
     assert rotation("Beans", [])["risk"] == "UNKNOWN"
+
+
+def test_drought_tolerant_crops_can_be_planted_on_less_rain():
+    plot = {"found": True, "profile_complete": True, "growth_stage": "PRE_PLANTING"}
+    rain = {"washout_risk": False, "spray_band": "SAFE", "rain_7d_mm": 18.0, "rain_72h_mm": 3, "storm_risk": "LOW",
+            "spray_safety_index": 95, "planting_window": "CLOSED"}
+    assert agronomy.decide({**plot, "active_crop": "Sorghum"}, rain, None)["verdict"] == "PLANT"
+    beans = agronomy.decide({**plot, "active_crop": "Beans"}, rain, None)
+    assert beans["verdict"] == "HOLD" and "Sorghum" in " ".join(beans["reasons"])
+    assert agronomy.crops_plantable_now(120, washout=True) == []

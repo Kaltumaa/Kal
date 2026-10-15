@@ -142,6 +142,14 @@ tests/         unit, gate and architecture-boundary tests
   An officer must check product choice against current registered labels.
 * The seed data is deliberately messy (corrupt coordinates, odd date formats, junk characters, an injection). The
   thresholds were not tuned on real outcomes.
+* **Where our data is unusually clean (said plainly, as the brief asks):** the *household* records are messy on purpose,
+  but the *rainfall* data is not. Every ward has a complete, on-time forecast with no gaps, no conflicting sources
+  and no late CHIRPS dekads. The system flags a stale forecast and halts if a ward has none, but it has never been
+  tested against real CHIRPS/TAMSAT latency, gaps or disagreement between products. Pest alerts are also tidier than
+  real WhatsApp reports: each has a clean location and date. The advisories would be less certain on real feeds.
+* Planting thresholds are rules of thumb: about 25 mm in a week for maize, beans, potato and kale; about 15 mm for
+  sorghum and cowpeas, 18 mm for sweet potato vines and 20 mm for groundnut (`config.py`). They should be checked
+  with the county's agronomist.
 
 ## What is unfinished (honest list)
 

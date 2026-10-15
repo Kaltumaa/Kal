@@ -206,7 +206,10 @@ def overview():
         households.append({"household_id": c.get("household_id"), "zone_id": c.get("zone_id"), "lat": lat, "lon": lon,
                            "crop": c.get("active_crop"), "stage": c.get("growth_stage"),
                            "days": c.get("days_since_planting"), "flagged": c.get("injection_detected")})
-    return {"zones": [{**agronomy.rainfall_outlook(z), "lat": z["centroid_lat"], "lon": z["centroid_lon"]} for z in zones],
+    outlooks = [agronomy.rainfall_outlook(z) for z in zones]
+    return {"zones": [{**o, "lat": z["centroid_lat"], "lon": z["centroid_lon"],
+                       "plant_now": agronomy.crops_plantable_now(o["rain_7d_mm"], o["washout_risk"])}
+                      for o, z in zip(outlooks, zones)],
             "alerts": alerts, "households": households, "today": config.today().isoformat()}
 
 

@@ -34,7 +34,9 @@ def today() -> date:
 SPRAY_SAFE_MIN = 70          # index >= 70 -> SAFE
 SPRAY_CAUTION_MIN = 40       # 40..69 -> CAUTION, < 40 -> UNSAFE
 STORM_PENALTY = {"LOW": 0, "MODERATE": 15, "HIGH": 40}
-PLANTING_RAIN_7D_MM = 25.0   # onset rule of thumb: >= 25 mm expected over 7 days
+PLANTING_RAIN_7D_MM = 25.0   # onset rule of thumb: >= 25 mm expected over 7 days (maize, beans, potato, kale)
+# Drought-tolerant crops can be sown on less rain (rule of thumb used by this desk; see crop_calendar_nairobi.md).
+PLANTING_RAIN_BY_CROP = {"Sorghum": 15.0, "Cowpeas": 15.0, "Sweet Potato": 18.0, "Groundnut": 20.0}
 WASHOUT_RAIN_72H_MM = 50.0   # flash-washout risk
 WEATHER_STALE_DAYS = 3
 
@@ -57,11 +59,17 @@ CROP_STAGES: dict[str, list[tuple[int, str]]] = {
                (110, "TUBER_BULKING"), (10_000, "MATURITY")],
     "Tomato": [(25, "ESTABLISHMENT"), (55, "VEGETATIVE_FLOWERING"),
                (100, "FRUITING"), (10_000, "HARVEST")],
+    "Sorghum": [(10, "EMERGENCE"), (40, "EARLY_VEGETATIVE"), (70, "BOOTING_FLOWERING"),
+                (105, "GRAIN_FILL"), (10_000, "MATURITY")],
+    "Cowpeas": [(10, "EMERGENCE"), (35, "VEGETATIVE"), (55, "FLOWERING"), (10_000, "POD_FILL_MATURITY")],
+    "Sweet Potato": [(30, "ESTABLISHMENT"), (90, "VINE_GROWTH"), (10_000, "TUBER_BULKING")],
+    "Groundnut": [(12, "EMERGENCE"), (40, "VEGETATIVE"), (70, "PEGGING"), (10_000, "POD_FILL_MATURITY")],
 }
 
 # Which stages are susceptible to which pest (drives SPRAY decisions).
 PEST_SUSCEPTIBILITY: dict[str, dict[str, set[str]]] = {
-    "fall armyworm": {"Maize": {"EMERGENCE", "EARLY_VEGETATIVE", "LATE_VEGETATIVE_TASSELING"}},
+    "fall armyworm": {"Maize": {"EMERGENCE", "EARLY_VEGETATIVE", "LATE_VEGETATIVE_TASSELING"},
+                      "Sorghum": {"EMERGENCE", "EARLY_VEGETATIVE"}},
     "late blight": {"Potato": {"VEGETATIVE", "TUBER_INITIATION", "TUBER_BULKING"},
                     "Tomato": {"VEGETATIVE_FLOWERING", "FRUITING"}},
     "aphids": {"Kale": {"ESTABLISHMENT", "CONTINUOUS_HARVEST"}, "Beans": {"VEGETATIVE", "FLOWERING"}},

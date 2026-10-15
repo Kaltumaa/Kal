@@ -127,6 +127,20 @@ def score_pest_alerts(alerts: list[dict], lat: float | None, lon: float | None,
     }
 
 
+# ---------------------------------------------------------------------------------- planting by crop
+def planting_threshold(crop: str | None) -> float:
+    return config.PLANTING_RAIN_BY_CROP.get(crop or "", config.PLANTING_RAIN_7D_MM)
+
+
+def crops_plantable_now(rain_7d_mm: float, washout: bool) -> list[str]:
+    """Crops whose sowing rain threshold is met this week (none during a washout)."""
+    if washout:
+        return []
+    main = ["Maize", "Beans", "Potato", "Kale"]
+    candidates = {c: config.PLANTING_RAIN_7D_MM for c in main} | config.PLANTING_RAIN_BY_CROP
+    return [c for c, need in sorted(candidates.items(), key=lambda kv: kv[1]) if rain_7d_mm >= need]
+
+
 # ---------------------------------------------------------------------------------- rule engine
 def decide(plot: dict, rain: dict | None, pests: dict | None) -> dict:
     """The safe verdict. Ordered rules; first match wins. Returns verdict, status and reasons."""
@@ -158,11 +172,17 @@ def decide(plot: dict, rain: dict | None, pests: dict | None) -> dict:
         return {"status": "PENDING_REVIEW", "verdict": "SPRAY", "rule": "R3_threat_spray", "reasons": reasons}
 
     if stage == "PRE_PLANTING":
-        if rain["planting_window"] == "OPEN":
-            reasons.append(f"{rain['rain_7d_mm']} mm expected over 7 days (onset threshold "
-                           f"{config.PLANTING_RAIN_7D_MM} mm) with no washout risk.")
+        crop = plot.get("active_crop")
+        need = planting_threshold(crop)
+        if not rain["washout_risk"] and rain["rain_7d_mm"] >= need:
+            reasons.append(f"{rain['rain_7d_mm']} mm expected over 7 days; {crop} needs about {need:.0f} mm to "
+                           f"establish, and there is no washout risk.")
             return {"status": "PENDING_REVIEW", "verdict": "PLANT", "rule": "R4_planting_window", "reasons": reasons}
-        reasons.append(f"Only {rain['rain_7d_mm']} mm expected over 7 days; wait for onset.")
+        reasons.append(f"Only {rain['rain_7d_mm']} mm expected over 7 days; {crop} needs about {need:.0f} mm. "
+                       f"Wait for the rains.")
+        alternatives = [c for c in crops_plantable_now(rain["rain_7d_mm"], rain["washout_risk"]) if c != crop]
+        if alternatives:
+            reasons.append(f"Drought-tolerant options that could go in now: {', '.join(alternatives)}.")
         return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R5_wait_for_onset", "reasons": reasons}
 
     reasons.append(f"No actionable verified pest threat; crop at {stage}. Continue routine scouting.")
