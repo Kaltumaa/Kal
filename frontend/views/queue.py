@@ -113,6 +113,10 @@ def detail(adv: dict) -> None:
                             st.rerun()
                         except api.ApiError as exc:
                             st.error(str(exc.detail))
+            planned = [f for f in api.followups() if f["run_id"] == adv["run_id"]]
+            if planned:
+                f = planned[0]
+                st.caption(f":material/event: Follow-up scheduled by the agent for {f['due_date']}: {f['reason']}")
         with t_ev:
             st.markdown("**Sources**")
             st.markdown("\n".join(f"- `{s}`" for s in adv["sources"]))

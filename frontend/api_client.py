@@ -149,3 +149,11 @@ def greenhouse_history(greenhouse_id: str | None = None):
 
 def greenhouse_assess(temp_c: float, rh_pct: float, crop: str | None = None):
     return _req("POST", "/greenhouse/assess", json={"temp_c": temp_c, "rh_pct": rh_pct, "crop": crop})
+
+
+def followups(status: str = "OPEN"):
+    return _req("GET", "/followups", params={"status": status})
+
+
+def close_followup(followup_id: int, officer_name: str):
+    return _req("POST", f"/followups/{followup_id}/done", json={"officer_name": officer_name})

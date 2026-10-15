@@ -68,3 +68,12 @@ def test_security_lock_cannot_be_approved(temp_db):
 def test_weather_citation_with_timestamp_is_kept(temp_db):
     out = _draft()
     assert "weather_cache:MUTUINI@2026-10-14" in out["sources"]
+
+
+def test_followup_is_internal_validated_and_idempotent(temp_db):
+    a = server.schedule_followup("run-f1", "HH-DS-003", "RESCOUT", 7, "Re-scout for Fall Armyworm")
+    b = server.schedule_followup("run-f1", "HH-DS-003", "RESCOUT", 7, "again")
+    assert a["ok"] and a["due_date"] == "2026-10-22" and b["idempotent_replay"]
+    assert server.schedule_followup("run-f1", "HH-DS-003", "SEND_SMS", 1, "x")["ok"] is False
+    assert server.schedule_followup("run-f1", "HH-DS-003", "RESCOUT", 365, "x")["ok"] is False
+    assert approval.outbox() == []

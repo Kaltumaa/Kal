@@ -50,7 +50,7 @@ def spraying(z: dict) -> str:
 
 ui.header("This week", "What to tell farmers in each ward, and what is waiting for you.")
 try:
-    ov, advs, scans = api.overview(), api.advisories(), api.scans()
+    ov, advs, scans, fups = api.overview(), api.advisories(), api.scans(), api.followups()
 except api.ApiError as exc:
     st.error(str(exc.detail))
     st.stop()
@@ -66,13 +66,14 @@ photos = sum(s["status"] == "UNVERIFIED" for s in scans)
 k = st.columns(4)
 k[0].metric("Messages to sign", to_sign)
 k[1].metric("Suspicious records", locked)
-k[2].metric("Farmer photos to confirm", photos)
-k[3].metric("Pest outbreaks confirmed", sum(len(v) for v in recent_pests.values()), help="Officer-verified, last 30 days")
+due_week = [f for f in fups if (date.fromisoformat(f["due_date"]) - today).days <= 7]
+k[2].metric("Follow-ups due this week", len(due_week), help="Scheduled by the agent after each draft")
+k[3].metric("Farmer photos to confirm", photos)
 links = st.columns(4)
 if to_sign or locked:
     links[0].page_link("views/queue.py", label="Open review queue", icon=":material/arrow_forward:")
 if photos:
-    links[2].page_link("views/scan.py", label="Check photos", icon=":material/arrow_forward:")
+    links[3].page_link("views/scan.py", label="Check photos", icon=":material/arrow_forward:")
 
 st.subheader("Ward by ward")
 rows = []
@@ -92,6 +93,26 @@ st.markdown('<div class="cp-wards"><table><thead><tr><th>Ward</th><th>Do this</t
             unsafe_allow_html=True)
 st.caption("Pests: confirmed by an officer in the last 30 days. Planting: maize, beans and potato need about 25 mm of "
            "rain in a week; sorghum and cowpeas about 15 mm.")
+
+st.subheader("Desk follow-ups")
+if not fups:
+    st.caption("No follow-ups yet. The agent schedules one after every draft (re-scout, re-check after rain, "
+               "field visit...).")
+else:
+    fl, fr = st.columns([2.2, 1], gap="large")
+    fl.dataframe(pd.DataFrame([{"Due": f["due_date"], "Household": f["household_id"],
+                                "What": f["kind"].replace("_", " ").title(), "Why": f["reason"]} for f in fups]),
+                 hide_index=True, width="stretch", height=min(300, 38 + 35 * len(fups)))
+    with fr.form("close-followup"):
+        pick = st.selectbox("Mark as done", fups, format_func=lambda f: f"{f['due_date']} · {f['household_id']} · "
+                                                                        f"{f['kind'].replace('_', ' ').title()}")
+        who = st.text_input("Your full name")
+        if st.form_submit_button("Done", type="primary", width="stretch"):
+            try:
+                api.close_followup(pick["id"], who)
+                st.rerun()
+            except api.ApiError as exc:
+                st.error(str(exc.detail))
 
 st.subheader("Rainfall pattern")
 pc = st.columns([1, 3], gap="large")

@@ -34,4 +34,4 @@ def test_mcp_server_exposes_no_send_tool():
     import asyncio
     names = {t.name for t in asyncio.run(mcp.list_tools())}
     assert names == {"get_rainfall_outlook", "get_plot_context", "get_pest_reports", "get_weather_pattern",
-                     "draft_advisory"}
+                     "draft_advisory", "schedule_followup"}

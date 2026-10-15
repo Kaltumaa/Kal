@@ -20,6 +20,7 @@ from crop_pilot.community import forum
 from crop_pilot.core import agronomy, greenhouse, knowledge, sanitizer, telemetry, weather_patterns
 from crop_pilot.database.db import DatabaseUnavailable, connect, health_check
 from crop_pilot.dispatch import approval
+from crop_pilot.dispatch import followups as desk_followups
 from crop_pilot.fieldscan import service as fieldscan
 from crop_pilot.greenhouse import readings as gh_readings
 
@@ -365,3 +366,23 @@ def greenhouse_sensor(req: GreenhouseReading):
 def greenhouse_history(greenhouse_id: str | None = None, limit: int = Query(200, le=2000)):
     _require_db()
     return gh_readings.history(greenhouse_id, limit)
+
+
+# --- Desk follow-ups (scheduled by the agent, closed by a named officer) ---------------------------------
+class CloseFollowup(BaseModel):
+    officer_name: str = Field(..., max_length=80)
+
+
+@app.get("/followups")
+def followups(status: str | None = Query("OPEN", pattern="^(OPEN|DONE)$")):
+    _require_db()
+    return desk_followups.list_followups(status)
+
+
+@app.post("/followups/{followup_id}/done")
+def close_followup(followup_id: int, req: CloseFollowup):
+    _require_db()
+    try:
+        return desk_followups.close(followup_id, req.officer_name)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))

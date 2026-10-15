@@ -41,6 +41,7 @@ class RunState(TypedDict, total=False):
     decision: dict
     advisory: dict
     review: dict
+    followup: dict
     errors: list[str]
 
 
@@ -309,6 +310,27 @@ async def _llm_compose(run_id: str, view: dict) -> dict | None:
     return parsed if status == "ok" else None
 
 
+def plan_followup(decision: dict, pattern: dict, threat: dict | None) -> tuple[str, int, str]:
+    """(kind, days_from_now, reason) for the desk's follow-up after this draft. Deterministic."""
+    rule = decision["rule"]
+    if rule == "R1_injection_lock":
+        return "VERIFY_RECORD", 2, "Verify this household's record in person: it contained instruction-like text."
+    if rule.startswith("R0"):
+        return "FIELD_VISIT", 3, "Field visit to record the crop, ward and planting date before any advice."
+    if rule == "R2_washout_hold":
+        return "RECHECK_AFTER_RAIN", 3, "Re-check the spraying and planting window once the heavy rain has passed."
+    if rule == "R3_threat_spray":
+        pest = (threat or {}).get("pest", "the pest")
+        return "RESCOUT", 7, f"Re-scout for {pest} 7 days after spraying; check whether damage stopped."
+    if rule == "R4_planting_window":
+        if pattern.get("onset") == "FALSE_START_RISK":
+            return "SEEDLING_CHECK", 10, "Check seedlings after 10 days: the rains followed a dry spell (false-start risk)."
+        return "SEEDLING_CHECK", 14, "Check germination and stand after 14 days."
+    if rule == "R5_wait_for_onset":
+        return "RERUN_AT_ONSET", 7, "Re-run the advice next week in case the rains have started."
+    return "RESCOUT", 14, "Routine scouting visit in two weeks."
+
+
 async def advisory_compiler_node(state: RunState) -> dict:
     run_id = state["run_id"]
     ev, flags = state.get("evidence", {}), list(state.get("flags", []))
@@ -395,6 +417,7 @@ async def advisory_compiler_node(state: RunState) -> dict:
     if plot.get("injection_detected"):
         flags.append("prompt_injection_detected")
 
+    followup = None
     async with open_toolbox(run_id, with_filesystem=False) as tb:
         advisory = await tb.call("draft_advisory", {
             "run_id": run_id, "household_id": state["household_id"], "status": decision["status"],
@@ -402,10 +425,17 @@ async def advisory_compiler_node(state: RunState) -> dict:
             "sources": sources, "evidence": evidence_summary, "flags": flags,
             "rule_verdict": decision["verdict"], "model_verdict": model_verdict,
         })
+        if advisory.get("ok"):
+            kind, days, why = plan_followup(decision, pattern, threat)
+            followup = await tb.call("schedule_followup", {"run_id": run_id, "household_id": state["household_id"],
+                                                           "kind": kind, "days_from_now": days, "reason": why})
     errors = list(state.get("errors", []))
     if not advisory.get("ok"):
         errors.append(f"draft_advisory failed: {advisory.get('error')}")
-    return {"decision": decision, "advisory": advisory, "flags": flags, "errors": errors}
+    if followup is not None and not followup.get("ok"):
+        errors.append(f"schedule_followup failed: {followup.get('error')}")
+    return {"decision": decision, "advisory": advisory, "flags": flags, "errors": errors,
+            "followup": {k: v for k, v in (followup or {}).items() if k != "_call_id"}}
 
 
 # ------------------------------------------------------------------------------------- gate
@@ -464,6 +494,7 @@ async def start_run(graph, household_id: str, officer_note: str = "", run_id: st
         "frozen_at_human_gate": "human_gate" in (snapshot.next or ()),
         "advisory": {k: v for k, v in (result.get("advisory") or {}).items() if k != "_call_id"},
         "decision": result.get("decision"),
+        "followup": result.get("followup"),
         "flags": result.get("flags", []),
         "errors": result.get("errors", []),
         "llm_used": result.get("llm_used", False),

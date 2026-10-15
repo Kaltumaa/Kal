@@ -97,6 +97,7 @@ PYTHONPATH=backend npx @modelcontextprotocol/inspector .venv/bin/python -m crop_
 | `get_rainfall_outlook` | `lat`/`lon` or `zone_id` | Spray-safety index 0–100 + band, planting window, washout risk, staleness, formula, citation | none |
 | `get_pest_reports` | `zone_id`, `lat`, `lon`, `crop`, `growth_stage` | Verified alerts scored by severity × distance × recency; unverified ones listed as ignored; actionable top threat | none |
 | `get_weather_pattern` | `zone_id`, `rain_7d_mm` | Season outlook vs normal, last 20 days vs the long-term mean (CHIRPS-format dekads), onset status incl. false-start risk, advice | none |
+| `schedule_followup` | `run_id`, `household_id`, `kind`, `days_from_now`, `reason` | Follow-up id and due date | Writes **one** internal task to `followups` (re-scout, re-check after rain, field visit…). Never contacts the farmer; a named officer closes it |
 | `draft_advisory` | `run_id`, verdict, message, rationale, `sources`, evidence | Staged draft id | Writes **one** row to `pending_advisories` (non-final status only, idempotent per run, refuses unsourced advice). Cannot send. |
 
 Bring your own data by pointing `CROP_PILOT_DB` at a database with the same schema (`backend/crop_pilot/database/init_db.py`).
@@ -116,7 +117,7 @@ extension work. The questions we would take to an officer first:
 backend/crop_pilot/
   database/    schema + synthetic household seed (SQLite, data/database.db)
   core/        pure deterministic logic: sanitizer, spray-safety index, pest scoring, rule engine, telemetry
-  mcp_server/  OUR MCP server (5 tools; draft_advisory is the write tool)
+  mcp_server/  OUR MCP server (6 tools; draft_advisory and schedule_followup write)
   agent/       LangGraph workflow + MCP client toolbox + local Ollama client
   dispatch/    officer approval + simulated outbound (the agent cannot import this; a test enforces it)
   fieldscan/   camera photos -> local vision model -> symptom match -> officer verification -> pest alert

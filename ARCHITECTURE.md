@@ -42,7 +42,7 @@ Its proposals are measured against the rules in EVALS.md.
 
 ## Human-in-the-loop is enforced in five independent places
 
-1. **No send tool exists.** Our MCP server has 5 tools, and a test asserts that exact set. The filesystem server is filtered to read tools.
+1. **No send tool exists.** Our MCP server has 6 tools, and a test asserts that exact set. The two writes (`draft_advisory`, `schedule_followup`) only touch the staging queue and the desk's internal follow-up list. The filesystem server is filtered to read tools.
 2. **`draft_advisory` can only write** `PENDING_REVIEW | SECURITY_LOCK | NEEDS_DATA`. It cannot write APPROVED.
 3. **Database CHECK constraints:** APPROVED/REJECTED requires a signature of at least 5 characters; `transmitted_at` requires APPROVED; an outbox row requires a signature; every advisory needs at least one source.
 4. **`dispatch` lives outside the agent.** It is reachable only through the API form. A static test fails the build if `agent/`, `mcp_server/` or `core/` import it.
@@ -56,7 +56,10 @@ Its proposals are measured against the rules in EVALS.md.
   * a scrubber that repairs corrupt fields, re-derives the growth stage and redacts injections;
   * haversine × severity × recency threat scoring;
   * season anomaly, rainfall versus the long-term mean, and false-start detection (`get_weather_pattern`);
-  * a validated, idempotent, source-enforcing write.
+  * a validated, idempotent, source-enforcing write (`draft_advisory`);
+  * an internal follow-up scheduler (`schedule_followup`): after every draft the agent books the next desk action
+    (re-scout 7 days after a SPRAY, re-check after a washout, seedling check after a false start, field visit for an
+    incomplete profile). An officer closes it by name.
 * **Borrowed: `@modelcontextprotocol/server-filesystem@2026.8.31`** (official reference server, via `npx`), scoped to
   `data/reference/`. *Why it beats writing our own: path sandboxing and traversal protection are security code, so we
   reuse the maintained, widely audited implementation instead of rolling our own file reader.*

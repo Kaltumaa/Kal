@@ -1,4 +1,4 @@
-"""Crop-Pilot MCP server (built by us). Four tools; one of them writes.
+"""Crop-Pilot MCP server (built by us). Six tools; two of them write (draft_advisory, schedule_followup).
 
 Run standalone:  python -m crop_pilot.mcp_server.server   (stdio transport)
 
@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import timedelta
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
+from crop_pilot import config
 from crop_pilot.core import agronomy, sanitizer, weather_patterns
 from crop_pilot.core.telemetry import now_iso
 from crop_pilot.database.db import connect
@@ -146,6 +148,45 @@ def draft_advisory(run_id: str, household_id: str, status: str, verdict: Optiona
              rule_verdict, model_verdict, now_iso()))
     return {"ok": True, "advisory_id": cur.lastrowid, "status": status, "verdict": verdict,
             "sources": clean_sources, "note": "Staged for officer review. Nothing has been sent."}
+
+
+FOLLOWUP_SCHEMA = """
+CREATE TABLE IF NOT EXISTS followups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL, household_id TEXT NOT NULL, kind TEXT NOT NULL,
+    due_date TEXT NOT NULL, reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','DONE')),
+    created_at TEXT NOT NULL, closed_by TEXT, closed_at TEXT,
+    UNIQUE (run_id, kind),
+    CHECK (status = 'OPEN' OR closed_by IS NOT NULL)
+);
+"""
+FOLLOWUP_KINDS = {"RESCOUT", "RECHECK_AFTER_RAIN", "RERUN_AT_ONSET", "SEEDLING_CHECK", "FIELD_VISIT", "VERIFY_RECORD"}
+
+
+@mcp.tool()
+def schedule_followup(run_id: str, household_id: str, kind: str, days_from_now: int, reason: str) -> dict:
+    """WRITE: put an internal follow-up task on the extension desk's list (e.g. re-scout in 7 days, re-check after
+    the rain, field visit). It is a reminder for the officer only: it never contacts the farmer.
+    kind is one of RESCOUT, RECHECK_AFTER_RAIN, RERUN_AT_ONSET, SEEDLING_CHECK, FIELD_VISIT, VERIFY_RECORD.
+    Idempotent per run_id and kind."""
+    kind = (kind or "").upper()
+    if kind not in FOLLOWUP_KINDS:
+        return {"ok": False, "error": f"kind must be one of {sorted(FOLLOWUP_KINDS)}"}
+    if not 1 <= int(days_from_now) <= 60:
+        return {"ok": False, "error": "days_from_now must be between 1 and 60"}
+    due = (config.today() + timedelta(days=int(days_from_now))).isoformat()
+    text, _ = sanitizer.scrub_free_text(reason, 300)
+    with connect() as conn:
+        conn.executescript(FOLLOWUP_SCHEMA)
+        existing = conn.execute("SELECT id, due_date FROM followups WHERE run_id=? AND kind=?", (run_id, kind)).fetchone()
+        if existing:
+            return {"ok": True, "followup_id": existing["id"], "due_date": existing["due_date"], "idempotent_replay": True}
+        cur = conn.execute("INSERT INTO followups (run_id, household_id, kind, due_date, reason, created_at)"
+                           " VALUES (?,?,?,?,?,?)", (run_id, sanitizer.normalise_text(household_id)[:32], kind, due,
+                                                     text, now_iso()))
+    return {"ok": True, "followup_id": cur.lastrowid, "kind": kind, "due_date": due,
+            "note": "Added to the desk's follow-up list. Nothing was sent to the farmer."}
 
 
 if __name__ == "__main__":
