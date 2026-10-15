@@ -10,7 +10,64 @@ that household's plot history and crop calendar. **The agent only drafts.** Ever
 until a **named extension officer** types their full name and signs it. Only then does the message go to the
 (simulated) SMS outbox. Every draft cites the plot, rainfall, pest-alert and guidance records it used.
 
-## Run it (one command)
+## Contents
+
+[Problem statement](#problem-statement) · [Solution overview](#solution-overview) · [Target users](#target-users) ·
+[Architecture](#architecture) · [Setup / installation instructions](#setup--installation-instructions) ·
+[Usage instructions](#usage-instructions) · [Technology stack](#technology-stack) ·
+[Agent architecture](#agent-architecture) · [MCP implementation](#mcp-implementation) ·
+[MCP tools / servers](#mcp-tools--servers) · [Human-in-the-loop workflow](#human-in-the-loop-workflow) ·
+[Limitations](#limitations) · [Future improvements](#future-improvements)
+
+## Problem statement
+
+In Kenya, one extension officer can cover over a thousand smallholder farms. Farmers depend on that officer to know
+when to plant, when to spray and when to hold off. The short rains have become unreliable (late starts, false starts,
+early stops) and pests like Fall Armyworm spread fast between small plots. Good advice means checking each farm's
+rainfall, nearby pest reports, plot history and crop stage, and no officer has time to do that for every farm every
+week. So advice comes late, generic, or not at all, and a wrong planting or spraying decision costs a smallholder
+household seed, money and part of the harvest. The bottleneck is officer time, not knowledge.
+
+## Solution overview
+
+For each farm, or a whole ward at once, an AI agent gathers the 7-day rainfall outlook, the season's weather pattern,
+officer-verified pest reports nearby, the plot's history and the crop's growth stage through MCP tools. It drafts a
+**Plant / Spray / Hold** advisory and a short SMS, citing every record it used, checks its own draft, and schedules a
+follow-up. Nothing reaches a farmer until a named extension officer reviews and signs it. Farmers have their own view:
+signed advice, notifications, plot history, reminders, and photos they send for the officer to check.
+
+## Target users
+
+* **Extension officers** (primary): the Dagoretti South desk, Nairobi County. They run the agent, review and sign advice,
+  and verify farmers' photos.
+* **Smallholder farmers** (beneficiaries): they receive signed advice for their own plot, log their plot history, set
+  reminders and send crop photos.
+
+## Architecture
+
+Separate backend (FastAPI + LangGraph agent + MCP servers + SQLite) and frontend (Streamlit, HTTP only). Full one-page
+description: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+```mermaid
+flowchart LR
+  Farmer([Farmer]) -->|plot history, photos| UI[Streamlit frontend]
+  Officer([Extension officer]) -->|review + sign| UI
+  UI -->|HTTP only| API[FastAPI backend]
+  API --> Agent[LangGraph agent<br/>plan > gather > draft > self-check]
+  Agent --> LLM[Qwen 2.5 3B<br/>local, Ollama]
+  API --> Vision[Moondream<br/>local, Ollama]
+  Agent -->|MCP client| Ours[crop-pilot MCP server<br/>6 tools]
+  Agent -->|MCP client| FS[Filesystem MCP server<br/>read-only]
+  Ours --> DB[(SQLite<br/>farms, history, alerts,<br/>drafts, log)]
+  FS --> REF["data/reference<br/>guides, rainfall"]
+  Ours --> REF
+  Agent -->|draft waits| Gate{{Officer approval gate}}
+  Gate -->|signed advice only| Farmer
+```
+
+No external APIs are called: the models run locally and all data is synthetic (see [Data](#data-honest-notes)).
+
+## Setup / installation instructions
 
 ```bash
 make
@@ -30,7 +87,17 @@ It switches to deterministic gathering and template messages, and every draft ca
 Other targets: `make test` (47 unit, gate, reflection, injection and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
 `make evals-quick` (deterministic, ~1 min), `make clean`, `make help`.
 
-## What is in the Control Desk
+## Usage instructions
+
+1. Open http://127.0.0.1:8501. In the sidebar, **"I am"** picks the view: Extension officer, or a farmer by name.
+2. As the officer: **Review queue → Draft advice** for one farm, or run a whole ward. Read the draft and its sources,
+   then sign with your full name to send it. **Verify photos** handles farmers' photos.
+3. As a farmer: see **My farm** and **Notifications**, add entries in **Plot history**, set **Reminders**, and send a
+   photo from **AI Scan**.
+4. **Activity log** shows every agent step, tool call and approval in plain words.
+
+What each page does:
+
 
 | Section | Page | What it does |
 |---|---|---|
@@ -74,7 +141,61 @@ to it. Wards, households, rainfall and season outlooks are rows of data. To serv
 | Self-check (reflection) | `self_check` node in the graph, before anything is written | Checks the most stringent rain signal is respected, the ward is in Dagoretti South, and evidence and sources are complete. On a problem it re-gathers once; if it still fails, the draft is withheld as NEEDS_DATA |
 | Plot history | `crop_history` (past seasons, oldest → newest) → `core/history.py` | Rotation risk (e.g. maize after maize raises Fall Armyworm, MLN and Striga carry-over), a sourced reason and an SMS tip. It never flips the verdict |
 
-## Two views: extension officer and farmer
+## Technology stack
+
+| Layer | Technology |
+|---|---|
+| Language | Python 3.12 (`uv`, pinned `requirements.lock`) |
+| Agent orchestration | LangGraph, with a SQLite checkpointer (agent memory, pause/resume at the human gate) |
+| LLMs | Qwen 2.5 3B (text) and Moondream (vision), open-weights, run locally with Ollama |
+| MCP | MCP Python SDK (FastMCP) for our server and the client; official `@modelcontextprotocol/server-filesystem` (Node.js / `npx`) |
+| Backend API | FastAPI + Uvicorn |
+| Frontend | Streamlit (multi-page) |
+| Database | SQLite (parameterised queries only) |
+| Tests / evals | pytest (47 tests), `evals/run_evals.py` (8 tasks × 5 runs) |
+| External APIs | None |
+
+## Agent architecture
+
+The agent is a LangGraph state graph:
+
+1. **Planner**: decides which evidence this household needs.
+2. **Data gatherer** (MCP client): calls the MCP tools. If the local model is offline it gathers with a fixed plan
+   and flags it.
+3. **Advisory compiler**: fixed agronomy rules decide Plant / Spray / Hold (safety-critical, never the LLM); the LLM
+   explains it and writes the SMS.
+4. **Self-check**: checks citations, rain safety and ward. On a problem it goes back to the gatherer once; if it still
+   fails, the draft is withheld as NEEDS_DATA.
+5. **Commit draft**: `draft_advisory` stages it, and `schedule_followup` adds a desk task.
+6. **Human gate**: LangGraph `interrupt()`; the run is checkpointed and waits for the officer.
+
+Memory: run state in the LangGraph checkpointer, and each plot's history in SQLite. Every step is logged to `tool_calls`.
+
+## MCP implementation
+
+The agent is an **MCP client** and connects to two **MCP servers** over stdio at the start of each run:
+
+* **`crop-pilot`** (ours, Python FastMCP): 4 read tools and 2 write tools over our database and reference data. Write
+  tools can only stage a draft or add a desk task; nothing can send to a farmer.
+* **Filesystem MCP server** (official, borrowed): run with `npx`, limited to `data/reference/` and filtered to its
+  read-only tools (`read_text_file`, `read_file`, `list_directory`). The agent reads pest, pesticide and crop guides
+  with it and cites them.
+
+The agent discovers the tools at runtime and chooses which to call. Every call is logged with inputs, outputs and
+timing. If the filesystem server is unavailable, the run continues and is flagged `third_party_mcp_unavailable`.
+
+## Human-in-the-loop workflow
+
+1. The agent drafts; the draft waits as PENDING_REVIEW in the **Review queue**. The agent has no way to send.
+2. The officer reads the draft, its sources and the farm's history, and can edit the message.
+3. To send, the officer types their **full name**, ticks a confirmation and adds a **citation** to the draft's own
+   records. Database constraints reject unsigned approvals; a draft whose forecast changed, or that tripped the
+   injection guard, cannot be signed.
+4. Only then does the message go to the (simulated) SMS outbox and the farmer's Notifications.
+5. Farmers' photos follow the same rule: the AI's suggestion goes to the officer only, and the farmer sees the
+   officer's verified answer.
+
+### Two views: extension officer and farmer
 
 The sidebar's **"I am"** switch picks the view:
 - **Extension officer** sees every farm, runs the agent, and is the **only one who can approve** advice.
@@ -107,7 +228,14 @@ tools, the borrowed MCP server, the safety guard, the officer or the farmer), th
 Inputs, outputs, timings and tokens are under "Technical details". The same records are in `tool_calls`
 (`data/database.db`), at `GET /telemetry`, and printed as `[audit]` lines in the backend terminal.
 
-## Reuse our MCP server in your own agent
+## MCP tools / servers
+
+| Server | Transport | Tools |
+|---|---|---|
+| `crop-pilot` (ours) | stdio | `get_plot_context`, `get_rainfall_outlook`, `get_pest_reports`, `get_weather_pattern`, `draft_advisory` (write), `schedule_followup` (write) |
+| `@modelcontextprotocol/server-filesystem@2026.8.31` (official) | stdio via `npx` | `read_text_file`, `read_file`, `list_directory` (read-only, `data/reference/` only) |
+
+### Reuse our MCP server in your own agent
 
 The `crop-pilot` MCP server is standalone (stdio) and does not depend on our agent or UI. Point any MCP client at it:
 
@@ -195,7 +323,7 @@ tests/         unit, gate and architecture-boundary tests
   sorghum and cowpeas, 18 mm for sweet potato vines and 20 mm for groundnut (`config.py`). They should be checked
   with the county's agronomist.
 
-## What is unfinished (honest list)
+## Limitations
 
 * Outbound is **simulated** (a `dispatch_outbox` table). No SMS/USSD gateway is wired in, by design for the challenge.
 * The rainfall cache is static; there is no scheduled CHIRPS/TAMSAT ingest yet.
@@ -227,11 +355,22 @@ tests/         unit, gate and architecture-boundary tests
   deterministic evals pass 8/8 on the final code, but the model-run numbers in EVALS.md describe the earlier build.
 * The 3B model rarely completes its own evidence plan; the harness fills and corrects it (see EVALS.md).
 
+## Future improvements
+
+* Real SMS / USSD delivery through a gateway such as Africa's Talking, after officer sign-off.
+* Live CHIRPS / TAMSAT rainfall and a national forecast feed instead of the static cache.
+* Swahili (and other local language) farmer messages.
+* Officer and farmer logins, with a verified officer ID as the signature.
+* Field validation with Dagoretti South extension officers and farmers, then tuning thresholds on real outcomes.
+* A larger, field-tested vision model for crop photos.
+* More sub-counties: add their wards and households as data (see "Why one office").
+
 ## Online demo (free hosting)
 
 The live link runs on Streamlit Community Cloud. It is free, so it has no room for the local AI models: drafts come
 from the fixed rules (the agent's normal fallback), and photos reach the officer without an AI suggestion. The officer
-review, signing, citations, follow-ups, farmer view and both MCP servers work the same. `frontend/cloud.py` starts the
+review, signing, citations, follow-ups, farmer view and our MCP server work the same; the borrowed filesystem
+MCP server runs only if the host has a recent Node.js. `frontend/cloud.py` starts the
 backend as its own process there; locally `make run` does that instead. To deploy your own copy: share.streamlit.io →
 Create app → this repo, branch `main`, file `frontend/app.py`, Python 3.12.
 
