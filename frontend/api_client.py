@@ -131,3 +131,21 @@ def run_ward(zone_id: str):
 
 def season_outlook():
     return _req("GET", "/knowledge/season")
+
+
+def greenhouse_check(temp_c: float, rh_pct: float, crop: str | None, greenhouse_id: str = "GH-1"):
+    return _req("POST", "/greenhouse/check", json={"greenhouse_id": greenhouse_id, "temp_c": temp_c, "rh_pct": rh_pct,
+                                                   "crop": crop})
+
+
+def greenhouse_sensor_reading(temp_c: float, rh_pct: float, device_id: str, greenhouse_id: str = "GH-1"):
+    return _req("POST", "/greenhouse/readings", json={"greenhouse_id": greenhouse_id, "temp_c": temp_c,
+                                                      "rh_pct": rh_pct, "device_id": device_id})
+
+
+def greenhouse_history(greenhouse_id: str | None = None):
+    return _req("GET", "/greenhouse/readings", params={"greenhouse_id": greenhouse_id} if greenhouse_id else None)
+
+
+def greenhouse_assess(temp_c: float, rh_pct: float, crop: str | None = None):
+    return _req("POST", "/greenhouse/assess", json={"temp_c": temp_c, "rh_pct": rh_pct, "crop": crop})

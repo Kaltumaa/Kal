@@ -17,10 +17,11 @@ from crop_pilot import config
 from crop_pilot.agent import llm
 from crop_pilot.agent.workflow import build_graph, resume_run, start_run
 from crop_pilot.community import forum
-from crop_pilot.core import agronomy, knowledge, sanitizer, telemetry
+from crop_pilot.core import agronomy, greenhouse, knowledge, sanitizer, telemetry
 from crop_pilot.database.db import DatabaseUnavailable, connect, health_check
 from crop_pilot.dispatch import approval
 from crop_pilot.fieldscan import service as fieldscan
+from crop_pilot.greenhouse import readings as gh_readings
 
 
 @asynccontextmanager
@@ -316,3 +317,47 @@ def forum_post(req: ForumPost):
         return forum.post(req.author, req.topic, req.body)
     except ValueError as exc:
         raise HTTPException(400, detail=str(exc))
+
+
+# --- Greenhouse check (VPD) -------------------------------------------------------------------------
+class GreenhouseReading(BaseModel):
+    greenhouse_id: str = Field("GH-1", max_length=40)
+    temp_c: float = Field(..., ge=-5, le=60)
+    rh_pct: float = Field(..., ge=0, le=100)
+    device_id: str | None = Field(None, max_length=40)
+    crop: str | None = Field(None, max_length=40)
+
+
+@app.post("/greenhouse/assess")
+def greenhouse_assess(req: GreenhouseReading):
+    """Compute VPD and advice only; nothing is stored."""
+    try:
+        return greenhouse.assess(req.temp_c, req.rh_pct, req.crop)
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+@app.post("/greenhouse/check")
+def greenhouse_check(req: GreenhouseReading):
+    """Typed readings: compute VPD and advice, and keep the reading in the greenhouse's history."""
+    _require_db()
+    try:
+        return gh_readings.record(req.greenhouse_id, req.temp_c, req.rh_pct, "manual", None, req.crop)
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+@app.post("/greenhouse/readings")
+def greenhouse_sensor(req: GreenhouseReading):
+    """Sensor endpoint: any device on the local network (e.g. ESP32 + DHT22) can POST readings here."""
+    _require_db()
+    try:
+        return gh_readings.record(req.greenhouse_id, req.temp_c, req.rh_pct, "sensor", req.device_id, req.crop)
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+@app.get("/greenhouse/readings")
+def greenhouse_history(greenhouse_id: str | None = None, limit: int = Query(200, le=2000)):
+    _require_db()
+    return gh_readings.history(greenhouse_id, limit)

@@ -70,6 +70,9 @@ Its proposals are measured against the rules in EVALS.md.
 * **Learn:** the knowledge library in `data/reference/` is the same folder the third-party filesystem MCP server
   exposes to the agent. When the agent drafts a SPRAY it also reads and cites `pesticides_safety.md`. The "What can I
   grow?" tool is a deterministic score over `crop_suitability.csv`.
+* **Greenhouse check:** `core/greenhouse.py` computes VPD (Tetens) and dew point (Magnus) from temperature and humidity
+  and maps them to plain advice. Readings come from a farmer typing them or a sensor POSTing to `/greenhouse/readings`;
+  they are stored in `greenhouse_readings` and are farmer guidance only, never an advisory signal.
 * **Community:** a discussion board. Posts are scrubbed, instruction-like posts are held, and the agent never reads it:
   unverified chat is not a signal.
 

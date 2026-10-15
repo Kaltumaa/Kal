@@ -71,3 +71,22 @@ def test_season_outlook_feeds_suitability():
     n = outlook["NGANDO"]
     ranked = knowledge.suitability(n["expected_rain_mm"], n["mean_temp_c"], n["dominant_soil"], False)
     assert ranked and all(0 <= r["score"] <= 100 for r in ranked)
+
+
+def test_greenhouse_vpd_and_advice():
+    from crop_pilot.core import greenhouse
+    assert greenhouse.vpd(25, 60) == 1.27                       # textbook value
+    humid = greenhouse.assess(19, 94, "Tomato")
+    assert humid["status"] == "TOO_HUMID" and any("vent" in a for a in humid["actions"])
+    assert greenhouse.assess(24, 70, "Tomato")["status"] == "IDEAL"
+    with pytest.raises(ValueError):
+        greenhouse.assess(80, 50)
+
+
+def test_greenhouse_sensor_readings_stored_and_validated(temp_db):
+    from crop_pilot.greenhouse import readings
+    r = readings.record("GH-1", 26.5, 82, "sensor", "esp32-1", "Tomato")
+    assert r["reading_id"] and r["status"] in ("HUMID", "IDEAL")
+    assert readings.history("GH-1")[0]["device_id"] == "esp32-1"
+    with pytest.raises(ValueError):
+        readings.record("GH 1; DROP", 20, 50, "sensor")

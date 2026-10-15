@@ -4,6 +4,8 @@ The same documents are what the advisory agent reads through the third-party fil
 """
 from __future__ import annotations
 
+import random
+
 import pandas as pd
 import streamlit as st
 
@@ -13,7 +15,62 @@ import ui
 SOILS = ["red loam", "black cotton", "sandy loam", "clay loam"]
 GREENHOUSE = {"best": "Best", "yes": "Good", "nursery": "Nursery only", "no": "Field crop"}
 
-ui.header("Learn", "Guides for officers and farmers. The advisory agent reads the same library.")
+STATUS_LABEL = {"TOO_HUMID": ("Too humid", "red"), "HUMID": ("A bit humid", "orange"), "IDEAL": ("Ideal", "green"),
+                "DRY": ("A bit dry", "orange"), "TOO_DRY": ("Too dry", "red")}
+GH_CROPS = ["Tomato", "Capsicum", "Cucumber", "Kale", "Spinach", "Strawberry"]
+
+
+def show_assessment(a: dict) -> None:
+    label, color = STATUS_LABEL[a["status"]]
+    m = st.columns(3)
+    m[0].metric("VPD", f"{a['vpd_kpa']:.2f} kPa", help="Vapour pressure deficit; 0.8–1.2 kPa is ideal in the day")
+    m[1].metric("Dew point", f"{a['dew_point_c']:.1f} °C")
+    m[2].metric(f"Best for {a['crop'] or 'most crops'}", f"{a['ideal_temp_c'][0]}–{a['ideal_temp_c'][1]} °C")
+    st.markdown(f":{color}-badge[{label}] {a['meaning']}")
+    st.markdown("\n".join(f"- {x}" for x in a["actions"]))
+
+
+def greenhouse_check() -> None:
+    with st.container(border=True):
+        st.markdown("**Check my greenhouse**")
+        t_type, t_sensor = st.tabs(["Type readings", "Sensor feed"])
+        with t_type:
+            c = st.columns(3)
+            crop = c[0].selectbox("Crop", GH_CROPS)
+            temp = c[1].number_input("Temperature (°C)", -5.0, 60.0, 24.0, step=0.5)
+            rh = c[2].number_input("Humidity (%)", 0.0, 100.0, 75.0, step=1.0)
+            if st.button("Check", type="primary"):
+                try:
+                    st.session_state["gh_last"] = api.greenhouse_check(temp, rh, crop)
+                except api.ApiError as exc:
+                    st.error(str(exc.detail))
+            if st.session_state.get("gh_last"):
+                show_assessment(st.session_state["gh_last"])
+        with t_sensor:
+            rows = api.greenhouse_history("GH-1")
+            sensor = [r for r in rows if r["source"] == "sensor"]
+            if sensor:
+                latest = sensor[0]
+                st.caption(f"Latest from {latest['device_id'] or 'sensor'} at "
+                           f"{latest['recorded_at'][:16].replace('T', ' ')} UTC")
+                show_assessment(api.greenhouse_assess(latest["temp_c"], latest["rh_pct"]))
+                trend = pd.DataFrame({"VPD (kPa)": [r["vpd_kpa"] for r in sensor[::-1]]},
+                                     index=pd.RangeIndex(1, len(sensor) + 1, name="Reading"))
+                st.line_chart(trend, height=170, color="#1F7A4D", x_label="Reading", y_label="VPD (kPa)")
+            else:
+                st.caption("No sensor connected yet. Any device on this network can send readings:")
+            st.code('curl -X POST http://<this-computer>:8000/greenhouse/readings -H "Content-Type: application/json" '
+                    '-d \'{"greenhouse_id": "GH-1", "device_id": "esp32-1", "temp_c": 26.5, "rh_pct": 82}\'',
+                    language="bash")
+            if st.button("Simulate a sensor reading"):
+                api.greenhouse_sensor_reading(round(random.uniform(18, 32), 1), round(random.uniform(45, 95)),
+                                              "demo-sensor")
+                st.rerun()
+            st.caption("No real sensor is connected in this demo; the button sends a random reading through the same "
+                       "endpoint a device would use.")
+
+
+ui.header("Learn","Guides for officers and farmers. The advisory agent reads the same library.")
 topics = api.knowledge_topics()
 names = ["What can I grow?"] + [t["title"] for t in topics]
 choice = st.segmented_control("Topic", names, default=names[0], label_visibility="collapsed")
@@ -50,5 +107,7 @@ if choice in (None, names[0]):
     st.caption("Scores come from a fixed crop table (rainfall, temperature, soil, greenhouse), not a guess.")
 else:
     slug = topics[names.index(choice) - 1]["slug"]
+    if slug == "greenhouse":
+        greenhouse_check()
     with st.container(border=True):
         st.markdown(api.knowledge_topic(slug))
