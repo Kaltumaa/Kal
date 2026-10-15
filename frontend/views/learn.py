@@ -98,18 +98,25 @@ def what_can_i_grow() -> None:
         c[2].metric("Average temp", f"{temp:.1f} °C")
         c[3].metric("Soil", soil.title())
     st.caption(f"{o['season']} outlook for {ward.title()} · {o['source']} · `reference:season_outlook.csv`")
+    zone_now = next((z for z in api.overview()["zones"] if z["zone_id"] == ward), None)
+    rain_7d = zone_now["rain_7d_mm"] if zone_now else None
     try:
-        results = api.suitability(rain, temp, soil, gh)
+        results = api.suitability(rain, temp, soil, gh, rain_7d)
     except api.ApiError as exc:
         st.error(str(exc.detail))
         return
     st.dataframe(pd.DataFrame([{
-        "Crop": r["crop"], "Fit": r["score"], "Greenhouse": GREENHOUSE[r["greenhouse"]],
-        "Days to harvest": r["days_to_maturity"], "Drought tolerance": r["drought_tolerance"].title(),
-        "Why": "; ".join(r["reasons"]), "Tip": r["notes"]} for r in results]),
-        hide_index=True, width="stretch", height=460,
+        "Crop": r["crop"], "Fit": r["score"],
+        "Plant now?": "—" if r["plant_now"] is None else ("✅ Yes" if r["plant_now"] else "⏳ Not yet"),
+        "Harvest if planted now": r["harvest_if_planted_now"] or "—",
+        "Why": " ".join(r["reasons"]), "Greenhouse": GREENHOUSE[r["greenhouse"]],
+        "Drought tolerance": r["drought_tolerance"].title(), "Tip": r["notes"]} for r in results]),
+        hide_index=True, width="stretch", height=470,
         column_config={"Fit": st.column_config.ProgressColumn("Fit", min_value=0, max_value=100, format="%d"),
                        "Why": st.column_config.TextColumn(width="large"), "Tip": st.column_config.TextColumn(width="medium")})
+    if rain_7d is not None:
+        st.caption(f"\"Plant now?\" uses this week's forecast for {ward.title()} ({rain_7d:.0f} mm in 7 days) against "
+                   "each crop's planting-rain need (about 25 mm for most crops; 15 mm for sorghum and cowpeas).")
     st.caption("Scores come from a fixed crop table (rainfall, temperature, soil, greenhouse), not a guess.")
 
 

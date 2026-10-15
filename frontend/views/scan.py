@@ -29,8 +29,8 @@ def ai_label(candidates: list[dict]) -> str:
 
 
 def farmer_page() -> None:
-    ui.header("Identify plants, weeds & pests", "Send a photo to your extension officer. They check it and tell you "
-                                                "what it is and what to do.")
+    ui.header("Identify plants, weeds, pests & sick plants", "Send a photo to your extension officer. They check it "
+                                                            "and tell you what it is and how to fix it.")
     left, right = st.columns([1.3, 1], gap="large")
     with left:
         source = st.segmented_control("Source", ["Camera", "Upload"], default="Camera", label_visibility="collapsed")
@@ -67,8 +67,9 @@ def farmer_page() -> None:
 
 
 def officer_page() -> None:
-    ui.header("Verify photos", "Photos farmers sent. Check the AI's suggestion, then confirm, override or dismiss it. "
-                               "The farmer sees only your answer.")
+    ui.header("Identify plants, weeds, pests & sick plants", "Verify the photos farmers sent: check the AI's "
+                                                            "suggestion, confirm or correct it, and send the farmer what "
+                                                            "it is and how to fix it.")
     scans = api.scans()
     pending = [s for s in scans if s["status"] == "UNVERIFIED"]
     done = [s for s in scans if s["status"] != "UNVERIFIED"]
@@ -87,38 +88,34 @@ def officer_page() -> None:
                 st.caption(f"AI description: {s['description'] or '—'}")
                 st.warning(ai_label(s["candidates"]), icon=":material/hourglass_top:")
                 top = s["candidates"][0]["pest"] if s["candidates"] else None
-                overriding = st.session_state.get(f"override-{s['id']}", False) or top is None
+                options = list(dict.fromkeys(([top] if top else []) + [
+                    "Fall Armyworm", "Late Blight", "Aphids", "Bean fly", "Maize Lethal Necrosis",
+                    "Tomato leaf miner (Tuta)", "Striga (witchweed)", "Couch grass", "Black-jack (Bidens)",
+                    "Wild / prickly lettuce", "Weed (species unclear)", "Nutrient deficiency (not a pest)",
+                    "Not a problem (dismiss)"]))
+                c = st.columns([1.6, 1])
+                pest = c[0].selectbox("Your diagnosis (the AI's suggestion is first; change it to override)", options,
+                                      key=f"diag-{s['id']}")
+                sev = c[1].selectbox("Severity", ["MEDIUM", "HIGH", "LOW"], key=f"sev-{s['id']}")
+                if pest == "Not a problem (dismiss)":
+                    suggested = "Your photo shows no pest, disease or weed problem. No action is needed."
+                else:
+                    suggested = api.problem(pest)["farmer_message"]
                 with st.form(f"scan-{s['id']}", border=False):
-                    f = st.columns([1.4, 1, 1.4])
-                    if overriding:
-                        pest = f[0].selectbox("Your diagnosis", ["Fall Armyworm", "Late Blight", "Aphids", "Bean fly",
-                                                                 "Maize Lethal Necrosis", "Striga (witchweed)",
-                                                                 "Wild / prickly lettuce", "Other pest, disease or weed",
-                                                                 "Not a problem (dismiss)"])
-                    else:
-                        pest = top
-                        f[0].text_input("AI suggestion", top, disabled=True)
-                    sev = f[1].selectbox("Severity", ["MEDIUM", "HIGH", "LOW"])
-                    name = f[2].text_input("Your full name")
-                    note = st.text_input("Note to the farmer", max_chars=300,
-                                         placeholder="e.g. Pull it out before it flowers; no spraying needed.")
-                    b = st.columns([1.3, 1.3, 1.5])
-                    confirm = b[0].form_submit_button("✅ Verify Assessment", type="primary", width="stretch")
-                    override = (b[1].form_submit_button("Override Diagnosis", width="stretch") if not overriding
-                                else False)
+                    note = st.text_area("Message to the farmer (what it is and how to fix it; edit before sending)",
+                                        suggested, height=140, max_chars=1200, key=f"note-{s['id']}-{pest}")
+                    f = st.columns([1.6, 1.4])
+                    name = f[0].text_input("Your full name")
+                    confirm = f[1].form_submit_button("✅ Verify Assessment & notify farmer", type="primary",
+                                                      width="stretch")
                     try:
-                        if override:
-                            st.session_state[f"override-{s['id']}"] = True
-                            st.rerun()
                         if confirm:
                             if pest == "Not a problem (dismiss)":
                                 api.review_scan(s["id"], name, "DISMISSED", note=note)
                                 st.toast("Dismissed. The farmer is notified.", icon=":material/check:")
                             else:
                                 r = api.review_scan(s["id"], name, "VERIFIED", pest, sev, note)
-                                st.toast(f"Verified. Alert #{r['pest_alert_id']} logged; the farmer is notified.",
-                                         icon=":material/check:")
-                            st.session_state.pop(f"override-{s['id']}", None)
+                                st.toast(f"Verified as {pest}. The farmer is notified.", icon=":material/check:")
                             st.rerun()
                     except api.ApiError as exc:
                         st.error(str(exc.detail))

@@ -136,35 +136,66 @@ def _temp_band(c: dict) -> list[float]:
     return [lo - 4, lo - 2, lo, hi, hi + 2, hi + 4]
 
 
-def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, greenhouse: bool) -> list[dict]:
-    """Score every crop 0-100 against rainfall, temperature, soil and greenhouse availability (bisect lookup)."""
+def _maturity_days(text: str) -> int | None:
+    nums = [int(n) for n in re.findall(r"\d+", text or "")]
+    return round(sum(nums[:2]) / len(nums[:2])) if nums else None
+
+
+def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, greenhouse: bool,
+                rain_7d_mm: float | None = None) -> list[dict]:
+    """Score every crop 0-100 against rainfall, temperature, soil and greenhouse availability (bisect lookup),
+    with reasons that quote the numbers, when to plant and an expected harvest date."""
+    from datetime import timedelta
+
+    from crop_pilot.core import agronomy, sanitizer
     out = []
     for c in crops():
         reasons = []
+        lo, hi = c["season_rain_min_mm"], c["season_rain_max_mm"]
         under_cover = greenhouse and c["greenhouse"] in ("best", "yes")
         if under_cover:
             rain_score = 100
-            reasons.append("greenhouse controls water")
+            reasons.append(f"Grown under cover, so you control the water (needs {lo:.0f}–{hi:.0f} mm equivalent).")
         else:
             band = bisect.bisect_right(_rain_band(c), season_rain_mm)
             rain_score = RAIN_SCORES.get(c["drought_tolerance"], RAIN_SCORES["medium"])[band]
-            lo, hi = c["season_rain_min_mm"], c["season_rain_max_mm"]
-            reasons.append("rainfall in range" if lo <= season_rain_mm <= hi else
-                           f"rain {season_rain_mm:.0f} mm below the {lo:.0f} mm it needs" if season_rain_mm < lo else
-                           f"rain above {hi:.0f} mm: waterlogging/disease risk")
+            if lo <= season_rain_mm <= hi:
+                reasons.append(f"{season_rain_mm:.0f} mm of season rain is within the {lo:.0f}–{hi:.0f} mm "
+                               "this crop needs.")
+            elif season_rain_mm < lo:
+                tip = ("its drought tolerance helps" if c["drought_tolerance"] == "high"
+                       else "choose an early-maturing variety or add water")
+                reasons.append(f"{season_rain_mm:.0f} mm is {lo - season_rain_mm:.0f} mm short of the {lo:.0f} mm "
+                               f"this crop needs: {tip}.")
+            else:
+                reasons.append(f"{season_rain_mm:.0f} mm is above the {hi:.0f} mm this crop likes: risk of "
+                               "waterlogging and disease; use raised beds.")
+        tlo, thi = c["temp_min_c"], c["temp_max_c"]
         temp_score = TEMP_SCORES[bisect.bisect_right(_temp_band(c), mean_temp_c)]
-        if temp_score < 100 and not c["temp_min_c"] <= mean_temp_c <= c["temp_max_c"]:
-            reasons.append(f"best between {c['temp_min_c']:.0f}–{c['temp_max_c']:.0f} °C")
+        if tlo <= mean_temp_c <= thi:
+            reasons.append(f"{mean_temp_c:.1f} °C average suits it ({tlo:.0f}–{thi:.0f} °C).")
+        else:
+            reasons.append(f"{mean_temp_c:.1f} °C is {'too cool' if mean_temp_c < tlo else 'too warm'}: it grows "
+                           f"best at {tlo:.0f}–{thi:.0f} °C, so growth will be slower.")
         score = min(rain_score, temp_score)
         if soil and soil not in c["soils"]:
             score -= 25
-            reasons.append(f"prefers {', '.join(c['soils'])}")
+            reasons.append(f"{soil.capitalize()} soil is not ideal: it prefers {', '.join(c['soils'])}.")
+        elif soil:
+            reasons.append(f"{soil.capitalize()} soil suits it.")
         if greenhouse and c["greenhouse"] == "best":
             score += 10
         if greenhouse and c["greenhouse"] == "no":
-            reasons.append("field crop: not worth greenhouse space")
+            reasons.append("Field crop: not worth greenhouse space.")
+        days = _maturity_days(c["days_to_maturity"])
+        harvest = (config.today() + timedelta(days=days)).strftime("%b %Y") if days else None
+        plant_now = None
+        if rain_7d_mm is not None:
+            need = agronomy.planting_threshold(sanitizer.normalise_crop(c["crop"]))
+            plant_now = under_cover or rain_7d_mm >= need
         out.append({"crop": c["crop"], "score": int(max(0, min(100, score))), "reasons": reasons,
                     "greenhouse": c["greenhouse"], "days_to_maturity": c["days_to_maturity"],
+                    "harvest_if_planted_now": harvest, "plant_now": plant_now,
                     "drought_tolerance": c["drought_tolerance"], "notes": c["notes"]})
     return sorted(out, key=lambda r: r["score"], reverse=True)
 
@@ -191,3 +222,39 @@ def plant_seen(description: str) -> str | None:
         if re.search(rf"\b{re.escape(word)}\b", text):
             return crop
     return None
+
+
+@lru_cache(maxsize=1)
+def _problem_guide() -> dict:
+    path = config.REFERENCE_DIR / "problem_guide.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def problem_info(name: str | None) -> dict | None:
+    return _problem_guide().get(name or "")
+
+
+def farmer_explainer(name: str | None) -> str:
+    """Plain message for a farmer: what it is, how to fix it, how to prevent it (from the problem guide)."""
+    info = problem_info(name)
+    if not info:
+        return f"{name}." if name else ""
+    steps = " ".join(f"{i}) {step}" for i, step in enumerate(info["fix"], 1))
+    return f"{name}: {info['what']} How to fix: {steps} Next season: {info['prevent']}"
+
+
+VERDICT_STEPS = {
+    "PLANT": ["Prepare the seedbed and plant with certified seed now, while the rain is coming.",
+              "Plant at the recommended spacing and add manure or planting fertiliser.",
+              "Weed at 2-3 weeks and again at 5-6 weeks."],
+    "HOLD": ["Do not plant, spray or apply fertiliser this week.",
+             "Clear drainage channels if heavy rain is expected.",
+             "Keep checking your crop; your officer will update you."],
+}
+
+
+def advice_steps(verdict: str | None, pest: str | None) -> list[str]:
+    """Concrete steps to go with an approved advisory."""
+    if verdict == "SPRAY" and problem_info(pest):
+        return problem_info(pest)["fix"]
+    return VERDICT_STEPS.get(verdict or "", [])

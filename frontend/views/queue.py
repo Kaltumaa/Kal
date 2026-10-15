@@ -13,32 +13,6 @@ SERVER_LABEL = {"crop-pilot": "Crop-Pilot MCP", "filesystem": "Filesystem MCP", 
                 "guard": "Guard (blocked)", "officer": "Officer", "graph": "Workflow", "none": "Blocked"}
 
 
-def new_draft() -> None:
-    with st.popover("New draft", icon=":material/add:", type="primary", width="stretch"):
-        scope = st.segmented_control("Draft for", ["One household", "Whole ward"], default="One household")
-        if scope == "Whole ward":
-            wards = sorted({h["zone_id"] for h in api.overview()["households"] if h["zone_id"]})
-            ward = st.selectbox("Ward", wards, format_func=str.title)
-            if st.button("Run agent for every household", type="primary", width="stretch"):
-                with st.spinner("Drafting advice for every household in the ward… (1–3 min each on CPU)"):
-                    try:
-                        st.session_state["last_ward"] = api.run_ward(ward)
-                        st.rerun()
-                    except api.ApiError as exc:
-                        st.error(str(exc.detail))
-            return
-        hid = st.selectbox("Farm", list(ui.names()), format_func=ui.farm_label)
-        note = st.text_input("Note for the agent (optional)", max_chars=300)
-        if st.button("Run agent", type="primary", width="stretch"):
-            with st.spinner("Gathering plot, rainfall and pest evidence… (1–3 min on CPU)"):
-                try:
-                    res = api.run_agent(hid, note)
-                    st.session_state["select_advisory"] = res["advisory"].get("advisory_id")
-                    st.rerun()
-                except api.ApiError as exc:
-                    st.error(str(exc.detail))
-
-
 def ward_summary() -> None:
     ward = st.session_state.get("last_ward")
     if not ward:
@@ -49,6 +23,7 @@ def ward_summary() -> None:
                icon=":material/groups:")
 
 
+@st.fragment
 def detail(adv: dict) -> None:
     ev = adv.get("evidence") or {}
     plot, rain, threat = ev.get("plot") or {}, ev.get("rain") or {}, ev.get("pest_threat")
@@ -94,8 +69,9 @@ def detail(adv: dict) -> None:
             m[3].metric("Nearest pest", f'{threat["distance_km"]} km' if threat else "None",
                         threat["pest"] if threat else None, delta_color="off")
 
-        t_msg, t_farm, t_ev, t_trace = st.tabs(["Message & send", "Farm & plot history", "Evidence", "Agent steps"])
-        with t_farm:
+        view = st.segmented_control("View", ["Message & send", "Farm & plot history", "Evidence", "Agent steps"],
+                                    default="Message & send", key=f"view-{adv['id']}", label_visibility="collapsed")
+        if view == "Farm & plot history":
             prof = api.household_profile(adv["household_id"])
             rot, pat = prof["rotation"], prof.get("pattern") or {}
             seasons = (prof["plot"].get("crop_history") or []) + [f"{prof['plot'].get('active_crop') or '—'} (now)"]
@@ -113,7 +89,7 @@ def detail(adv: dict) -> None:
                              hide_index=True, width="stretch")
             else:
                 st.caption("No field-log entries yet for this farm.")
-        with t_msg:
+        if view == "Message & send":
             st.write(adv["rationale"])
             if can_sign:
                 with st.form(f"sign-{adv['id']}", border=False):
@@ -155,7 +131,7 @@ def detail(adv: dict) -> None:
             if planned:
                 f = planned[0]
                 st.caption(f":material/event: Follow-up scheduled by the agent for {f['due_date']}: {f['reason']}")
-        with t_ev:
+        if view == "Evidence":
             st.markdown("**Based on**")
             st.markdown("\n".join(f"- {ui.source_label(x, ui.names())}  <span class='cp-muted'>`{x}`</span>"
                                    for x in adv["sources"]), unsafe_allow_html=True)
@@ -170,7 +146,7 @@ def detail(adv: dict) -> None:
             if adv.get("model_verdict") and adv["model_verdict"] != adv["rule_verdict"]:
                 st.warning(f"The local model suggested {adv['model_verdict']}; the safety rules chose "
                            f"{adv['rule_verdict']}.")
-        with t_trace:
+        if view == "Agent steps":
             try:
                 rows = sorted(api.telemetry(adv["run_id"]), key=lambda r: r["id"])
             except api.ApiError:
@@ -195,62 +171,78 @@ except api.ApiError as exc:
 drafts = [a for a in advs if a["status"] in ("SECURITY_LOCK", "PENDING_REVIEW", "NEEDS_DATA")]
 drafts.sort(key=lambda a: ({"SECURITY_LOCK": 0, "PENDING_REVIEW": 1}.get(a["status"], 2), -a["id"]))
 
-PLAN = {"PLANT": ("Plant now", "green"), "SPRAY": ("Spray now", "orange"), "HOLD": ("Hold", "blue"),
-        "HARVEST": ("Ready for harvest", "violet"), "NEEDS_DATA": ("Needs farm data", "gray"),
-        "SECURITY_LOCK": ("Record locked", "red")}
-DRAFT = {None: "No draft yet", "PENDING_REVIEW": "Draft waiting for you", "SECURITY_LOCK": "Draft locked",
-         "NEEDS_DATA": "Needs field visit", "APPROVED": "Sent", "REJECTED": "Rejected"}
-st.subheader("Every farm this week")
-st.caption("What each farm should do now according to the safety rules: its own plot history, crop stage, area "
-           "rainfall and confirmed pests. This is a preview: nothing goes to a farmer until the agent drafts it "
-           "and you sign.")
-plan = api.farms_plan()
-for row in range(0, len(plan), 3):
-    cols = st.columns(3)
-    for col, f in zip(cols, plan[row:row + 3]):
-        label, color = PLAN.get(f["plan"], (f["plan"], "gray"))
-        with col.container(border=True, height=290):
-            st.markdown(f"**{f['farmer_name']}** · {(f['zone_id'] or '—').title()}  \n"
-                        f":{color}-badge[{label}] <span class='cp-muted'>{f['crop'] or 'no crop'} · "
-                        f"{ui.stage_label(f['stage']).lower()}"
-                        + (f", day {f['days']}" if f["days"] is not None else "") + "</span>",
-                        unsafe_allow_html=True)
-            why = f["why"]
-            for code, words in ui.STAGES.items():
-                why = why.replace(code, words.lower())
-            st.caption(why[:150])
-            for n in f["notes"][:1]:
-                st.caption(f":material/info: {n}")
-            st.caption(f"Draft: {DRAFT.get(f['draft_status'], f['draft_status'])}")
-            if f["draft_status"] in (None, "APPROVED", "REJECTED") and f["plan"] not in ("SECURITY_LOCK",):
-                if st.button("Draft advice", key=f"draft-{f['household_id']}", width="stretch"):
-                    with st.spinner(f"Drafting for {f['farmer_name']}… (1–3 min on CPU)"):
-                        try:
-                            res = api.run_agent(f["household_id"], "")
-                            st.session_state["select_advisory"] = res["advisory"].get("advisory_id")
-                            st.rerun()
-                        except api.ApiError as exc:
-                            st.error(str(exc.detail))
-st.divider()
-st.subheader("Drafts to review")
+PLAN = {"PLANT": "🌱 Plant now", "SPRAY": "🧴 Spray now", "HOLD": "✋ Hold", "HARVEST": "🧺 Ready for harvest",
+        "NEEDS_DATA": "❔ Needs farm data", "SECURITY_LOCK": "⛔ Record locked"}
+DRAFT = {None: "—", "PENDING_REVIEW": "Waiting for you", "SECURITY_LOCK": "Locked", "NEEDS_DATA": "Field visit",
+         "APPROVED": "Sent", "REJECTED": "Rejected"}
+
+# --- One toolbar to draft advice ---------------------------------------------------------------------------
+with st.container(border=True):
+    c = st.columns([1.1, 2, 1.2], vertical_alignment="bottom")
+    scope = c[0].segmented_control("Draft for", ["One farm", "Whole ward"], default="One farm")
+    if scope == "Whole ward":
+        ward = c[1].selectbox("Ward", sorted({f["zone_id"] for f in st.session_state.get("farm_info", {}).values()
+                                             if f["zone_id"]}), format_func=str.title)
+        if c[2].button("Draft for the ward", type="primary", width="stretch"):
+            with st.spinner("Drafting for every farm in the ward… (1–3 min each on CPU)"):
+                try:
+                    st.session_state["last_ward"] = api.run_ward(ward)
+                    st.rerun()
+                except api.ApiError as exc:
+                    st.error(str(exc.detail))
+    else:
+        hid = c[1].selectbox("Farm", list(ui.names()), format_func=ui.farm_label)
+        if c[2].button("Draft advice", type="primary", width="stretch"):
+            with st.spinner("Gathering plot, rainfall and pest evidence… (1–3 min on CPU)"):
+                try:
+                    res = api.run_agent(hid, "")
+                    st.session_state["select_advisory"] = res["advisory"].get("advisory_id")
+                    st.rerun()
+                except api.ApiError as exc:
+                    st.error(str(exc.detail))
 ward_summary()
-left, right = st.columns([1, 2], gap="large")
-with left:
-    new_draft()
+
+views = [f"Drafts to review ({len(drafts)})", "Every farm this week"]
+default_view = views[0] if drafts else views[1]
+picked = st.segmented_control("Show", views, default=default_view, label_visibility="collapsed")
+
+if picked == views[1]:
+    plan = api.farms_plan()
+
+    def plain(text: str) -> str:
+        for code, words in ui.STAGES.items():
+            text = text.replace(code, words.lower())
+        return text
+
+    st.dataframe(pd.DataFrame([{
+        "Farm": f"{f['farmer_name']} · {(f['zone_id'] or '—').title()}",
+        "Do now": PLAN.get(f["plan"], f["plan"]),
+        "Draft": DRAFT.get(f["draft_status"], f["draft_status"]),
+        "Crop": f"{f['crop'] or '—'}, {ui.stage_label(f['stage']).lower()}"
+                + (f", day {f['days']}" if f["days"] is not None else ""),
+        "Why": plain(f["why"]), "Tip": f["notes"][0] if f["notes"] else ""} for f in plan]),
+        hide_index=True, width="stretch", height=38 + 35 * len(plan),
+        column_config={"Why": st.column_config.TextColumn(width="large"),
+                       "Tip": st.column_config.TextColumn(width="medium")})
+    st.caption("A preview from the safety rules using each farm's plot history, crop stage, area rainfall and confirmed "
+               "pests. Nothing goes to a farmer until the agent drafts it and you sign. Use the toolbar above to draft.")
+else:
     if not drafts:
-        st.caption("No drafts waiting. Use **Draft advice** on a farm above, or **New draft** for a whole ward.")
+        st.info("No drafts waiting. Pick a farm or ward in the toolbar above and draft advice.",
+                icon=":material/inbox:")
         st.stop()
-    table = pd.DataFrame([{"Farm": ui.farm_label(a["household_id"]),
-                           "Urgency": ui.urgency(a["verdict"], ((a.get("evidence") or {}).get("plot") or {})
-                                                 .get("growth_stage"))[0],
-                           "Status": "Forecast changed" if a.get("forecast_changed") else ui.STATUS_TEXT[a["status"]]}
-                          for a in drafts])
-    wanted = st.session_state.pop("select_advisory", None)
-    default_row = next((i for i, a in enumerate(drafts) if a["id"] == wanted), 0)
-    sel = st.dataframe(table, hide_index=True, width="stretch", on_select="rerun", selection_mode="single-row",
-                       key="drafts", height=min(420, 38 + 35 * len(drafts)))
-    rows = sel.selection.rows if sel and sel.selection else []
-    chosen = drafts[rows[0]] if rows else drafts[default_row]
-    st.caption(f"{len(drafts)} waiting · select a row to review")
-with right:
-    detail(chosen)
+    left, right = st.columns([1.3, 2.2], gap="large")
+    with left:
+        table = pd.DataFrame([{"Farm": ui.names().get(a["household_id"], a["household_id"]),
+                               "Do now": PLAN.get(a["verdict"] or a["status"], "—"),
+                               "Status": "Forecast changed" if a.get("forecast_changed")
+                               else ui.STATUS_TEXT[a["status"]]} for a in drafts])
+        wanted = st.session_state.pop("select_advisory", None)
+        default_row = next((i for i, a in enumerate(drafts) if a["id"] == wanted), 0)
+        sel = st.dataframe(table, hide_index=True, width="stretch", on_select="rerun", selection_mode="single-row",
+                           key="drafts", height=min(420, 38 + 35 * len(drafts)))
+        rows = sel.selection.rows if sel and sel.selection else []
+        chosen = drafts[rows[0]] if rows else drafts[default_row]
+        st.caption(f"{len(drafts)} waiting · select a row")
+    with right:
+        detail(chosen)

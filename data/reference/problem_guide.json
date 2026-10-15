@@ -1,0 +1,74 @@
+{
+  "Fall Armyworm": {
+    "what": "A caterpillar (moth larva) that eats maize and sorghum leaves from the inside of the whorl.",
+    "signs": "Window-pane scraping and ragged holes on young leaves, sawdust-like droppings in the whorl, caterpillars with an upside-down Y on the head.",
+    "fix": ["Check 20 plants in a W pattern; act if 1 in 10 shows fresh damage.", "Crush egg masses and small caterpillars by hand.", "If damage is above that level, spray a PCPB-registered product (e.g. a Bt product) into the whorl early in the morning, with gloves and mask.", "Do not spray if rain is expected within 6 hours."],
+    "prevent": "Plant early with the rains, rotate with beans, and keep a border of Brachiaria grass with Desmodium (push-pull)."
+  },
+  "Late Blight": {
+    "what": "A fast-spreading disease of potato and tomato that thrives in cool, wet weather.",
+    "signs": "Dark, water-soaked patches with pale edges on leaves, white mould underneath in the morning, brown marks on stems.",
+    "fix": ["Remove and bury or burn infected leaves and plants the same day.", "Spray a registered protective fungicide (e.g. one containing mancozeb) before rain, following the label.", "Water at the base, never on the leaves."],
+    "prevent": "Use certified seed, space plants for air flow, and keep potato and tomato off the same plot for 3 seasons."
+  },
+  "Aphids": {
+    "what": "Small soft insects (green or black) that suck sap from beans, kale and cabbage.",
+    "signs": "Clusters of tiny insects on stems and under leaves, curled leaves, sticky honeydew, black sooty mould, ants on the plant.",
+    "fix": ["Wash them off with a strong spray of water.", "Spray soap solution or neem on stems and under leaves; repeat after 5 days.", "Only if they keep spreading, use a registered aphicide, following the label."],
+    "prevent": "Check plants weekly and protect ladybirds and other natural enemies."
+  },
+  "Bean fly": {
+    "what": "A small fly whose maggots tunnel into young bean stems.",
+    "signs": "Seedlings wilting and dying, swollen or cracked stem at soil level, tiny holes on leaves.",
+    "fix": ["Earth up soil around the stems so new roots can form above the damage.", "Remove and destroy dead seedlings.", "Top-dress lightly so surviving plants recover."],
+    "prevent": "Plant at the start of the rains and use treated seed next season."
+  },
+  "Maize Lethal Necrosis": {
+    "what": "A virus disease of maize spread by insects and infected seed.",
+    "signs": "Yellow streaks from the leaf edges, leaves drying from the margins, a dead central shoot, poorly filled cobs.",
+    "fix": ["Pull out and destroy infected plants early.", "Do not save seed from this crop."],
+    "prevent": "Use certified tolerant varieties and plant beans or potato for one season to break the cycle."
+  },
+  "Tomato leaf miner (Tuta)": {
+    "what": "A small moth whose caterpillars tunnel inside tomato leaves and fruit.",
+    "signs": "Pale blotches (mines) in leaves, holes in fruit, droppings.",
+    "fix": ["Remove and destroy leaves with mines.", "Hang pheromone traps.", "Use a registered product only if damage spreads."],
+    "prevent": "Use insect-proof net in greenhouses and destroy old crop residue."
+  },
+  "Striga (witchweed)": {
+    "what": "A parasitic weed that attaches to maize and sorghum roots and steals their water and food.",
+    "signs": "Small plants with bright pink-purple flowers among stunted, yellowing maize.",
+    "fix": ["Pull it out by hand before it flowers, and burn or bury it.", "Do not let it set seed (one plant makes thousands of seeds)."],
+    "prevent": "Use push-pull with Desmodium, a Striga-tolerant maize variety, and rotate with beans or groundnut."
+  },
+  "Couch grass": {
+    "what": "A creeping grass weed that spreads by underground runners and competes with crops.",
+    "signs": "Grass spreading through the plot with white runners under the soil.",
+    "fix": ["Dig out the runners completely and dry them in the sun off the plot.", "Weed again 2 weeks later to catch regrowth."],
+    "prevent": "Plough deep in the dry season and keep the ground covered with crop or mulch."
+  },
+  "Black-jack (Bidens)": {
+    "what": "A fast-growing broad-leaf weed whose spiky seeds stick to clothes.",
+    "signs": "Yellow flowers and needle-like seeds in clusters.",
+    "fix": ["Pull or hoe it out before it flowers.", "Weed at weeks 2-3 and 5-6 after the crop comes up."],
+    "prevent": "Weed early and keep it from setting seed."
+  },
+  "Wild / prickly lettuce": {
+    "what": "A common broad-leaf weed with toothed, prickly leaves and milky sap.",
+    "signs": "Upright plant with lobed, toothed leaves, prickles along the leaf midrib, milky sap when cut.",
+    "fix": ["Pull it out with the root before it flowers, wearing gloves.", "Remove it from the plot so seeds do not spread."],
+    "prevent": "Weed early and keep the ground covered."
+  },
+  "Weed (species unclear)": {
+    "what": "A weed: an unwanted plant that competes with your crop for water, nutrients and light.",
+    "signs": "A plant you did not sow growing among or around the crop.",
+    "fix": ["Pull it out with the root before it flowers and remove it from the plot.", "Keep the crop weed-free for its first 6 weeks."],
+    "prevent": "Weed early and often; mulch to keep weeds down."
+  },
+  "Nutrient deficiency (not a pest)": {
+    "what": "The plant is short of a nutrient; no pest or disease is involved.",
+    "signs": "Pale or yellow leaves across the whole plant, purple tints, stunted growth.",
+    "fix": ["Top-dress with a nitrogen fertiliser (e.g. CAN) for pale maize, or add well-rotted manure.", "Ask your officer about a soil test."],
+    "prevent": "Use manure or compost each season and test the soil every 2-3 seasons."
+  }
+}

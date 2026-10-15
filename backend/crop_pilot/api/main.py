@@ -250,6 +250,7 @@ class SuitabilityRequest(BaseModel):
     mean_temp_c: float = Field(..., ge=0, le=45)
     soil: str | None = Field(None, max_length=40)
     greenhouse: bool = False
+    rain_7d_mm: float | None = Field(None, ge=0, le=1500)
 
 
 @app.get("/knowledge")
@@ -269,7 +270,13 @@ def knowledge_season():
 
 @app.post("/knowledge/suitability")
 def knowledge_suitability(req: SuitabilityRequest):
-    return knowledge.suitability(req.season_rain_mm, req.mean_temp_c, req.soil, req.greenhouse)
+    return knowledge.suitability(req.season_rain_mm, req.mean_temp_c, req.soil, req.greenhouse, req.rain_7d_mm)
+
+
+@app.get("/knowledge/problem")
+def knowledge_problem(name: str = Query(..., max_length=60)):
+    """What a pest, disease or weed is, how to fix it and prevent it: the message a farmer receives."""
+    return {"name": name, "info": knowledge.problem_info(name), "farmer_message": knowledge.farmer_explainer(name)}
 
 
 @app.get("/knowledge/{slug}")
@@ -292,7 +299,7 @@ class ScanReview(BaseModel):
     decision: str = Field(..., pattern="^(VERIFIED|DISMISSED)$")
     pest: str | None = Field(None, max_length=60)
     severity: str = Field("MEDIUM", pattern="^(LOW|MEDIUM|HIGH)$")
-    note: str = Field("", max_length=300)
+    note: str = Field("", max_length=1200)
 
 
 @app.post("/scans")
@@ -606,14 +613,21 @@ def farmer_notifications(household_id: str):
     Plus the farmer's own reminders that are due. Never drafts or AI output."""
     _require_db()
     items = []
+    advs = {a["id"]: a for a in approval.list_advisories("APPROVED")}
     for o in approval.outbox():
         if o["household_id"] == household_id:
+            adv = advs.get(o["advisory_id"]) or {}
+            threat = (adv.get("evidence") or {}).get("pest_threat") or {}
+            steps = knowledge.advice_steps(adv.get("verdict"), threat.get("pest"))
+            info = knowledge.problem_info(threat.get("pest")) or {}
             items.append({"when": o["queued_at"], "kind": "advice", "title": "Advice from your extension officer",
-                          "body": o["message"], "from": o["officer_signature"]})
+                          "body": o["message"], "from": o["officer_signature"], "steps": steps,
+                          "what": info.get("what")})
     for sc in fieldscan.farmer_view(household_id):
         if not sc["waiting"]:
-            body = f"Result: {sc['officer_finding']}." + (f" {sc['officer_note']}" if sc["officer_note"] else "")
-            items.append({"when": sc["reviewed_at"], "kind": "photo", "title": f"Your photo #{sc['id']} was reviewed",
+            body = sc["officer_note"] or f"Result: {sc['officer_finding']}."
+            items.append({"when": sc["reviewed_at"], "kind": "photo",
+                          "title": f"Your photo #{sc['id']}: {sc['officer_finding']}",
                           "body": body, "from": sc["reviewed_by"]})
     today = config.today().isoformat()
     for r in farm_reminders.list_reminders(household_id):
@@ -621,3 +635,4 @@ def farmer_notifications(household_id: str):
             items.append({"when": r["due_date"], "kind": "reminder", "title": "Reminder due",
                           "body": f"{r['action'].title()}" + (f": {r['note']}" if r["note"] else ""), "from": "you"})
     return sorted(items, key=lambda x: x["when"] or "", reverse=True)
+

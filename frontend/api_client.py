@@ -86,9 +86,11 @@ def crops():
     return _req("GET", "/knowledge/crops")
 
 
-def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, greenhouse: bool):
+def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, greenhouse: bool,
+                rain_7d_mm: float | None = None):
     return _req("POST", "/knowledge/suitability", json={"season_rain_mm": season_rain_mm, "mean_temp_c": mean_temp_c,
-                                                        "soil": soil, "greenhouse": greenhouse})
+                                                        "soil": soil, "greenhouse": greenhouse,
+                                                        "rain_7d_mm": rain_7d_mm})
 
 
 def create_scan(image_b64: str, household_id: str | None, crop: str | None):
@@ -211,3 +213,7 @@ def my_photos(household_id: str):
 
 def notifications(household_id: str):
     return _req("GET", f"/farms/{household_id}/notifications")
+
+
+def problem(name: str):
+    return _req("GET", "/knowledge/problem", params={"name": name})

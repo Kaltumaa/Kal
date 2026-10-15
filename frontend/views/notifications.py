@@ -22,3 +22,7 @@ for n in items:
         st.markdown(f"{ICON.get(n['kind'], '')} **{n['title']}**  <span class='cp-muted'>· "
                     f"{(n['when'] or '')[:16].replace('T', ' ')} · from {n['from']}</span>", unsafe_allow_html=True)
         st.write(n["body"])
+        if n.get("what"):
+            st.markdown(f"**What it is:** {n['what']}")
+        if n.get("steps"):
+            st.markdown("**What to do:**\n" + "\n".join(f"{i}. {step}" for i, step in enumerate(n["steps"], 1)))

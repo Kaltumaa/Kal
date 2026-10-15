@@ -202,7 +202,8 @@ def test_farmer_never_sees_ai_output_only_the_officer_result(temp_db, tmp_path, 
                                                             "pest": "Fall Armyworm", "severity": "HIGH",
                                                             "note": "Spray early morning."})
         note = c.get("/farms/HH-DS-003/notifications").json()[0]
-        assert note["kind"] == "photo" and "Fall Armyworm" in note["body"] and note["from"] == "Wanjiru Kamau"
+        assert note["kind"] == "photo" and "Fall Armyworm" in note["title"] and note["from"] == "Wanjiru Kamau"
+        assert note["body"] == "Spray early morning."
 
 
 def test_insects_named_in_description_beat_weed_votes():
@@ -211,3 +212,17 @@ def test_insects_named_in_description_beat_weed_votes():
             "The plant appears healthy.")
     out = knowledge.classify_photo(desc, ["a weed", "a weed", "insects"], "unclear", "Beans")
     assert out["category"] == "insect" and out["candidates"][0]["pest"] == "Aphids"
+
+
+def test_farmer_messages_say_what_it_is_and_how_to_fix_it():
+    msg = knowledge.farmer_explainer("Aphids")
+    assert "sap" in msg and "How to fix: 1)" in msg and "Next season:" in msg
+    assert knowledge.advice_steps("SPRAY", "Fall Armyworm")[0].startswith("Check 20 plants")
+    assert knowledge.advice_steps("HOLD", None)
+
+
+def test_suitability_reasons_quote_the_numbers():
+    beans = next(r for r in knowledge.suitability(420, 18.5, "red loam", False, 31) if r["crop"] == "Beans")
+    text = " ".join(beans["reasons"])
+    assert "420 mm" in text and "300–600 mm" in text and "16–26 °C" in text
+    assert beans["plant_now"] is True and beans["harvest_if_planted_now"]

@@ -222,7 +222,7 @@ def review(scan_id: int, officer_name: str, decision: str, pest: str | None = No
                  f"Field scan #{scan_id} verified by {officer}"))
             alert_id = cur.lastrowid
         finding = sanitizer.normalise_text(pest)[:60] if decision == "VERIFIED" else "No problem found"
-        note_clean, note_hits = sanitizer.scrub_free_text(note, 300)
+        note_clean, note_hits = sanitizer.scrub_free_text(note, 1200)
         if note_hits:
             raise ApprovalError("The note to the farmer contains instruction-like text.")
         conn.execute("UPDATE field_scans SET officer_finding=?, officer_note=? WHERE id=?",
