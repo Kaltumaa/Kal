@@ -47,6 +47,9 @@ Its proposals are measured against the rules in EVALS.md.
 3. **Database CHECK constraints:** APPROVED/REJECTED requires a signature of at least 5 characters; `transmitted_at` requires APPROVED; an outbox row requires a signature; every advisory needs at least one source.
 4. **`dispatch` lives outside the agent.** It is reachable only through the API form. A static test fails the build if `agent/`, `mcp_server/` or `core/` import it.
 5. **SECURITY_LOCK and NEEDS_DATA drafts cannot be approved**, only rejected.
+6. **A draft built on an out-of-date forecast cannot be approved.** "Rainfall estimates shift" (the brief). If a newer
+   forecast arrives (`POST /weather/{zone}`) and the spray band, washout risk or 7-day rain changed, `dispatch`
+   refuses to sign and the queue asks the officer to re-run the agent.
 
 ## MCP servers: built vs borrowed
 

@@ -413,3 +413,31 @@ def household_profile(household_id: str):
             "rain": rain, "pattern": weather_patterns.assess(zone, rain["rain_7d_mm"] if rain else None) if zone else None,
             "advisories": advs[:10],
             "followups": [f for f in desk_followups.list_followups(None) if f["household_id"].upper() == hid]}
+
+
+# --- New forecast arrives (data feed or officer) --------------------------------------------------------
+class ForecastUpdate(BaseModel):
+    rain_24h_mm: float = Field(..., ge=0, le=500)
+    rain_72h_mm: float = Field(..., ge=0, le=800)
+    rain_7d_mm: float = Field(..., ge=0, le=1500)
+    storm_risk: str = Field(..., pattern="^(LOW|MODERATE|HIGH)$")
+    source: str = Field("Forecast update", max_length=80)
+
+
+@app.post("/weather/{zone_id}")
+def update_forecast(zone_id: str, req: ForecastUpdate):
+    """Record a newer forecast for a ward. Drafts built on the old one can no longer be signed until re-run."""
+    _require_db()
+    zone = sanitizer.normalise_zone(zone_id)
+    issued = telemetry.now_iso()
+    with connect() as conn:
+        cur = conn.execute("UPDATE weather_cache SET rain_24h_mm=?, rain_72h_mm=?, rain_7d_mm=?, storm_risk=?, source=?,"
+                           " issued_at=? WHERE zone_id=?", (req.rain_24h_mm, req.rain_72h_mm, req.rain_7d_mm,
+                                                            req.storm_risk, sanitizer.normalise_text(req.source)[:80],
+                                                            issued, zone))
+        if cur.rowcount == 0:
+            raise HTTPException(404, detail=f"Unknown ward {zone_id!r}")
+    telemetry.record(f"forecast-{zone}", "feed", "update_forecast", {"zone_id": zone, **req.model_dump()},
+                     {"issued_at": issued}, latency_ms=0, actor="data feed")
+    stale = [a["id"] for a in approval.list_advisories("PENDING_REVIEW") if a.get("forecast_changed")]
+    return {"zone_id": zone, "issued_at": issued, "drafts_now_out_of_date": stale}

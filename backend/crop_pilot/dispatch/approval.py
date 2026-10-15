@@ -13,7 +13,7 @@ import json
 import re
 import time
 
-from crop_pilot.core import sanitizer, telemetry
+from crop_pilot.core import agronomy, sanitizer, telemetry
 from crop_pilot.database.db import connect
 
 NAME_RE = re.compile(r"^[A-Za-z][A-Za-z'\-.]+(?: [A-Za-z][A-Za-z'\-.]+)+$")
@@ -39,6 +39,28 @@ def _load(conn, advisory_id: int):
     return row
 
 
+def forecast_change(conn, row) -> str | None:
+    """Why the rainfall forecast behind a draft is out of date, or None if it still holds."""
+    ev = json.loads(row["evidence_json"] or "{}")
+    rain, zone = ev.get("rain") or {}, (ev.get("plot") or {}).get("zone_id")
+    if not zone or not rain.get("forecast_issued_at"):
+        return None
+    current = conn.execute("SELECT * FROM weather_cache WHERE zone_id=?", (zone,)).fetchone()
+    if current is None:
+        return "the ward's forecast is no longer available"
+    now = agronomy.rainfall_outlook(dict(current))
+    reasons = []
+    if str(current["issued_at"]) > str(rain["forecast_issued_at"]):
+        reasons.append(f"a newer forecast was issued on {current['issued_at']}")
+    if now["spray_band"] != rain.get("spray_band"):
+        reasons.append(f"spraying went from {rain.get('spray_band')} to {now['spray_band']}")
+    if now["washout_risk"] != rain.get("washout_risk"):
+        reasons.append("washout risk changed")
+    if abs(now["rain_7d_mm"] - float(rain.get("rain_7d_mm") or 0)) >= 10:
+        reasons.append(f"7-day rain went from {rain.get('rain_7d_mm')} to {now['rain_7d_mm']} mm")
+    return "; ".join(reasons) or None
+
+
 def approve(advisory_id: int, officer_name: str, final_message: str | None = None) -> dict:
     started = time.perf_counter()
     officer = validate_signature(officer_name)
@@ -47,6 +69,10 @@ def approve(advisory_id: int, officer_name: str, final_message: str | None = Non
         if row["status"] != "PENDING_REVIEW":
             raise ApprovalError(f"Advisory is {row['status']}; only PENDING_REVIEW drafts can be approved. "
                                 "Security-locked or incomplete drafts must be rejected and re-run.")
+        changed = forecast_change(conn, row)
+        if changed:
+            raise ApprovalError(f"The rainfall forecast changed since this draft ({changed}). Re-run the agent for "
+                                "this household and sign the new draft instead.")
         message = row["farmer_message"]
         if final_message is not None and final_message.strip():
             message, hits = sanitizer.scrub_free_text(final_message, 320)
@@ -85,9 +111,11 @@ def list_advisories(status: str | None = None) -> list[dict]:
     with connect() as conn:
         q = "SELECT * FROM pending_advisories" + (" WHERE status = ?" if status else "") + " ORDER BY id DESC"
         rows = conn.execute(q, (status,) if status else ()).fetchall()
+        changes = {r["id"]: forecast_change(conn, r) for r in rows if r["status"] == "PENDING_REVIEW"}
     out = []
     for r in rows:
         d = dict(r)
+        d["forecast_changed"] = changes.get(r["id"])
         for key in ("evidence_json", "sources_json", "flags_json"):
             d[key.replace("_json", "")] = json.loads(d.pop(key) or "null")
         out.append(d)

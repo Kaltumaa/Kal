@@ -145,3 +145,19 @@ with right:
                                     "Storm": z["storm_risk"].title(), "Spray score": z["spray_safety_index"]}
                                    for z in ov["zones"]]), hide_index=True, width="stretch")
         st.caption("Synthetic CHIRPS-style forecast. Spray score below 40 means do not spray.")
+        with st.form("new-forecast"):
+            st.markdown("**A new forecast arrived?** Record it; drafts built on the old one are blocked until re-run.")
+            f = st.columns(5)
+            wz = f[0].selectbox("Ward", [z["zone_id"] for z in ov["zones"]], format_func=str.title)
+            cur = next(z for z in ov["zones"] if z["zone_id"] == wz)
+            r24 = f[1].number_input("24 h", 0.0, 500.0, float(cur["rain_24h_mm"]))
+            r72 = f[2].number_input("3 days", 0.0, 800.0, float(cur["rain_72h_mm"]))
+            r7d = f[3].number_input("7 days", 0.0, 1500.0, float(cur["rain_7d_mm"]))
+            storm = f[4].selectbox("Storm", ["LOW", "MODERATE", "HIGH"], index=["LOW", "MODERATE", "HIGH"].index(cur["storm_risk"]))
+            if st.form_submit_button("Save forecast"):
+                try:
+                    res = api.update_forecast(wz, r24, max(r72, r24), max(r7d, r72, r24), storm)
+                    st.success(f"Saved. Drafts now out of date: {len(res['drafts_now_out_of_date'])}.")
+                    st.rerun()
+                except api.ApiError as exc:
+                    st.error(str(exc.detail))

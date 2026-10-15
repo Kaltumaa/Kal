@@ -77,3 +77,18 @@ def test_followup_is_internal_validated_and_idempotent(temp_db):
     assert server.schedule_followup("run-f1", "HH-DS-003", "SEND_SMS", 1, "x")["ok"] is False
     assert server.schedule_followup("run-f1", "HH-DS-003", "RESCOUT", 365, "x")["ok"] is False
     assert approval.outbox() == []
+
+
+def test_signing_blocked_when_forecast_changes(temp_db):
+    import sqlite3
+    adv = _draft(evidence={"plot": {"zone_id": "MUTUINI"},
+                           "rain": {"forecast_issued_at": "2026-10-14", "spray_band": "SAFE", "washout_risk": False,
+                                    "rain_7d_mm": 18.0}})["advisory_id"]
+    assert approval.list_advisories()[0]["forecast_changed"] is None
+    conn = sqlite3.connect(temp_db, isolation_level=None)
+    conn.execute("UPDATE weather_cache SET rain_24h_mm=30, rain_72h_mm=70, rain_7d_mm=90, storm_risk='HIGH',"
+                 " issued_at='2026-10-15T06:00' WHERE zone_id='MUTUINI'")
+    assert "newer forecast" in approval.list_advisories()[0]["forecast_changed"]
+    with pytest.raises(approval.ApprovalError):
+        approval.approve(adv, "Wanjiru Kamau")
+    assert approval.outbox() == []

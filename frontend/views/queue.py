@@ -61,6 +61,18 @@ def detail(adv: dict) -> None:
                     f'{(plot.get("zone_id") or "—").title()} · {plot.get("active_crop") or "no crop recorded"}'
                     f'{" · " + stage if stage else ""}</span>', unsafe_allow_html=True)
 
+        if adv.get("forecast_changed"):
+            st.warning(f"The rainfall forecast changed since this draft: {adv['forecast_changed']}. It cannot be "
+                       "signed. Re-run the agent with the new forecast, then reject this one with your name.",
+                       icon=":material/update:")
+            if st.button("Re-run with the new forecast", key=f"rerun-{adv['id']}", type="primary"):
+                with st.spinner("Re-drafting with the new forecast… (1–3 min on CPU)"):
+                    try:
+                        res = api.run_agent(adv["household_id"], "Re-run: rainfall forecast changed")
+                        st.session_state["select_advisory"] = res["advisory"].get("advisory_id")
+                        st.rerun()
+                    except api.ApiError as exc:
+                        st.error(str(exc.detail))
         if adv["status"] == "SECURITY_LOCK":
             st.error("Instruction-like text was found in this household's record (possible prompt injection). "
                      "It never reached the model. This draft cannot be signed: check the record, then reject it.",
@@ -162,7 +174,8 @@ with left:
         st.caption("No drafts waiting.")
         st.stop()
     table = pd.DataFrame([{"Household": a["household_id"], "Advice": a["verdict"] or "—",
-                           "Status": ui.STATUS_TEXT[a["status"]]} for a in drafts])
+                           "Status": "Forecast changed" if a.get("forecast_changed") else ui.STATUS_TEXT[a["status"]]}
+                          for a in drafts])
     wanted = st.session_state.pop("select_advisory", None)
     default_row = next((i for i, a in enumerate(drafts) if a["id"] == wanted), 0)
     sel = st.dataframe(table, hide_index=True, width="stretch", on_select="rerun", selection_mode="single-row",

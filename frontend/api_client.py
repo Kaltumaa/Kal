@@ -161,3 +161,9 @@ def close_followup(followup_id: int, officer_name: str):
 
 def household_profile(household_id: str):
     return _req("GET", f"/households/{household_id}/profile")
+
+
+def update_forecast(zone_id: str, rain_24h_mm: float, rain_72h_mm: float, rain_7d_mm: float, storm_risk: str):
+    return _req("POST", f"/weather/{zone_id}", json={"rain_24h_mm": rain_24h_mm, "rain_72h_mm": rain_72h_mm,
+                                                    "rain_7d_mm": rain_7d_mm, "storm_risk": storm_risk,
+                                                    "source": "Officer-entered forecast update"})
