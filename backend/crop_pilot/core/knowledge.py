@@ -193,7 +193,21 @@ def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, gre
         if rain_7d_mm is not None:
             need = agronomy.planting_threshold(sanitizer.normalise_crop(c["crop"]))
             plant_now = under_cover or rain_7d_mm >= need
-        out.append({"crop": c["crop"], "score": int(max(0, min(100, score))), "reasons": reasons,
+        rain_ok = under_cover or lo <= season_rain_mm <= hi
+        rain_text = ("Watered under cover" if under_cover else
+                     f"{season_rain_mm:.0f} mm rain (needs {lo:.0f}–{hi:.0f})" if rain_ok else
+                     f"{season_rain_mm:.0f} mm rain: {lo - season_rain_mm:.0f} mm short (needs {lo:.0f}+)"
+                     if season_rain_mm < lo else f"{season_rain_mm:.0f} mm rain: too wet (max {hi:.0f})")
+        temp_ok = tlo <= mean_temp_c <= thi
+        temp_text = (f"{mean_temp_c:.1f} °C (best {tlo:.0f}–{thi:.0f})" if temp_ok else
+                     f"{mean_temp_c:.1f} °C: {'too cool' if mean_temp_c < tlo else 'too warm'} (best {tlo:.0f}–{thi:.0f})")
+        soil_ok = not soil or soil in c["soils"]
+        soil_text = (f"{(soil or 'any soil').capitalize()} suits it" if soil_ok else
+                     f"{soil.capitalize()}: prefers {', '.join(c['soils'])}")
+        checks = [{"kind": "rain", "ok": rain_ok, "text": rain_text},
+                  {"kind": "temp", "ok": temp_ok, "text": temp_text},
+                  {"kind": "soil", "ok": soil_ok, "text": soil_text}]
+        out.append({"crop": c["crop"], "score": int(max(0, min(100, score))), "reasons": reasons, "checks": checks,
                     "greenhouse": c["greenhouse"], "days_to_maturity": c["days_to_maturity"],
                     "harvest_if_planted_now": harvest, "plant_now": plant_now,
                     "drought_tolerance": c["drought_tolerance"], "notes": c["notes"]})
