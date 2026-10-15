@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
         yield
 
 
-app = FastAPI(title="Crop-Pilot Extension Co-Pilot API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Mkulima Hub Extension Co-Pilot API", version="1.0.0", lifespan=lifespan)
 
 
 class RunRequest(BaseModel):

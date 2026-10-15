@@ -9,7 +9,7 @@ import streamlit as st
 import api_client as api
 import ui
 
-SERVER_LABEL = {"crop-pilot": "Crop-Pilot MCP", "filesystem": "Filesystem MCP", "ollama": "Local model",
+SERVER_LABEL = {"crop-pilot": "Mkulima Hub MCP", "filesystem": "Filesystem MCP", "ollama": "Local model",
                 "guard": "Guard (blocked)", "officer": "Officer", "graph": "Workflow", "none": "Blocked"}
 
 

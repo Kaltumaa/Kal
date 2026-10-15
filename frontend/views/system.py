@@ -19,7 +19,7 @@ STEP_TEXT = {
     "review_field_scan": "Officer reviewed a farmer photo", "log_plot_action": "Plot history entry added",
     "update_forecast": "New rain forecast recorded", "ward_batch": "Drafted a whole ward",
 }
-WHO_TEXT = {"crop-pilot": "Crop-Pilot tools (MCP)", "filesystem": "Guidance library (MCP)", "ollama": "Local AI",
+WHO_TEXT = {"crop-pilot": "Mkulima Hub tools (MCP)", "filesystem": "Guidance library (MCP)", "ollama": "Local AI",
             "guard": "Safety guard", "graph": "Workflow", "officer": "Officer", "farmer": "Farmer", "feed": "Data feed",
             "none": "Safety guard"}
 

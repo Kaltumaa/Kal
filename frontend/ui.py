@@ -50,7 +50,7 @@ def setup() -> None:
 
 def header(title: str, subtitle: str) -> None:
     """Green header band used on every page."""
-    st.markdown(f'<div class="cp-band"><div class="cp-band-kicker">Dagoretti South extension desk · '
+    st.markdown(f'<div class="cp-band"><div class="cp-band-kicker">Mkulima Hub · Dagoretti South extension desk · '
                 f'Short rains 2026</div><h1>{html.escape(title)}</h1><p>{html.escape(subtitle)}</p></div>',
                 unsafe_allow_html=True)
 

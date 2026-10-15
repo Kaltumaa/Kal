@@ -12,7 +12,7 @@ while true; do clear; sqlite3 -header -column data/database.db "select id, serve
 
 | Time | Screen | Say |
 |---|---|---|
-| 0:00 | **Dashboard** | "Crop-Pilot drafts Plant, Spray or Hold advice for the Dagoretti South extension desk from rainfall and verified pest signals. Waithaka has a washout warning; Riruta's planting window is open. Everything runs on this laptop: SQLite plus Qwen 2.5 on Ollama." |
+| 0:00 | **Dashboard** | "Mkulima Hub drafts Plant, Spray or Hold advice for the Dagoretti South extension desk from rainfall and verified pest signals. Waithaka has a washout warning; Riruta's planting window is open. Everything runs on this laptop: SQLite plus Qwen 2.5 on Ollama." |
 | 0:15 | **Review queue → New draft** → **Grace Wanjiku · Mutu-ini** → **Run agent** | "Grace's maize plot in Mutu-ini." |
 | 0:20 | Terminal with the live log | "The local model picks its own tools on our MCP server: plot context, which scrubs the record; rainfall outlook, which computes a spray-safety index; pest reports, which scores verified outbreaks. It reads guidance through the official filesystem MCP server. Then `draft_advisory` writes to a staging queue. That is its only write." |
 | 1:10 | Draft detail → **Evidence** tab | "SPRAY: verified Fall Armyworm 0.1 km away, dry window. Every number cites a record. **Here is where the model fails:** the flag `corrected_args:get_pest_reports` means the 3B model passed the wrong growth stage, and the harness re-ran the call with the calendar-derived stage. It also skipped the guidance file, so that was auto-filled. We report this in EVALS.md as unfixed." |

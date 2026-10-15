@@ -1,4 +1,4 @@
-# Architecture (one page)
+# Mkulima Hub: Architecture (one page)
 
 **Office and workflow:** MoA extension desk, Dagoretti South (Nairobi). Rainfall, pest and plot signals come in; a
 household-level **Plant / Spray / Hold draft** goes out; a **named officer signs** before any (simulated) SMS.

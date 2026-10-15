@@ -1,4 +1,4 @@
-# EVALS
+# Mkulima Hub: EVALS
 
 Every number below comes from `evals/run_evals.py`. Raw results: `evals/results/2026-10-15T035826.json` (per run),
 `evals/results/runs-20261015T031158.jsonl` (saved as each run finished), `evals/results/latest.md` (generated summary)

@@ -1,4 +1,4 @@
-"""Crop-Pilot (Streamlit, multi-page). Talks to the backend ONLY over HTTP via api_client.
+"""Mkulima Hub (Streamlit, multi-page). Talks to the backend ONLY over HTTP via api_client.
 
 Two views: the extension officer (all farms; the only one who can approve advice) and a farmer (their own farm).
 The view switch is a demo convenience, not authentication.
@@ -15,7 +15,7 @@ import api_client as api
 import ui
 from views import system
 
-st.set_page_config(page_title="Crop-Pilot", page_icon="🌱", layout="wide")
+st.set_page_config(page_title="Mkulima Hub", page_icon="🌱", layout="wide")
 ui.setup()
 st.logo(str(Path(__file__).parent / "assets" / "logo.svg"), size="large")
 

@@ -1,8 +1,10 @@
-# 🌱 Crop-Pilot — Extension Backlog co-pilot (Climate-smart advisory)
+# 🌱 Mkulima Hub — Extension Backlog co-pilot (Climate-smart advisory)
+
+Mkulima Hub (codename crop-pilot in the code).
 
 **African Agentic AI Design Challenge 2026 · Agriculture track "The Extension Backlog" · Sub-theme 1: Climate-smart advisory**
 
-Crop-Pilot helps a small extension desk (target: MoA Nairobi County, **Dagoretti South** extension office) turn
+Mkulima Hub helps a small extension desk (target: MoA Nairobi County, **Dagoretti South** extension office) turn
 rainfall outlooks and verified pest alerts into a **Plant / Spray / Hold** draft for each household, checked against
 that household's plot history and crop calendar. **The agent only drafts.** Every draft waits in a staging queue
 until a **named extension officer** types their full name and signs it. Only then does the message go to the

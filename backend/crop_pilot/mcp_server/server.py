@@ -1,4 +1,4 @@
-"""Crop-Pilot MCP server (built by us). Six tools; two of them write (draft_advisory, schedule_followup).
+"""Mkulima Hub MCP server (id `crop-pilot`, built by us). Six tools; two of them write (draft_advisory, schedule_followup).
 
 Run standalone:  python -m crop_pilot.mcp_server.server   (stdio transport)
 

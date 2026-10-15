@@ -1,13 +1,13 @@
 # Submission text (~300 words)
 
-**Crop-Pilot: climate-smart advisory co-pilot for the Dagoretti South extension desk**
+**Mkulima Hub: climate-smart advisory co-pilot for the Dagoretti South extension desk**
 
 **Track:** Agriculture, The Extension Backlog. **Sub-theme:** 1, Climate-smart advisory (when to plant, spray or hold).
 **Office and workflow:** Ministry of Agriculture, Nairobi County extension office, Dagoretti South, five wards. A few
 officers serve thousands of smallholders. Signals come in, household advice goes out, and a named officer approves in
 between.
 
-**What it does.** For each household, or a whole ward in one batch, Crop-Pilot checks rainfall and pest signals
+**What it does.** For each household, or a whole ward in one batch, Mkulima Hub checks rainfall and pest signals
 against the plot's history and crop calendar, then drafts a Plant, Spray or Hold advisory and an SMS.
 
 - **Rainfall:** the 7-day outlook, the season against normal, late rains and false starts.
