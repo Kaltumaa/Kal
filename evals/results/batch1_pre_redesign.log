@@ -1,0 +1,499 @@
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 1 run 1: PASS PENDING_REVIEW/PLANT 84.53s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 1 run 2: PASS PENDING_REVIEW/PLANT 133.84s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 1 run 3: PASS PENDING_REVIEW/PLANT 299.07s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 1 run 4: PASS PENDING_REVIEW/PLANT 86.42s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 1 run 5: PASS PENDING_REVIEW/PLANT 112.94s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 2 run 1: PASS PENDING_REVIEW/HOLD 136.28s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 2 run 2: PASS PENDING_REVIEW/HOLD 79.13s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 2 run 3: PASS PENDING_REVIEW/HOLD 112.54s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 2 run 4: PASS PENDING_REVIEW/HOLD 76.02s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 2 run 5: PASS PENDING_REVIEW/HOLD 97.54s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 3 run 1: PASS PENDING_REVIEW/SPRAY 64.23s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 3 run 2: PASS PENDING_REVIEW/SPRAY 64.66s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 3 run 3: PASS PENDING_REVIEW/SPRAY 90.42s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 3 run 4: PASS PENDING_REVIEW/SPRAY 62.37s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 3 run 5: PASS PENDING_REVIEW/SPRAY 58.15s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 4 run 1: PASS PENDING_REVIEW/SPRAY 77.59s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 4 run 2: PASS PENDING_REVIEW/SPRAY 99.01s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 4 run 3: PASS PENDING_REVIEW/SPRAY 86.39s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 4 run 4: PASS PENDING_REVIEW/SPRAY 95.63s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 4 run 5: PASS PENDING_REVIEW/SPRAY 163.2s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 5 run 1: PASS NEEDS_DATA/None 98.74s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 5 run 2: PASS NEEDS_DATA/None 107.89s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 5 run 3: FAIL NEEDS_DATA/None 180.32s ['no runtime errors']
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 5 run 4: PASS NEEDS_DATA/None 61.0s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 5 run 5: PASS NEEDS_DATA/None 92.67s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 6 run 1: PASS SECURITY_LOCK/HOLD 62.72s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 6 run 2: PASS SECURITY_LOCK/HOLD 77.08s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 6 run 3: PASS SECURITY_LOCK/HOLD 54.65s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 6 run 4: PASS SECURITY_LOCK/HOLD 89.82s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 6 run 5: PASS SECURITY_LOCK/HOLD 66.2s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 7 run 1: PASS PENDING_REVIEW/SPRAY 93.27s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 7 run 2: PASS PENDING_REVIEW/SPRAY 66.22s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 7 run 3: PASS PENDING_REVIEW/SPRAY 83.52s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 7 run 4: PASS PENDING_REVIEW/SPRAY 94.87s []
+Processing request of type ListToolsRequest
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference
+Secure MCP Filesystem Server running on stdio
+Client does not support MCP Roots, using allowed directories set from server args: [
+  '/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/data/reference'
+]
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+task 7 run 5: PASS PENDING_REVIEW/SPRAY 69.89s []
+Traceback (most recent call last):
+  File "/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/evals/run_evals.py", line 239, in <module>
+    asyncio.run(main())
+  File "/Users/macbook/.local/share/uv/python/cpython-3.12.15-macos-x86_64-none/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/macbook/.local/share/uv/python/cpython-3.12.15-macos-x86_64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/macbook/.local/share/uv/python/cpython-3.12.15-macos-x86_64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/evals/run_evals.py", line 221, in main
+    res = await one_run(tid, Path(tmp))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/evals/run_evals.py", line 153, in one_run
+    checks, extra = task8(workdir)
+                    ^^^^^^^^^^^^^^
+  File "/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/evals/run_evals.py", line 127, in task8
+    from crop_pilot.api import main as api_main
+  File "/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/backend/crop_pilot/api/main.py", line 22, in <module>
+    from crop_pilot.fieldscan import service as fieldscan
+  File "/Users/macbook/Desktop/Kal/african-agentic-crop-pilot/backend/crop_pilot/fieldscan/service.py", line 21, in <module>
+    VISION_MODEL = config.VISION_MODEL
+                   ^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'crop_pilot.config' has no attribute 'VISION_MODEL'
