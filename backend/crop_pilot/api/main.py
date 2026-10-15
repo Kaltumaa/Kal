@@ -227,6 +227,11 @@ def knowledge_crops():
     return knowledge.crops()
 
 
+@app.get("/knowledge/season")
+def knowledge_season():
+    return knowledge.season_outlook()
+
+
 @app.post("/knowledge/suitability")
 def knowledge_suitability(req: SuitabilityRequest):
     return knowledge.suitability(req.season_rain_mm, req.mean_temp_c, req.soil, req.greenhouse)

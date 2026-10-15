@@ -19,11 +19,22 @@ names = ["What can I grow?"] + [t["title"] for t in topics]
 choice = st.segmented_control("Topic", names, default=names[0], label_visibility="collapsed")
 
 if choice in (None, names[0]):
-    c = st.columns(4)
-    rain = c[0].number_input("Season rain (mm)", 100, 1500, 450, step=50)
-    temp = c[1].number_input("Average temp (°C)", 8, 35, 19)
-    soil = c[2].selectbox("Soil", SOILS)
-    gh = c[3].selectbox("Greenhouse", ["No", "Yes"]) == "Yes"
+    outlook = {o["zone_id"]: o for o in api.season_outlook()}
+    c = st.columns([1.2, 1, 1, 1, 1], vertical_alignment="bottom")
+    ward = c[0].selectbox("Ward", list(outlook), format_func=str.title)
+    o = outlook[ward]
+    gh = c[4].selectbox("Greenhouse", ["No", "Yes"]) == "Yes"
+    adjust = st.toggle("Adjust the numbers myself")
+    if adjust:
+        rain = c[1].number_input("Season rain (mm)", 100, 1500, int(o["expected_rain_mm"]), step=10)
+        temp = c[2].number_input("Average temp (°C)", 8.0, 35.0, o["mean_temp_c"], step=0.5)
+        soil = c[3].selectbox("Soil", SOILS, index=SOILS.index(o["dominant_soil"]))
+    else:
+        rain, temp, soil = o["expected_rain_mm"], o["mean_temp_c"], o["dominant_soil"]
+        c[1].metric("Season rain", f"{rain:.0f} mm", f"{o['rain_vs_normal_pct'] - 100:+d}% vs normal")
+        c[2].metric("Average temp", f"{temp:.1f} °C")
+        c[3].metric("Soil", soil.title())
+    st.caption(f"{o['season']} outlook for {ward.title()} · {o['source']} · `reference:season_outlook.csv`")
     try:
         results = api.suitability(rain, temp, soil, gh)
     except api.ApiError as exc:

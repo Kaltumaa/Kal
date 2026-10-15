@@ -50,6 +50,15 @@ Other targets: `make test` (24 unit, gate and boundary tests), `make evals` (8 t
 3. Type a full name, tick the confirmation and click **Sign & send**. The message appears under **Sent messages**, and
    every **Activity log** row for that run now shows `approved_by`.
 
+## Why one office, and how to add another
+
+The rubric asks whether *a named office* does a real thing faster, so the demo is built around one: the MoA extension
+desk for **Dagoretti South** (wards Riruta, Waithaka, Mutu-ini, Ngando, Uthiru/Ruthimitu). Nothing in the code is tied
+to it. Wards, households, rainfall and season outlooks are rows of data. To serve another sub-county:
+1. add its wards to `weather_cache` and `data/reference/season_outlook.csv` (centroid, rainfall, temperature, soil);
+2. load its households into `plots` and its verified alerts into `pest_alerts`;
+3. adjust the crop calendar in `config.py` if the altitude differs a lot.
+
 ## How a draft is decided (theme 1: rainfall and pest signals against plot history and crop calendar)
 
 | Signal | Where it comes from | What it changes |
@@ -125,6 +134,8 @@ tests/         unit, gate and architecture-boundary tests
 * `weather_cache` holds **CHIRPS-style** values (24 h / 72 h / 7-day rainfall, storm class) that we wrote for the demo. The cache is
   not connected to a live CHIRPS/TAMSAT feed. A production deployment would refresh it from CHIRPS dekadal grids plus a
   national forecast. `data/reference/chirps_dekadal_dagoretti.csv` is also synthetic, in CHIRPS layout.
+* `data/reference/season_outlook.csv` (expected season rain, temperature and soil per ward, used by **Learn → What can I
+  grow?**) is synthetic, in the shape a CHIRPS climatology plus a seasonal forecast would give.
 * Guidance files in `data/reference/` are written by us from general extension practice and are marked SYNTHETIC.
   An officer must check product choice against current registered labels.
 * The seed data is deliberately messy (corrupt coordinates, odd date formats, junk characters, an injection). The

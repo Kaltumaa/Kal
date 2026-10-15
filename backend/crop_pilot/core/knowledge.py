@@ -98,3 +98,17 @@ def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, gre
                     "greenhouse": c["greenhouse"], "days_to_maturity": c["days_to_maturity"],
                     "drought_tolerance": c["drought_tolerance"], "notes": c["notes"]})
     return sorted(out, key=lambda r: r["score"], reverse=True)
+
+
+def season_outlook() -> list[dict]:
+    """Expected season rainfall, temperature and dominant soil per ward (CHIRPS-style, synthetic)."""
+    path = config.REFERENCE_DIR / "season_outlook.csv"
+    if not path.exists():
+        return []
+    with path.open(encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    for r in rows:
+        for k in ("expected_rain_mm", "long_term_mean_mm", "mean_temp_c"):
+            r[k] = float(r[k])
+        r["rain_vs_normal_pct"] = round(100 * r["expected_rain_mm"] / r["long_term_mean_mm"])
+    return rows

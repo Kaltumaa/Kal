@@ -63,3 +63,11 @@ def test_scan_stays_unverified_until_named_officer(temp_db, tmp_path, monkeypatc
 def test_scan_rejects_non_images(temp_db):
     with pytest.raises(fieldscan.ScanError):
         fieldscan.analyse(base64.b64encode(b"not an image").decode(), None, None)
+
+
+def test_season_outlook_feeds_suitability():
+    outlook = {o["zone_id"]: o for o in knowledge.season_outlook()}
+    assert {"RIRUTA", "WAITHAKA", "MUTUINI", "NGANDO", "UTHIRU"} <= set(outlook)
+    n = outlook["NGANDO"]
+    ranked = knowledge.suitability(n["expected_rain_mm"], n["mean_temp_c"], n["dominant_soil"], False)
+    assert ranked and all(0 <= r["score"] <= 100 for r in ranked)

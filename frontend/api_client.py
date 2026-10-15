@@ -127,3 +127,7 @@ def forum_post(author: str, topic: str, body: str):
 
 def run_ward(zone_id: str):
     return _req("POST", f"/wards/{zone_id}/runs", timeout=3600)
+
+
+def season_outlook():
+    return _req("GET", "/knowledge/season")

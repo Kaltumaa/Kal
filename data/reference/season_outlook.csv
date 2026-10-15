@@ -1,0 +1,6 @@
+zone_id,season,expected_rain_mm,long_term_mean_mm,mean_temp_c,dominant_soil,source
+RIRUTA,OND 2026 short rains,420,400,18.5,red loam,CHIRPS-style synthetic season outlook
+WAITHAKA,OND 2026 short rains,560,410,18.0,red loam,CHIRPS-style synthetic season outlook
+MUTUINI,OND 2026 short rains,360,395,18.0,red loam,CHIRPS-style synthetic season outlook
+NGANDO,OND 2026 short rains,330,380,19.0,clay loam,CHIRPS-style synthetic season outlook
+UTHIRU,OND 2026 short rains,450,415,17.5,red loam,CHIRPS-style synthetic season outlook
