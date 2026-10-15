@@ -3,7 +3,7 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN_IN_AGENT_SIDE = ("crop_pilot.dispatch", "smtplib", "twilio", "africastalking", "requests")
+FORBIDDEN_IN_AGENT_SIDE = ("crop_pilot.dispatch", "crop_pilot.fieldscan", "crop_pilot.community", "smtplib", "twilio", "africastalking", "requests")
 
 
 def _imports(folder: Path) -> set[str]:

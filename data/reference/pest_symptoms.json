@@ -1,0 +1,9 @@
+{
+  "Fall Armyworm": {"crops": ["Maize", "Sorghum"], "keywords": ["window", "pane", "holes", "ragged", "whorl", "frass", "sawdust", "caterpillar", "larva", "chewed", "eaten"]},
+  "Late Blight": {"crops": ["Potato", "Tomato"], "keywords": ["dark", "brown", "black", "lesion", "spot", "patch", "mould", "mold", "white", "rot", "water-soaked", "wilted"]},
+  "Aphids": {"crops": ["Kale", "Beans", "Cabbage"], "keywords": ["insects", "cluster", "curled", "curl", "sticky", "honeydew", "sooty", "small green", "small black", "ants"]},
+  "Bean fly": {"crops": ["Beans"], "keywords": ["wilting", "swollen stem", "cracked stem", "seedling", "maggot", "yellowing"]},
+  "Maize Lethal Necrosis": {"crops": ["Maize"], "keywords": ["yellow", "streak", "dry edges", "necrosis", "dead heart", "chlorosis", "mottled"]},
+  "Tomato leaf miner (Tuta)": {"crops": ["Tomato"], "keywords": ["mine", "tunnel", "blotch", "translucent", "holes in fruit"]},
+  "Nutrient deficiency (not a pest)": {"crops": [], "keywords": ["pale", "yellowing", "purple", "stunted", "uniform yellow"]}
+}

@@ -15,6 +15,7 @@ FALLBACK_QUEUE_PATH = Path(os.environ.get("CROP_PILOT_FALLBACK", DATA_DIR / "man
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+VISION_MODEL = os.environ.get("CROP_PILOT_VISION_MODEL", "moondream")
 LLM_TIMEOUT_S = float(os.environ.get("CROP_PILOT_LLM_TIMEOUT", "120"))
 DISABLE_LLM = os.environ.get("CROP_PILOT_DISABLE_LLM") == "1"
 

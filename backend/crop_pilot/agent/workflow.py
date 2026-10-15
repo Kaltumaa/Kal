@@ -220,6 +220,14 @@ async def data_gatherer_node(state: RunState) -> dict:
                 out = await tb.call(tool, {"path": str(config.REFERENCE_DIR / ref)})
                 if out.get("text"):
                     evidence["references"].append({"file": ref, "excerpt": out["text"][:1500]})
+            # A spray recommendation must come with the pesticide-safety guidance (PCPB labels, PPE, PHI).
+            have = {r["file"] for r in evidence["references"]}
+            if ((evidence.get("pests") or {}).get("action_required") and "pesticides_safety.md" not in have
+                    and "filesystem" in tb.sessions):
+                tool = "read_text_file" if "read_text_file" in tb.tools else "read_file"
+                out = await tb.call(tool, {"path": str(config.REFERENCE_DIR / "pesticides_safety.md")})
+                if out.get("text"):
+                    evidence["references"].append({"file": "pesticides_safety.md", "excerpt": out["text"][:1500]})
 
     return {"evidence": evidence, "flags": flags, "errors": errors, "llm_used": llm_used}
 
@@ -228,8 +236,9 @@ async def data_gatherer_node(state: RunState) -> dict:
 VERDICT_TEMPLATES = {
     "PLANT": "Rains are starting in your area ({rain_7d} mm expected this week). Plant your {crop} now with "
              "certified seed. - Dagoretti South Extension",
-    "SPRAY": "{pest} confirmed {distance} km from your farm. Scout your {crop} today and spray early morning "
-             "with a registered product. - Dagoretti South Extension",
+    "SPRAY": "{pest} confirmed {distance} km from your farm. Scout your {crop} today; if damage is found, spray "
+             "early morning with a PCPB-registered product, wear gloves and mask, and respect the label's harvest "
+             "interval. - Dagoretti South Extension",
     "HOLD": "Hold field operations on your {crop} for now. {reason} We will update you. - Dagoretti South Extension",
 }
 

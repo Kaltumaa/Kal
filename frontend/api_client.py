@@ -68,3 +68,58 @@ def manual_fallback(officer_name: str, household_id: str, verdict: str, note: st
 
 def manual_fallback_list():
     return _req("GET", "/fallback/manual")
+
+
+def overview():
+    return _req("GET", "/overview")
+
+
+def knowledge_topics():
+    return _req("GET", "/knowledge")
+
+
+def knowledge_topic(slug: str) -> str:
+    return _req("GET", f"/knowledge/{slug}")["markdown"]
+
+
+def crops():
+    return _req("GET", "/knowledge/crops")
+
+
+def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, greenhouse: bool):
+    return _req("POST", "/knowledge/suitability", json={"season_rain_mm": season_rain_mm, "mean_temp_c": mean_temp_c,
+                                                        "soil": soil, "greenhouse": greenhouse})
+
+
+def create_scan(image_b64: str, household_id: str | None, crop: str | None):
+    return _req("POST", "/scans", json={"image_b64": image_b64, "household_id": household_id, "crop": crop},
+                timeout=600)
+
+
+def scans():
+    return _req("GET", "/scans")
+
+
+def scan_image(scan_id: int) -> bytes | None:
+    try:
+        r = requests.get(f"{API_URL}/scans/{scan_id}/image", timeout=15)
+        return r.content if r.status_code == 200 else None
+    except requests.RequestException:
+        return None
+
+
+def review_scan(scan_id: int, officer_name: str, decision: str, pest: str | None = None, severity: str = "MEDIUM"):
+    return _req("POST", f"/scans/{scan_id}/review", json={"officer_name": officer_name, "decision": decision,
+                                                          "pest": pest, "severity": severity})
+
+
+def forum_topics():
+    return _req("GET", "/forum/topics")
+
+
+def forum(topic: str | None = None):
+    return _req("GET", "/forum", params={"topic": topic} if topic else None)
+
+
+def forum_post(author: str, topic: str, body: str):
+    return _req("POST", "/forum", json={"author": author, "topic": topic, "body": body})

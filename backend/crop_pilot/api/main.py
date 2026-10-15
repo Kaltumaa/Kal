@@ -8,16 +8,18 @@ import json
 import shutil
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel, Field
 
 from crop_pilot import config
 from crop_pilot.agent import llm
 from crop_pilot.agent.workflow import build_graph, resume_run, start_run
-from crop_pilot.core import sanitizer, telemetry
+from crop_pilot.community import forum
+from crop_pilot.core import agronomy, knowledge, sanitizer, telemetry
 from crop_pilot.database.db import DatabaseUnavailable, connect, health_check
 from crop_pilot.dispatch import approval
+from crop_pilot.fieldscan import service as fieldscan
 
 
 @asynccontextmanager
@@ -157,3 +159,129 @@ def manual_fallback_list():
         except ValueError:
             continue
     return out
+
+
+# --- Overview: zones, alerts, households for the dashboard ------------------------------------------
+@app.get("/overview")
+def overview():
+    _require_db()
+    with connect() as conn:
+        zones = [dict(r) for r in conn.execute("SELECT * FROM weather_cache ORDER BY zone_id")]
+        alerts = [dict(r) for r in conn.execute("SELECT * FROM pest_alerts ORDER BY reported_at DESC")]
+        plots = [dict(r) for r in conn.execute("SELECT * FROM plots ORDER BY household_id")]
+    centroids = {z["zone_id"]: (z["centroid_lat"], z["centroid_lon"]) for z in zones}
+    households = []
+    for p in plots:
+        c = sanitizer.scrub_plot(p)
+        lat, lon = c.get("lat"), c.get("lon")
+        if lat is None and c.get("zone_id") in centroids:
+            lat, lon = centroids[c["zone_id"]]
+        households.append({"household_id": c.get("household_id"), "zone_id": c.get("zone_id"), "lat": lat, "lon": lon,
+                           "crop": c.get("active_crop"), "stage": c.get("growth_stage"),
+                           "days": c.get("days_since_planting"), "flagged": c.get("injection_detected")})
+    return {"zones": [{**agronomy.rainfall_outlook(z), "lat": z["centroid_lat"], "lon": z["centroid_lon"]} for z in zones],
+            "alerts": alerts, "households": households}
+
+
+# --- Knowledge hub ---------------------------------------------------------------------------------
+class SuitabilityRequest(BaseModel):
+    season_rain_mm: float = Field(..., ge=0, le=3000)
+    mean_temp_c: float = Field(..., ge=0, le=45)
+    soil: str | None = Field(None, max_length=40)
+    greenhouse: bool = False
+
+
+@app.get("/knowledge")
+def knowledge_topics():
+    return knowledge.list_topics()
+
+
+@app.get("/knowledge/crops")
+def knowledge_crops():
+    return knowledge.crops()
+
+
+@app.post("/knowledge/suitability")
+def knowledge_suitability(req: SuitabilityRequest):
+    return knowledge.suitability(req.season_rain_mm, req.mean_temp_c, req.soil, req.greenhouse)
+
+
+@app.get("/knowledge/{slug}")
+def knowledge_topic(slug: str):
+    text = knowledge.read_topic(slug)
+    if text is None:
+        raise HTTPException(404, detail="Unknown topic")
+    return {"slug": slug, "markdown": text}
+
+
+# --- Field scans (camera) ---------------------------------------------------------------------------
+class ScanRequest(BaseModel):
+    image_b64: str = Field(..., max_length=9_000_000)
+    household_id: str | None = Field(None, max_length=32)
+    crop: str | None = Field(None, max_length=40)
+
+
+class ScanReview(BaseModel):
+    officer_name: str = Field(..., max_length=80)
+    decision: str = Field(..., pattern="^(VERIFIED|DISMISSED)$")
+    pest: str | None = Field(None, max_length=60)
+    severity: str = Field("MEDIUM", pattern="^(LOW|MEDIUM|HIGH)$")
+
+
+@app.post("/scans")
+def create_scan(req: ScanRequest):
+    _require_db()
+    try:
+        return fieldscan.analyse(req.image_b64, req.household_id, req.crop)
+    except fieldscan.ScanError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+@app.get("/scans")
+def scans():
+    _require_db()
+    return fieldscan.list_scans()
+
+
+@app.get("/scans/{scan_id}/image")
+def scan_image(scan_id: int):
+    data = fieldscan.image_bytes(scan_id)
+    if data is None:
+        raise HTTPException(404, detail="No image")
+    return Response(content=data, media_type="image/png" if data[:4] == b"\x89PNG" else "image/jpeg")
+
+
+@app.post("/scans/{scan_id}/review")
+def review_scan(scan_id: int, req: ScanReview):
+    _require_db()
+    try:
+        return fieldscan.review(scan_id, req.officer_name, req.decision, req.pest, req.severity)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+# --- Community board -------------------------------------------------------------------------------
+class ForumPost(BaseModel):
+    author: str = Field(..., max_length=40)
+    topic: str = Field(..., max_length=40)
+    body: str = Field(..., max_length=800)
+
+
+@app.get("/forum/topics")
+def forum_topics():
+    return forum.TOPICS
+
+
+@app.get("/forum")
+def forum_list(topic: str | None = None):
+    _require_db()
+    return forum.list_posts(topic)
+
+
+@app.post("/forum")
+def forum_post(req: ForumPost):
+    _require_db()
+    try:
+        return forum.post(req.author, req.topic, req.body)
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc))

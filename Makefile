@@ -2,6 +2,7 @@
 SHELL := /bin/bash
 PY_VERSION ?= 3.12
 MODEL ?= qwen2.5:3b
+VISION_MODEL ?= moondream
 VENV := .venv
 PY := $(VENV)/bin/python
 export PYTHONPATH := $(CURDIR)/backend
@@ -30,10 +31,10 @@ db:                                ## (re)create data/database.db with the synth
 	$(PY) -m crop_pilot.database.init_db --reset
 	@rm -f data/checkpoints.db
 
-model:                             ## pull the open-weights model into the LOCAL Ollama
+model:                             ## pull the open-weights models (text + vision) into the LOCAL Ollama
 	@if [ -x "$(OLLAMA)" ] || command -v ollama >/dev/null; then \
 	  (curl -sf http://127.0.0.1:11434/api/tags >/dev/null || (nohup $(OLLAMA) serve >/tmp/ollama.log 2>&1 &) ); sleep 2; \
-	  $(OLLAMA) pull $(MODEL); \
+	  $(OLLAMA) pull $(MODEL) && $(OLLAMA) pull $(VISION_MODEL); \
 	else echo "!! Ollama not found: install from https://ollama.com (the agent falls back to deterministic mode without it)"; fi
 
 run: stop                          ## start API on :8000 and Control Desk on :8501 (Ctrl-C stops both)

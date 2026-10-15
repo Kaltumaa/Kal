@@ -7,3 +7,9 @@ data/*.db-*
 data/manual_fallback.jsonl
 .DS_Store
 .env
+data/scans/
+
+# Claude / AI assistant files
+.claude/
+CLAUDE.md
+CLAUDE.local.md

@@ -55,9 +55,22 @@ Its proposals are measured against the rules in EVALS.md.
   `data/reference/`. *Why it beats writing our own: path sandboxing and traversal protection are security code, so we
   reuse the maintained, widely audited implementation instead of rolling our own file reader.*
 
+## Farmer hub features and how they feed the advisory loop
+
+* **Field scan:** photo → local `moondream` vision model (via Ollama, on this machine) → caption scrubbed as untrusted text →
+  deterministic keyword match against `pest_symptoms.json` → `field_scans` row, status **UNVERIFIED**. Only a named
+  officer (`fieldscan.review`, API-only, not importable by the agent) can turn it into a **verified `pest_alert`**. The
+  advisory agent then picks that alert up through `get_pest_reports`. A database CHECK makes VERIFIED/DISMISSED
+  impossible without a reviewer name. This is a second human gate, on the *input* side.
+* **Learn:** the knowledge library in `data/reference/` is the same folder the third-party filesystem MCP server
+  exposes to the agent. When the agent drafts a SPRAY it also reads and cites `pesticides_safety.md`. The "What can I
+  grow?" tool is a deterministic score over `crop_suitability.csv`.
+* **Community:** a discussion board. Posts are scrubbed, instruction-like posts are held, and the agent never reads it:
+  unverified chat is not a signal.
+
 ## Data sovereignty
 
-The SQLite file, the LangGraph checkpoints and the model weights all live on the officer's machine. The model is
+The SQLite file, the LangGraph checkpoints, field-scan photos and both models' weights all live on the officer's machine. The model is
 served by local Ollama on `127.0.0.1`. No tokens or records leave the machine at run time.
 `npx` downloads the filesystem server from npm once during setup.
 

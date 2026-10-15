@@ -1,0 +1,13 @@
+crop,season_rain_min_mm,season_rain_max_mm,temp_min_c,temp_max_c,soils,greenhouse,days_to_maturity,drought_tolerance,notes
+Maize,500,1200,18,30,red loam;clay loam;sandy loam,no,120-150,medium,Plant at onset of rains; watch Fall Armyworm
+Beans,300,600,16,26,red loam;sandy loam,no,85-95,low,Fixes nitrogen; good rotation after maize
+Kale (sukuma wiki),350,800,15,25,red loam;clay loam,nursery,60 then continuous,medium,Harvest leaves every week
+Irish Potato,400,800,12,22,red loam;sandy loam,no,90-120,low,Late blight risk in cool wet weather
+Tomato,400,700,18,27,red loam;clay loam,best,75-100,low,Greenhouse cuts blight and Tuta damage
+Sorghum,350,700,20,35,black cotton;sandy loam;red loam,no,100-120,high,Good for dry spells and heavy clay
+Sweet Potato,450,900,18,30,sandy loam;red loam,no,120-150,high,Vines resist drought; ridges on heavy soils
+Capsicum,400,800,20,29,red loam;clay loam,best,70-90,low,High value in greenhouse
+Cabbage,380,700,15,24,clay loam;red loam,no,90-110,medium,Needs steady moisture
+Cowpeas,250,550,20,35,sandy loam;red loam,no,60-90,high,Leaves and grain; drought tolerant
+Spinach,300,600,12,24,red loam;clay loam,yes,40-50,low,Quick crop; shade in hot months
+Groundnut,400,800,22,32,sandy loam,no,100-130,medium,Needs loose soil for pods
