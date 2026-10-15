@@ -73,9 +73,34 @@ def greenhouse_check() -> None:
 ui.header("Learn","Guides for officers and farmers. The advisory agent reads the same library.")
 topics = api.knowledge_topics()
 names = ["What can I grow?"] + [t["title"] for t in topics]
-choice = st.segmented_control("Topic", names, default=names[0], label_visibility="collapsed")
+CARD = {  # title -> (material icon, colour, one-line description)
+    "What can I grow?": ("potted_plant", "green", "Best crops for your ward's season, soil and greenhouse"),
+    "Pests & diseases": ("bug_report", "orange", "Spot Fall Armyworm, blight, aphids and bean fly early"),
+    "Pesticides & safe use": ("sanitizer", "red", "Registered options, protective gear, harvest waits"),
+    "Weeds": ("grass", "green", "Striga, couch grass and when weeding matters most"),
+    "Soils": ("landscape", "orange", "Soils around Nairobi, pH and keeping soil healthy"),
+    "Greenhouse growing": ("home_work", "blue", "Best greenhouse crops, plus a humidity and heat check"),
+    "Crop calendar": ("calendar_month", "blue", "When each crop grows, flowers and is ready"),
+    "Pest action thresholds": ("target", "red", "When a pest is close enough to act on"),
+    "When it is safe to spray": ("water_drop", "blue", "How rain changes whether spraying works"),
+}
+choice = st.session_state.get("learn_topic", names[0])
+for start in range(0, len(names), 3):
+    cols = st.columns(3)
+    for col, name in zip(cols, names[start:start + 3]):
+        icon, color, blurb = CARD.get(name, ("article", "green", ""))
+        active = name == choice
+        with col.container(border=True, height=150):
+            st.markdown(f"**:{color}[:material/{icon}:]&nbsp; {name}**")
+            st.caption(blurb)
+            if st.button("Viewing" if active else "Open", key=f"topic-{name}", type="primary" if active else "secondary",
+                         width="stretch", disabled=active):
+                st.session_state["learn_topic"] = name
+                st.rerun()
+st.divider()
+st.subheader(choice)
 
-if choice in (None, names[0]):
+if choice == names[0]:
     outlook = {o["zone_id"]: o for o in api.season_outlook()}
     c = st.columns([1.2, 1, 1, 1, 1], vertical_alignment="bottom")
     ward = c[0].selectbox("Ward", list(outlook), format_func=str.title)
