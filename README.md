@@ -25,7 +25,7 @@ filesystem MCP server), and [Ollama](https://ollama.com) installed locally. If O
 It switches to deterministic gathering and template messages, and every draft carries the
 `llm_unavailable_deterministic_gathering` flag so this is never hidden.
 
-Other targets: `make test` (24 unit, gate and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
+Other targets: `make test` (33 unit, gate and boundary tests), `make evals` (8 tasks × 5 runs on the local model),
 `make evals-quick` (deterministic, ~1 min), `make clean`, `make help`.
 
 ## What is in the Control Desk
@@ -169,6 +169,12 @@ tests/         unit, gate and architecture-boundary tests
 * Single-officer desk; there is no role-based authentication on the Control Desk. The signature is a typed name, as the
   brief requires, but it is not identity-verified.
 * On CPU-only machines the local model is slow (see EVALS.md for timings).
+* `POST /weather/{zone}` (record a newer forecast) has no login yet; in production it would accept only the
+  forecast feed or a signed-in officer.
+* The full 5-run model evaluation ran just before weather patterns, follow-ups, crop-specific planting and the
+  forecast-change guard were added. These do not change the verdict for the eight test households, and the
+  deterministic evals pass 8/8 on the final code, but the model-run numbers in EVALS.md describe the earlier build.
+* The 3B model rarely completes its own evidence plan; the harness fills and corrects it (see EVALS.md).
 
 ## Licence
 
