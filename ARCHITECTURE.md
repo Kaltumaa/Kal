@@ -28,6 +28,11 @@ alerts, household plot records) → household-level Plant / Spray / Hold **draft
 | `human_gate` | `interrupt()`: the thread freezes in the checkpointer. Only the API resumes it, **after** `dispatch` has validated a named officer. |
 | `execution_complete` | Closes the run in the audit log with the officer's name. |
 
+**Plot history and household clusters.** The compiler adds a deterministic crop-rotation assessment
+(`core/history.py`) to every verdict, as a cited reason plus a farmer tip; it never changes the verdict. `POST
+/wards/{zone}/runs` drafts every household in a ward in one batch and logs the cluster's total time, which is the
+brief's "household cluster in ~15 minutes versus a season by hand".
+
 ## Why this split between rules and model
 
 A 3B model on a CPU must not decide whether to spray before a storm. Safety-critical ordering (missing profile →

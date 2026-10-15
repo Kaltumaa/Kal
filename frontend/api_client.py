@@ -123,3 +123,7 @@ def forum(topic: str | None = None):
 
 def forum_post(author: str, topic: str, body: str):
     return _req("POST", "/forum", json={"author": author, "topic": topic, "body": body})
+
+
+def run_ward(zone_id: str):
+    return _req("POST", f"/wards/{zone_id}/runs", timeout=3600)

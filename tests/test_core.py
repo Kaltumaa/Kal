@@ -61,3 +61,13 @@ def test_rule_engine_order_washout_beats_spray():
     assert agronomy.decide(plot, rain, pests)["verdict"] == "HOLD"
     assert agronomy.decide({**plot, "injection_detected": True}, rain, pests)["status"] == "SECURITY_LOCK"
     assert agronomy.decide({"found": False}, rain, pests)["status"] == "NEEDS_DATA"
+
+
+def test_plot_history_rotation_risk():
+    from crop_pilot.core.history import rotation
+    assert rotation("Maize", ["Beans", "Maize"])["risk"] == "ELEVATED"
+    assert rotation("Maize", ["Maize", "Maize"])["risk"] == "HIGH"
+    assert rotation("Potato", ["Potato", "Beans"])["risk"] == "ELEVATED"
+    good = rotation("Maize", ["Maize", "Beans"])
+    assert good["risk"] == "LOW" and "nitrogen" in good["note"] and good["sms_tip"] is None
+    assert rotation("Beans", [])["risk"] == "UNKNOWN"

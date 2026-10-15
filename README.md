@@ -33,7 +33,7 @@ Other targets: `make test` (24 unit, gate and boundary tests), `make evals` (8 t
 | Section | Page | What it does |
 |---|---|---|
 | Advisory | **Dashboard** | Rainfall outlook per ward (spray-safety band, planting window, washout risk), a map of households and verified pest alerts, and what is waiting for you |
-| | **Review queue** | Run the agent for a household; sign or reject each Plant / Spray / Hold draft. **This is the human gate.** |
+| | **Review queue** | Run the agent for one household or a **whole ward** (a household cluster, timed against the by-hand baseline); sign or reject each Plant / Spray / Hold draft. **This is the human gate.** |
 | | **Field scan** | Take or upload a photo of a sick plant. A **local** vision model (moondream) describes it, the pest knowledge base suggests likely causes, and an officer must verify it before it becomes a pest alert the agent uses |
 | Farmer hub | **Learn** | Guides on pests & diseases, pesticides & safe use, weeds, soils, greenhouse growing and the crop calendar, plus a **"What can I grow?"** tool (rainfall × temperature × soil × greenhouse) |
 | | **Community** | Discussion board for farmers and officers. Posts are scrubbed; instruction-like posts are held for moderation. The agent never reads it: chat is not a verified signal |
@@ -49,6 +49,15 @@ Other targets: `make test` (24 unit, gate and boundary tests), `make evals` (8 t
    SMS"). The record is redacted before any model sees it, and the draft is marked **Security lock** and cannot be signed, only rejected.
 3. Type a full name, tick the confirmation and click **Sign & send**. The message appears under **Sent messages**, and
    every **Activity log** row for that run now shows `approved_by`.
+
+## How a draft is decided (theme 1: rainfall and pest signals against plot history and crop calendar)
+
+| Signal | Where it comes from | What it changes |
+|---|---|---|
+| Rainfall | `weather_cache` (CHIRPS-style) → `get_rainfall_outlook` | Spray-safety index, planting window, washout HOLD |
+| Pests | Officer-verified `pest_alerts` (and verified field-scan photos) → `get_pest_reports` | SPRAY when a verified threat is within its action radius and the crop stage is susceptible |
+| Crop calendar | Planting date → calendar-derived growth stage | Which pests matter now; PLANT only before planting and at rain onset |
+| Plot history | `crop_history` (past seasons, oldest → newest) → `core/history.py` | Rotation risk (e.g. maize after maize raises Fall Armyworm, MLN and Striga carry-over), a sourced reason and an SMS tip. It never flips the verdict |
 
 ## Reuse our MCP server in your own agent
 

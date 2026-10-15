@@ -15,6 +15,18 @@ SERVER_LABEL = {"crop-pilot": "Crop-Pilot MCP", "filesystem": "Filesystem MCP", 
 
 def new_draft() -> None:
     with st.popover("New draft", icon=":material/add:", type="primary", width="stretch"):
+        scope = st.segmented_control("Draft for", ["One household", "Whole ward"], default="One household")
+        if scope == "Whole ward":
+            wards = sorted({h["zone_id"] for h in api.overview()["households"] if h["zone_id"]})
+            ward = st.selectbox("Ward", wards, format_func=str.title)
+            if st.button("Run agent for every household", type="primary", width="stretch"):
+                with st.spinner("Drafting advice for every household in the ward… (1–3 min each on CPU)"):
+                    try:
+                        st.session_state["last_ward"] = api.run_ward(ward)
+                        st.rerun()
+                    except api.ApiError as exc:
+                        st.error(str(exc.detail))
+            return
         hid = st.selectbox("Household", api.households())
         note = st.text_input("Note for the agent (optional)", max_chars=300)
         if st.button("Run agent", type="primary", width="stretch"):
@@ -25,6 +37,16 @@ def new_draft() -> None:
                     st.rerun()
                 except api.ApiError as exc:
                     st.error(str(exc.detail))
+
+
+def ward_summary() -> None:
+    ward = st.session_state.get("last_ward")
+    if not ward:
+        return
+    mins = ward["total_s"] / 60
+    st.success(f"**{ward['zone_id'].title()}**: {ward['households']} households drafted in {mins:.1f} min "
+               f"(by hand: cross-checking each plot takes most of a season). All drafts are waiting for your signature.",
+               icon=":material/groups:")
 
 
 def detail(adv: dict) -> None:
@@ -128,6 +150,7 @@ except api.ApiError as exc:
 drafts = [a for a in advs if a["status"] in ("SECURITY_LOCK", "PENDING_REVIEW", "NEEDS_DATA")]
 drafts.sort(key=lambda a: ({"SECURITY_LOCK": 0, "PENDING_REVIEW": 1}.get(a["status"], 2), -a["id"]))
 
+ward_summary()
 left, right = st.columns([1, 2], gap="large")
 with left:
     new_draft()

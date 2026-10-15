@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Response
@@ -84,6 +85,31 @@ async def create_run(req: RunRequest):
         return await start_run(app.state.graph, req.household_id, req.officer_note)
     except DatabaseUnavailable as exc:
         raise HTTPException(503, detail={"error": "database_unavailable", "detail": str(exc)[:200]})
+
+
+@app.post("/wards/{zone_id}/runs")
+async def run_ward(zone_id: str):
+    """Draft advice for every household in a ward (a household cluster), one after another, and time it."""
+    _require_db()
+    zone = sanitizer.normalise_zone(zone_id)
+    with connect() as conn:
+        plots = [dict(r) for r in conn.execute("SELECT * FROM plots ORDER BY household_id")]
+    members = [p["household_id"] for p in plots if sanitizer.scrub_plot(p).get("zone_id") == zone]
+    if not members:
+        raise HTTPException(404, detail=f"No households found in ward {zone_id!r}")
+    started = time.perf_counter()
+    results = []
+    for hid in members:
+        try:
+            r = await start_run(app.state.graph, hid, f"Ward batch for {zone}")
+            results.append({"household_id": hid, "run_id": r["run_id"], "status": r["advisory"].get("status"),
+                            "verdict": r["advisory"].get("verdict"), "elapsed_s": r["elapsed_s"]})
+        except Exception as exc:  # noqa: BLE001 - one bad household must not stop the ward
+            results.append({"household_id": hid, "status": "ERROR", "error": str(exc)[:200]})
+    total = round(time.perf_counter() - started, 1)
+    telemetry.record(f"ward-{zone}-{int(time.time())}", "graph", "ward_batch", {"zone_id": zone, "households": members},
+                     {"results": results, "total_s": total}, latency_ms=total * 1000)
+    return {"zone_id": zone, "households": len(members), "total_s": total, "results": results}
 
 
 @app.get("/advisories")

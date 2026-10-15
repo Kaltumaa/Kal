@@ -23,7 +23,7 @@ from langgraph.types import Command, interrupt
 from crop_pilot import config
 from crop_pilot.agent import llm
 from crop_pilot.agent.toolbox import open_toolbox
-from crop_pilot.core import agronomy, sanitizer, telemetry
+from crop_pilot.core import agronomy, history, sanitizer, telemetry
 
 MAX_AGENT_TURNS = 10
 GATHER_TOOLS = {"get_plot_context", "get_rainfall_outlook", "get_pest_reports",
@@ -260,6 +260,7 @@ def _template_message(verdict: str | None, plot: dict, rain: dict | None, threat
 
 def _llm_evidence_view(plot: dict, rain: dict | None, pests: dict | None, refs: list[dict]) -> dict:
     """The only view of the data the compiler model sees: typed, scrubbed fields; no raw notes."""
+    rotation_note = history.rotation(plot.get("active_crop"), plot.get("crop_history") or []).get("note")
     return {
         "household": {k: plot.get(k) for k in ("household_id", "zone_id", "active_crop", "crop_history",
                                                "days_since_planting", "growth_stage")},
@@ -267,6 +268,7 @@ def _llm_evidence_view(plot: dict, rain: dict | None, pests: dict | None, refs: 
                                                       "spray_safety_index", "spray_band", "washout_risk",
                                                       "planting_window")},
         "pest_threat": (pests or {}).get("top_threat"),
+        "plot_history_rotation": rotation_note,
         "guidance_excerpt": refs[0]["excerpt"][:800] if refs else None,
     }
 
@@ -303,6 +305,7 @@ async def advisory_compiler_node(state: RunState) -> dict:
     plot, rain, pests, refs = ev.get("plot", {}), ev.get("rain"), ev.get("pests"), ev.get("references", [])
     decision = agronomy.decide(plot, rain, pests)
     threat = (pests or {}).get("top_threat")
+    rotation = history.rotation(plot.get("active_crop"), plot.get("crop_history") or [])
 
     sources = []
     if plot.get("citation"):
@@ -316,6 +319,8 @@ async def advisory_compiler_node(state: RunState) -> dict:
         sources.append(f"plots:{state['household_id']}")   # a record lookup was attempted; cite it
 
     rationale = " ".join(decision["reasons"])
+    if decision["verdict"] and rotation.get("note"):
+        rationale += f" {rotation['note']}"
     message = _template_message(decision["verdict"], plot, rain, threat)
     if decision["status"] == "SECURITY_LOCK":
         message = "No message drafted: household record locked until an officer verifies it."
@@ -333,6 +338,14 @@ async def advisory_compiler_node(state: RunState) -> dict:
                 flags.append(f"model_disagreement:{model_verdict}->{decision['verdict']}")
     elif decision["status"] != "PENDING_REVIEW":
         flags.append(f"llm_skipped_status_{decision['status'].lower()}")
+    if decision["status"] == "PENDING_REVIEW" and rotation.get("sms_tip"):
+        flags.append(f"rotation_risk:{rotation['risk']}")
+        sign = " - Dagoretti South Extension"
+        body = message.rstrip()
+        body = body[: -len(sign)].rstrip() if body.endswith(sign) else body
+        with_tip = f"{body} {rotation['sms_tip']}{sign}"
+        if len(with_tip) <= 320:
+            message = with_tip
 
     evidence_summary = {
         "rule": decision["rule"],
@@ -343,6 +356,7 @@ async def advisory_compiler_node(state: RunState) -> dict:
                                                   "rain_7d_mm", "storm_risk", "planting_window", "washout_risk",
                                                   "forecast_issued_at", "stale")},
         "pest_threat": threat,
+        "rotation": rotation,
         "ignored_alerts": (pests or {}).get("ignored_alerts", []),
         "references": [r["file"] for r in refs],
     }
