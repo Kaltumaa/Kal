@@ -66,6 +66,7 @@ to it. Wards, households, rainfall and season outlooks are rows of data. To serv
 | Rainfall | `weather_cache` (CHIRPS-style) → `get_rainfall_outlook` | Spray-safety index, planting window, washout HOLD |
 | Pests | Officer-verified `pest_alerts` (and verified field-scan photos) → `get_pest_reports` | SPRAY when a verified threat is within its action radius and the crop stage is susceptible |
 | Crop calendar | Planting date → calendar-derived growth stage | Which pests matter now; PLANT only before planting and at rain onset |
+| Weather pattern | CHIRPS-format dekadal history + season outlook → `get_weather_pattern` | Season below/above normal → variety and drainage advice; late rains; **false-start risk** → "plant in two batches". Never flips the verdict |
 | Plot history | `crop_history` (past seasons, oldest → newest) → `core/history.py` | Rotation risk (e.g. maize after maize raises Fall Armyworm, MLN and Striga carry-over), a sourced reason and an SMS tip. It never flips the verdict |
 
 ## Reuse our MCP server in your own agent
@@ -95,6 +96,7 @@ PYTHONPATH=backend npx @modelcontextprotocol/inspector .venv/bin/python -m crop_
 | `get_plot_context` | `household_id` | Scrubbed record: normalised crop, calendar-derived growth stage, repaired coordinates, `data_quality` list, `injection_detected` | none |
 | `get_rainfall_outlook` | `lat`/`lon` or `zone_id` | Spray-safety index 0–100 + band, planting window, washout risk, staleness, formula, citation | none |
 | `get_pest_reports` | `zone_id`, `lat`, `lon`, `crop`, `growth_stage` | Verified alerts scored by severity × distance × recency; unverified ones listed as ignored; actionable top threat | none |
+| `get_weather_pattern` | `zone_id`, `rain_7d_mm` | Season outlook vs normal, last 20 days vs the long-term mean (CHIRPS-format dekads), onset status incl. false-start risk, advice | none |
 | `draft_advisory` | `run_id`, verdict, message, rationale, `sources`, evidence | Staged draft id | Writes **one** row to `pending_advisories` (non-final status only, idempotent per run, refuses unsourced advice). Cannot send. |
 
 Bring your own data by pointing `CROP_PILOT_DB` at a database with the same schema (`backend/crop_pilot/database/init_db.py`).
@@ -114,7 +116,7 @@ extension work. The questions we would take to an officer first:
 backend/crop_pilot/
   database/    schema + synthetic household seed (SQLite, data/database.db)
   core/        pure deterministic logic: sanitizer, spray-safety index, pest scoring, rule engine, telemetry
-  mcp_server/  OUR MCP server (4 tools; draft_advisory is the write tool)
+  mcp_server/  OUR MCP server (5 tools; draft_advisory is the write tool)
   agent/       LangGraph workflow + MCP client toolbox + local Ollama client
   dispatch/    officer approval + simulated outbound (the agent cannot import this; a test enforces it)
   fieldscan/   camera photos -> local vision model -> symptom match -> officer verification -> pest alert

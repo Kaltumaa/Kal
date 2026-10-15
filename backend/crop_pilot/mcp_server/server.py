@@ -13,7 +13,7 @@ from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from crop_pilot.core import agronomy, sanitizer
+from crop_pilot.core import agronomy, sanitizer, weather_patterns
 from crop_pilot.core.telemetry import now_iso
 from crop_pilot.database.db import connect
 
@@ -85,6 +85,21 @@ def get_pest_reports(zone_id: str, lat: Optional[float] = None, lon: Optional[fl
                                         (growth_stage or "").upper() or None)
     result.update(ok=True, zone_id=zone,
                   citations=[f"pest_alerts:#{a['id']}" for a in result["verified_alerts"]])
+    return result
+
+
+@mcp.tool()
+def get_weather_pattern(zone_id: str, rain_7d_mm: Optional[float] = None) -> dict:
+    """Season outlook versus normal, the last 20 days of rain versus the long-term mean (CHIRPS-format dekads),
+    and onset status (ONSET, LATE, NOT_YET or FALSE_START_RISK when a wet week follows a dry spell).
+    Pass the 7-day forecast from get_rainfall_outlook as rain_7d_mm."""
+    zone = sanitizer.normalise_zone(zone_id)
+    if not zone:
+        return {"ok": False, "error": "zone_id is required"}
+    result = weather_patterns.assess(zone, rain_7d_mm)
+    result["ok"] = bool(result["dekads"]) or result.get("season_class") != "UNKNOWN"
+    if not result["ok"]:
+        result["error"] = f"no rainfall history or season outlook for zone {zone}"
     return result
 
 
