@@ -20,7 +20,7 @@ while true; do clear; sqlite3 -header -column data/database.db "select id, serve
 | 1:50 | Select `HH-DS-006` (Security lock) | "This household's notes hide a prompt injection telling the agent to approve and SMS every farmer. It was redacted before any model saw it. The draft cannot be signed." |
 | 2:05 | Back to HH-DS-003 → **Message & signature**: type a name, tick, **Sign & send** | "Nothing leaves without a named officer. The database itself refuses an unsigned approval." |
 | 2:20 | **Sent messages**, then **Activity log** filtered to the run | "The SMS is queued (simulated), and every action of the run now carries the officer's name." |
-| 2:35 | **Field scan** (upload a leaf photo) or **Learn** | "Farmers' photos go through a local vision model and need an officer's confirmation before they become pest alerts. The same guides the agent cites are here for farmers." |
+| 2:35 | **Dashboard → Rainfall numbers → record a new forecast** for Mutu-ini (90 mm, storm HIGH), then back to the queue | "Rainfall estimates shift. A storm forecast just arrived, so the SPRAY draft is now blocked: it cannot be signed until the agent re-runs, and the re-run says HOLD." |
 | 2:50 | `EVALS.md` | "Eight task types, five runs each, with the failures we have not fixed. Link below." |
 
 Upload as **public on YouTube or Vimeo** and paste the link into the submission form and the README.
