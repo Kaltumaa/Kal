@@ -21,12 +21,26 @@ def do_this(z: dict) -> tuple[str, str]:
     """(tag html, reason) for field work in a ward."""
     if z["washout_risk"]:
         return tag("Hold all field work", "red"), f"Heavy rain: {z['rain_72h_mm']:.0f} mm in the next 3 days."
+    if MAIN_CROPS <= set(z["plant_now"]) and z["pattern"].get("onset") == "FALSE_START_RISK":
+        return (tag("Plant in two batches", "orange"),
+                f"{z['rain_7d_mm']:.0f} mm coming, but after a dry spell: plant half now, half after the next wet week.")
     if MAIN_CROPS <= set(z["plant_now"]):
         return tag("Plant now", "green"), f"{z['rain_7d_mm']:.0f} mm of rain expected this week."
     if z["plant_now"]:
         return (tag("Dry-season crops only", "orange"),
                 f"Only {z['rain_7d_mm']:.0f} mm this week: too dry for maize and beans (they need about 25 mm).")
     return tag("Too dry to plant", "gray"), f"Only {z['rain_7d_mm']:.0f} mm expected this week."
+
+
+def season_cell(p: dict) -> str:
+    cls, pct = p.get("season_class"), p.get("season_anomaly_pct")
+    season = {"BELOW": tag(f"{abs(pct)}% below normal", "orange"), "ABOVE": tag(f"{pct}% above normal", "orange"),
+              "NEAR": tag("Near normal", "green")}.get(cls, tag("Unknown", "gray"))
+    rains = {"FALSE_START_RISK": "Rain after a dry spell: false-start risk", "LATE": "Rains running late",
+             "ONSET": "Rains have started", "NOT_YET": "Rains not started yet"}.get(p.get("onset"), "")
+    recent = p.get("recent_pct_of_normal")
+    detail = f"{rains} (last 20 days at {recent}% of normal)" if recent is not None else rains
+    return f"{season}<small>{html.escape(detail)}</small>"
 
 
 def spraying(z: dict) -> str:
@@ -70,13 +84,29 @@ for z in ov["zones"]:
         f'<tr><td><b>{html.escape(z["zone_id"].title())}</b></td>'
         f'<td>{action}<small>{html.escape(reason)}</small></td>'
         f'<td>{html.escape(", ".join(plantable)) if plantable else "—"}</td>'
+        f'<td>{season_cell(z["pattern"])}</td>'
         f'<td>{spraying(z)}</td>'
         f'<td>{tag(", ".join(pests), "red") if pests else tag("None", "gray")}</td></tr>')
 st.markdown('<div class="cp-wards"><table><thead><tr><th>Ward</th><th>Do this</th><th>Can plant now</th>'
-            '<th>Spraying</th><th>Pests confirmed</th></tr></thead><tbody>' + "".join(rows) + "</tbody></table></div>",
+            '<th>Season &amp; rains</th><th>Spraying</th><th>Pests confirmed</th></tr></thead><tbody>' + "".join(rows) + "</tbody></table></div>",
             unsafe_allow_html=True)
 st.caption("Pests: confirmed by an officer in the last 30 days. Planting: maize, beans and potato need about 25 mm of "
            "rain in a week; sorghum and cowpeas about 15 mm.")
+
+st.subheader("Rainfall pattern")
+pc = st.columns([1, 3], gap="large")
+ward = pc[0].selectbox("Ward", [z["zone_id"] for z in ov["zones"]], format_func=str.title, key="pattern_ward")
+zp = next(z for z in ov["zones"] if z["zone_id"] == ward)["pattern"]
+if zp.get("season_expected_mm"):
+    pc[0].metric("Season outlook", f"{zp['season_expected_mm']:.0f} mm", f"{zp['season_anomaly_pct']:+d}% vs normal",
+                 delta_color="off")
+for line in zp.get("advice", []):
+    pc[0].caption(line)
+if zp["dekads"]:
+    chart = pd.DataFrame([{"10-day period": d["period"], "This year (mm)": d["rain_mm"], "Normal (mm)": d["normal_mm"]}
+                          for d in zp["dekads"]]).set_index("10-day period")
+    pc[1].bar_chart(chart, stack=False, color=["#1F7A4D", "#C9D6CC"], height=260)
+    pc[1].caption("Rain in each 10-day period (CHIRPS-style, synthetic) against the long-term average.")
 
 left, right = st.columns(2, gap="large")
 with left:

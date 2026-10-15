@@ -81,3 +81,14 @@ def test_drought_tolerant_crops_can_be_planted_on_less_rain():
     beans = agronomy.decide({**plot, "active_crop": "Beans"}, rain, None)
     assert beans["verdict"] == "HOLD" and "Sorghum" in " ".join(beans["reasons"])
     assert agronomy.crops_plantable_now(120, washout=True) == []
+
+
+def test_weather_patterns_season_and_false_start():
+    from crop_pilot.core import weather_patterns as wp
+    riruta = wp.assess("RIRUTA", rain_7d_mm=31)
+    assert riruta["onset"] == "FALSE_START_RISK" and "half" in riruta["sms_tip"]
+    ngando = wp.assess("NGANDO", rain_7d_mm=14)
+    assert ngando["season_class"] == "BELOW" and ngando["onset"] == "LATE"
+    assert wp.assess("WAITHAKA", rain_7d_mm=120)["season_class"] == "ABOVE"
+    unknown = wp.assess("NOWHERE", rain_7d_mm=10)
+    assert unknown["season_class"] == "UNKNOWN" and unknown["onset"] == "UNKNOWN"

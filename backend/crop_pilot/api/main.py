@@ -17,7 +17,7 @@ from crop_pilot import config
 from crop_pilot.agent import llm
 from crop_pilot.agent.workflow import build_graph, resume_run, start_run
 from crop_pilot.community import forum
-from crop_pilot.core import agronomy, greenhouse, knowledge, sanitizer, telemetry
+from crop_pilot.core import agronomy, greenhouse, knowledge, sanitizer, telemetry, weather_patterns
 from crop_pilot.database.db import DatabaseUnavailable, connect, health_check
 from crop_pilot.dispatch import approval
 from crop_pilot.fieldscan import service as fieldscan
@@ -208,7 +208,8 @@ def overview():
                            "days": c.get("days_since_planting"), "flagged": c.get("injection_detected")})
     outlooks = [agronomy.rainfall_outlook(z) for z in zones]
     return {"zones": [{**o, "lat": z["centroid_lat"], "lon": z["centroid_lon"],
-                       "plant_now": agronomy.crops_plantable_now(o["rain_7d_mm"], o["washout_risk"])}
+                       "plant_now": agronomy.crops_plantable_now(o["rain_7d_mm"], o["washout_risk"]),
+                       "pattern": weather_patterns.assess(z["zone_id"], o["rain_7d_mm"])}
                       for o, z in zip(outlooks, zones)],
             "alerts": alerts, "households": households, "today": config.today().isoformat()}
 
