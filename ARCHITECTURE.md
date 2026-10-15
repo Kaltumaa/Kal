@@ -57,6 +57,8 @@ safety ordering is tested code; the model adds agency (tool choice) and language
    signed until the agent is re-run.
 
 The same pattern gates photos: a field-scan report becomes a pest alert only when a named officer verifies it.
+The app has an **officer view** (all farms, the only place advice is approved) and a **farmer view** (own farm, signed
+advice only, plot-history entries and photo reports). The switch is a demo convenience, not authentication.
 
 ## MCP servers: built vs borrowed
 

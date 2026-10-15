@@ -20,10 +20,12 @@ from crop_pilot.agent.workflow import build_graph, resume_run, start_run
 from crop_pilot.community import forum
 from crop_pilot.core import agronomy, greenhouse, history, knowledge, sanitizer, telemetry, weather_patterns
 from crop_pilot.database.db import DatabaseUnavailable, connect, health_check
+from crop_pilot.database.init_db import ensure_schema
 from crop_pilot.dispatch import approval
 from crop_pilot.dispatch import followups as desk_followups
 from crop_pilot.fieldscan import service as fieldscan
 from crop_pilot.greenhouse import readings as gh_readings
+from crop_pilot.plots import actions as plot_actions
 
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
@@ -33,6 +35,11 @@ logging.getLogger("crop_pilot.audit").setLevel(logging.INFO)   # audit trail in 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config.CHECKPOINT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:   # add new tables/columns to an existing database; a corrupt one is handled by /health instead
+        with connect() as conn:
+            ensure_schema(conn)
+    except Exception:  # noqa: BLE001
+        pass
     async with AsyncSqliteSaver.from_conn_string(str(config.CHECKPOINT_DB_PATH)) as saver:
         app.state.graph = build_graph(saver)
         yield
@@ -75,7 +82,7 @@ async def health():
     db = health_check()
     return {"ok": db["ok"], "database": db, "llm_model": config.OLLAMA_MODEL,
             "llm_available": await llm.is_available(), "npx_available": shutil.which("npx") is not None,
-            "mode": "normal" if db["ok"] else "degraded_manual_fallback"}
+            "mode": "normal" if db["ok"] else "degraded_manual_fallback", "today": config.today().isoformat()}
 
 
 @app.get("/households")
@@ -83,6 +90,20 @@ def households():
     _require_db()
     with connect() as conn:
         return [r[0] for r in conn.execute("SELECT household_id FROM plots ORDER BY household_id")]
+
+
+@app.get("/farms")
+def farms():
+    """Farms with their (invented) farmer names, for pickers and labels."""
+    _require_db()
+    with connect() as conn:
+        rows = [dict(r) for r in conn.execute("SELECT * FROM plots ORDER BY household_id")]
+    out = []
+    for r in rows:
+        c = sanitizer.scrub_plot(r)
+        out.append({"household_id": r["household_id"], "farmer_name": r.get("farmer_name") or r["household_id"],
+                    "zone_id": c.get("zone_id"), "crop": c.get("active_crop")})
+    return out
 
 
 @app.post("/runs")
@@ -209,7 +230,8 @@ def overview():
         lat, lon = c.get("lat"), c.get("lon")
         if lat is None and c.get("zone_id") in centroids:
             lat, lon = centroids[c["zone_id"]]
-        households.append({"household_id": c.get("household_id"), "zone_id": c.get("zone_id"), "lat": lat, "lon": lon,
+        households.append({"household_id": c.get("household_id"), "farmer_name": c.get("farmer_name"),
+                           "zone_id": c.get("zone_id"), "lat": lat, "lon": lon,
                            "crop": c.get("active_crop"), "stage": c.get("growth_stage"),
                            "days": c.get("days_since_planting"), "flagged": c.get("injection_detected")})
     outlooks = [agronomy.rainfall_outlook(z) for z in zones]
@@ -446,3 +468,29 @@ def update_forecast(zone_id: str, req: ForecastUpdate):
                      {"issued_at": issued}, latency_ms=0, actor="data feed")
     stale = [a["id"] for a in approval.list_advisories("PENDING_REVIEW") if a.get("forecast_changed")]
     return {"zone_id": zone, "issued_at": issued, "drafts_now_out_of_date": stale}
+
+
+# --- Plot history log ------------------------------------------------------------------------------------
+class PlotAction(BaseModel):
+    action: str = Field(..., max_length=20)
+    action_date: str = Field(..., max_length=10)
+    crop: str | None = Field(None, max_length=40)
+    details: str = Field("", max_length=300)
+    role: str = Field(..., pattern="^(officer|farmer)$")
+    name: str | None = Field(None, max_length=80)
+
+
+@app.get("/farms/{household_id}/actions")
+def farm_actions(household_id: str):
+    _require_db()
+    return plot_actions.list_actions(household_id)
+
+
+@app.post("/farms/{household_id}/actions")
+def log_farm_action(household_id: str, req: PlotAction):
+    _require_db()
+    try:
+        return plot_actions.log_action(household_id, req.action, req.action_date, req.crop, req.details,
+                                       req.role, req.name)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))

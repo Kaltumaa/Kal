@@ -59,3 +59,65 @@ def badges(verdict: str | None, status: str) -> str:
     """Verdict and status as inline markdown badges on one line."""
     return (f":{VERDICT_COLOR.get(verdict, 'gray')}-badge[{verdict or 'No advice'}] "
             f":{STATUS_COLOR.get(status, 'gray')}-badge[{STATUS_TEXT.get(status, status)}]")
+
+
+# --- Plain-language labels ----------------------------------------------------------------------------------
+GUIDE_TITLES = {"pest_action_thresholds.md": "Pest action guide", "pesticides_safety.md": "Pesticide safety guide",
+                "crop_calendar_nairobi.md": "Crop calendar guide", "spray_safety_guidelines.md": "Spray safety guide",
+                "pests_diseases.md": "Pests & diseases guide", "chirps_dekadal_dagoretti.csv": "Rainfall history (CHIRPS-style)",
+                "season_outlook.csv": "Season rainfall outlook"}
+STAGES = {"PRE_PLANTING": "Not planted yet", "EMERGENCE": "Just emerged", "EARLY_VEGETATIVE": "Young plants",
+          "LATE_VEGETATIVE_TASSELING": "Tall plants / tasseling", "GRAIN_FILL": "Grain filling", "MATURITY": "Maturing",
+          "HARVEST_READY": "Ready to harvest", "VEGETATIVE": "Growing leaves", "FLOWERING": "Flowering",
+          "POD_FILL": "Pods filling", "ESTABLISHMENT": "Establishing", "CONTINUOUS_HARVEST": "Harvesting leaves",
+          "TUBER_INITIATION": "Tubers starting", "TUBER_BULKING": "Tubers growing", "UNKNOWN": "Unknown stage"}
+FLAG_TEXT = {
+    "auto_filled": "The AI skipped a step, so the system fetched it automatically",
+    "corrected_args": "The AI used a wrong value in a step; the system corrected it",
+    "model_disagreement": "The AI suggested different advice; the safety rules decided",
+    "data_repaired": "Messy farm record was cleaned up",
+    "prompt_injection_detected": "Suspicious instructions found in the record and removed",
+    "false_start_risk": "Rain follows a dry spell (false-start risk)",
+    "rotation_risk": "Same crop family planted again (pest carry-over risk)",
+    "self_check_retry": "The self-check found a problem and re-gathered the evidence",
+    "self_check_failed": "The self-check failed twice; draft withheld",
+    "llm_unavailable_deterministic_gathering": "Local AI was offline; fixed rules were used",
+    "weather_forecast_stale": "The rain forecast is out of date",
+    "blocked_tool_request": "The AI asked for a tool it is not allowed to use (blocked)",
+    "llm_skipped_status_needs_data": "Not enough farm data, so no AI text was written",
+    "llm_skipped_status_security_lock": "Record locked, so no AI text was written",
+}
+
+
+def stage_label(stage: str | None) -> str:
+    return STAGES.get(stage or "", (stage or "—").replace("_", " ").title())
+
+
+def source_label(src: str, names: dict | None = None) -> str:
+    kind, _, ref = src.partition(":")
+    if kind == "plots":
+        return f"Farm record ({(names or {}).get(ref, ref)})"
+    if kind == "weather_cache":
+        zone, _, issued = ref.partition("@")
+        return f"Rain forecast for {zone.title()}" + (f" (issued {issued[:10]})" if issued else "")
+    if kind == "pest_alerts":
+        return f"Confirmed pest report {ref}"
+    if kind == "reference":
+        return GUIDE_TITLES.get(ref, ref)
+    return src
+
+
+def flag_label(flag: str) -> str:
+    return FLAG_TEXT.get(flag.split(":")[0], flag.replace("_", " "))
+
+
+def names() -> dict:
+    return st.session_state.get("farm_names", {})
+
+
+def farm_label(hid: str | None) -> str:
+    if not hid:
+        return "—"
+    info = st.session_state.get("farm_info", {}).get(hid, {})
+    zone = (info.get("zone_id") or "").title()
+    return f"{names().get(hid, hid)}" + (f" · {zone}" if zone else "")

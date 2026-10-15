@@ -235,6 +235,7 @@ def scrub_plot(row: dict | None, today: date | None = None) -> dict:
     return {
         "found": True,
         "household_id": household_id,
+        "farmer_name": normalise_text(row.get("farmer_name"))[:60] or None,
         "zone_id": zone,
         "lat": lat,
         "lon": lon,

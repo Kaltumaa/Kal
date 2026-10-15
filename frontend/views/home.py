@@ -100,11 +100,11 @@ if not fups:
                "field visit...).")
 else:
     fl, fr = st.columns([2.2, 1], gap="large")
-    fl.dataframe(pd.DataFrame([{"Due": f["due_date"], "Household": f["household_id"],
+    fl.dataframe(pd.DataFrame([{"Due": f["due_date"], "Farm": ui.farm_label(f["household_id"]),
                                 "What": f["kind"].replace("_", " ").title(), "Why": f["reason"]} for f in fups]),
                  hide_index=True, width="stretch", height=min(300, 38 + 35 * len(fups)))
     with fr.form("close-followup"):
-        pick = st.selectbox("Mark as done", fups, format_func=lambda f: f"{f['due_date']} · {f['household_id']} · "
+        pick = st.selectbox("Mark as done", fups, format_func=lambda f: f"{f['due_date']} · {ui.farm_label(f['household_id'])} · "
                                                                         f"{f['kind'].replace('_', ' ').title()}")
         who = st.text_input("Your full name")
         if st.form_submit_button("Done", type="primary", width="stretch"):
@@ -129,22 +129,22 @@ if zp["dekads"]:
     pc[1].bar_chart(chart, stack=False, color=["#1F7A4D", "#C9D6CC"], height=260)
     pc[1].caption("Rain in each 10-day period (CHIRPS-style, synthetic) against the long-term average.")
 
-left, right = st.columns(2, gap="large")
-with left:
-    with st.expander("Map of households and pest reports"):
-        pts = [{"lat": h["lat"], "lon": h["lon"], "color": "#1F7A4D", "size": 60} for h in ov["households"]
-               if h["lat"] is not None]
-        pts += [{"lat": a["lat"], "lon": a["lon"], "color": "#D64545", "size": 180}
-                for zone in recent_pests.values() for a in zone if a["lat"] is not None]
-        st.map(pd.DataFrame(pts), latitude="lat", longitude="lon", color="color", size="size", zoom=12, height=300)
-        st.caption("Green: households · Red: confirmed pest reports")
-with right:
-    with st.expander("Rainfall numbers behind this page"):
-        st.dataframe(pd.DataFrame([{"Ward": z["zone_id"].title(), "24 h (mm)": z["rain_24h_mm"],
-                                    "3 days (mm)": z["rain_72h_mm"], "7 days (mm)": z["rain_7d_mm"],
-                                    "Storm": z["storm_risk"].title(), "Spray score": z["spray_safety_index"]}
-                                   for z in ov["zones"]]), hide_index=True, width="stretch")
-        st.caption("Synthetic CHIRPS-style forecast. Spray score below 40 means do not spray.")
+st.subheader("Rainfall numbers and map")
+mapcol, numbers = st.columns([1, 2.2], gap="large")
+with mapcol:
+    pts = [{"lat": h["lat"], "lon": h["lon"], "color": "#1F7A4D", "size": 60} for h in ov["households"]
+           if h["lat"] is not None]
+    pts += [{"lat": a["lat"], "lon": a["lon"], "color": "#D64545", "size": 180}
+            for zone in recent_pests.values() for a in zone if a["lat"] is not None]
+    st.map(pd.DataFrame(pts), latitude="lat", longitude="lon", color="color", size="size", zoom=11, height=260)
+    st.caption("Green: farms · Red: confirmed pest reports")
+with numbers:
+    st.dataframe(pd.DataFrame([{"Ward": z["zone_id"].title(), "24 h (mm)": z["rain_24h_mm"],
+                                "3 days (mm)": z["rain_72h_mm"], "7 days (mm)": z["rain_7d_mm"],
+                                "Storm": z["storm_risk"].title(), "Spray score": z["spray_safety_index"]}
+                               for z in ov["zones"]]), hide_index=True, width="stretch")
+    st.caption("Synthetic CHIRPS-style forecast. Spray score below 40 means do not spray.")
+    with st.expander("A new forecast arrived? Record it"):
         with st.form("new-forecast"):
             st.markdown("**A new forecast arrived?** Record it; drafts built on the old one are blocked until re-run.")
             f = st.columns(5)

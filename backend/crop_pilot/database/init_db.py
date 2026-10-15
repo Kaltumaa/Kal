@@ -26,7 +26,22 @@ CREATE TABLE IF NOT EXISTS plots (
     days_since_planting TEXT,            -- free-text as typed by the field assistant
     growth_stage        TEXT,            -- as recorded; the agent re-derives it
     field_notes         TEXT,            -- unformatted narrative (prompt-injection surface)
-    is_synthetic        INTEGER NOT NULL DEFAULT 1
+    is_synthetic        INTEGER NOT NULL DEFAULT 1,
+    farmer_name         TEXT             -- invented name for the demo; never a real person
+);
+
+-- Plot history log: field actions entered by the officer or reported by the farmer.
+CREATE TABLE IF NOT EXISTS plot_actions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    household_id    TEXT NOT NULL,
+    action          TEXT NOT NULL CHECK (action IN ('PLANTING','VARIETY','FERTILISER','IRRIGATION','WEEDING',
+                                                    'SPRAYING','HARVEST','OBSERVATION')),
+    action_date     TEXT NOT NULL,
+    crop            TEXT,
+    details         TEXT,
+    entered_by_role TEXT NOT NULL CHECK (entered_by_role IN ('officer','farmer')),
+    entered_by      TEXT NOT NULL,
+    created_at      TEXT NOT NULL
 );
 
 -- 2. Regional incident registry
@@ -165,6 +180,26 @@ PESTS = [
 ]
 
 
+# Invented names for the synthetic households (shown instead of codes). Not real people.
+FARMER_NAMES = {
+    "HH-DS-001": "Peter Njoroge", "HH-DS-002": "Mary Achieng", "HH-DS-003": "Grace Wanjiku",
+    "HH-DS-004": "Joseph Ouma", "HH-DS-005": "Agnes Muthoni", "HH-DS-006": "Samuel Kiprono",
+    "HH-DS-007": "Esther Nduta", "HH-DS-008": "David Mwangi",
+}
+PLOT_COLUMNS = ("household_id, zone_id, lat, lon, crop_history, active_crop, planting_date, days_since_planting, "
+                "growth_stage, field_notes, is_synthetic")
+
+
+def ensure_schema(conn: sqlite3.Connection) -> None:
+    """Create missing tables/columns on an existing database (safe to run every start)."""
+    conn.executescript(SCHEMA)
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(plots)")}
+    if "farmer_name" not in columns:
+        conn.execute("ALTER TABLE plots ADD COLUMN farmer_name TEXT")
+    for hid, name in FARMER_NAMES.items():
+        conn.execute("UPDATE plots SET farmer_name = ? WHERE household_id = ? AND farmer_name IS NULL", (name, hid))
+
+
 def init_db(path: Path | None = None, reset: bool = False) -> Path:
     path = Path(path or config.DB_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -174,7 +209,8 @@ def init_db(path: Path | None = None, reset: bool = False) -> Path:
     try:
         conn.executescript(SCHEMA)
         conn.executemany("INSERT OR REPLACE INTO weather_cache VALUES (?,?,?,?,?,?,?,?,?,?)", WEATHER)
-        conn.executemany("INSERT OR REPLACE INTO plots VALUES (?,?,?,?,?,?,?,?,?,?,?)", PLOTS)
+        conn.executemany(f"INSERT OR REPLACE INTO plots ({PLOT_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)", PLOTS)
+        ensure_schema(conn)
         if conn.execute("SELECT COUNT(*) FROM pest_alerts").fetchone()[0] == 0:
             conn.executemany(
                 "INSERT INTO pest_alerts (zone_id, pest, lat, lon, distance_km, severity, verified, reported_at, source)"

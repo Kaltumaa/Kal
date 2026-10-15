@@ -104,3 +104,33 @@ def test_household_profile_calendar(temp_db, tmp_path, monkeypatch):
         assert "Fall Armyworm" in stages["EARLY_VEGETATIVE"]["pests_to_watch"]
         assert p["pattern"]["zone_id"] == "MUTUINI"
         assert c.get("/households/NOPE/profile").status_code == 404
+
+
+def test_plot_action_log_and_planting_updates_record(temp_db):
+    from crop_pilot.core import sanitizer
+    from crop_pilot.database.db import connect
+    from crop_pilot.plots import actions
+    r = actions.log_action("HH-DS-001", "PLANTING", "2026-10-10", "beans", "Certified seed", "farmer", None)
+    assert r["entered_by"] == "Peter Njoroge" and r["updated_record"]
+    with connect() as conn:
+        row = dict(conn.execute("SELECT * FROM plots WHERE household_id='HH-DS-001'").fetchone())
+    assert sanitizer.scrub_plot(row)["days_since_planting"] == 5
+    with pytest.raises(ApprovalError):
+        actions.log_action("HH-DS-001", "FERTILISER", "2026-10-12", None, "CAN", "officer", "x")   # officer needs full name
+    with pytest.raises(ApprovalError):
+        actions.log_action("HH-DS-001", "WEEDING", "2030-01-01", None, "", "farmer", None)        # future date
+    assert len(actions.list_actions("HH-DS-001")) == 1
+
+
+def test_farms_have_names_and_no_real_codes_shown(temp_db, tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from crop_pilot import config
+    from crop_pilot.api.main import app
+    monkeypatch.setattr(config, "CHECKPOINT_DB_PATH", tmp_path / "ck.db")
+    with TestClient(app) as c:
+        farms = {f["household_id"]: f for f in c.get("/farms").json()}
+        assert farms["HH-DS-003"]["farmer_name"] == "Grace Wanjiku" and farms["HH-DS-003"]["zone_id"] == "MUTUINI"
+        assert c.post("/farms/HH-DS-003/actions", json={"action": "WEEDING", "action_date": "2026-10-14",
+                                                        "role": "farmer"}).status_code == 200
+        assert c.post("/farms/HH-DS-003/actions", json={"action": "WEEDING", "action_date": "2026-10-14",
+                                                        "role": "admin"}).status_code == 422

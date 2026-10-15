@@ -167,3 +167,18 @@ def update_forecast(zone_id: str, rain_24h_mm: float, rain_72h_mm: float, rain_7
     return _req("POST", f"/weather/{zone_id}", json={"rain_24h_mm": rain_24h_mm, "rain_72h_mm": rain_72h_mm,
                                                     "rain_7d_mm": rain_7d_mm, "storm_risk": storm_risk,
                                                     "source": "Officer-entered forecast update"})
+
+
+def farms():
+    return _req("GET", "/farms")
+
+
+def farm_actions(household_id: str):
+    return _req("GET", f"/farms/{household_id}/actions")
+
+
+def log_farm_action(household_id: str, action: str, action_date: str, crop: str | None, details: str, role: str,
+                    name: str | None):
+    return _req("POST", f"/farms/{household_id}/actions", json={"action": action, "action_date": action_date,
+                                                                "crop": crop, "details": details, "role": role,
+                                                                "name": name})

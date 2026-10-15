@@ -27,7 +27,7 @@ def new_draft() -> None:
                     except api.ApiError as exc:
                         st.error(str(exc.detail))
             return
-        hid = st.selectbox("Household", api.households())
+        hid = st.selectbox("Farm", list(ui.names()), format_func=ui.farm_label)
         note = st.text_input("Note for the agent (optional)", max_chars=300)
         if st.button("Run agent", type="primary", width="stretch"):
             with st.spinner("Gathering plot, rainfall and pest evidence… (1–3 min on CPU)"):
@@ -55,8 +55,8 @@ def detail(adv: dict) -> None:
     can_sign = adv["status"] == "PENDING_REVIEW"
 
     with st.container(border=True):
-        stage = (plot.get("growth_stage") or "").replace("_", " ").lower()
-        st.markdown(f"### {adv['household_id']}")
+        stage = ui.stage_label(plot.get("growth_stage")).lower() if plot.get("growth_stage") else ""
+        st.markdown(f"### {ui.names().get(adv['household_id'], adv['household_id'])}")
         st.markdown(ui.badges(adv["verdict"], adv["status"]) + f'  <span class="cp-muted">&nbsp;'
                     f'{(plot.get("zone_id") or "—").title()} · {plot.get("active_crop") or "no crop recorded"}'
                     f'{" · " + stage if stage else ""}</span>', unsafe_allow_html=True)
@@ -83,7 +83,8 @@ def detail(adv: dict) -> None:
 
         if rain.get("spray_safety_index") is not None and adv["status"] != "NEEDS_DATA":
             m = st.columns(4)
-            m[0].metric("Spray safety", f'{rain["spray_safety_index"]:.0f}', rain.get("spray_band", "").title(),
+            m[0].metric("Spraying", {"SAFE": "OK", "CAUTION": "Careful", "UNSAFE": "Don't"}.get(rain.get("spray_band"), "—"),
+                        f'score {rain["spray_safety_index"]:.0f}/100',
                         delta_color="off")
             m[1].metric("Rain, 7 days", f'{rain.get("rain_7d_mm") or 0:.0f} mm')
             m[2].metric("Planting window", (rain.get("planting_window") or "—").title())
@@ -130,14 +131,17 @@ def detail(adv: dict) -> None:
                 f = planned[0]
                 st.caption(f":material/event: Follow-up scheduled by the agent for {f['due_date']}: {f['reason']}")
         with t_ev:
-            st.markdown("**Sources**")
-            st.markdown("\n".join(f"- `{s}`" for s in adv["sources"]))
+            st.markdown("**Based on**")
+            st.markdown("\n".join(f"- {ui.source_label(x, ui.names())}  <span class='cp-muted'>`{x}`</span>"
+                                   for x in adv["sources"]), unsafe_allow_html=True)
             if plot.get("data_quality"):
                 st.markdown("**Record repairs**")
                 st.markdown("\n".join(f"- {q}" for q in plot["data_quality"]))
             if adv["flags"]:
-                st.markdown("**Flags**")
-                st.caption(" · ".join(adv["flags"]))
+                st.markdown("**Notes from the system**")
+                st.markdown("\n".join(f"- {ui.flag_label(f)}" for f in dict.fromkeys(adv["flags"])))
+                with st.expander("Raw flags"):
+                    st.caption(" · ".join(adv["flags"]))
             if adv.get("model_verdict") and adv["model_verdict"] != adv["rule_verdict"]:
                 st.warning(f"The local model suggested {adv['model_verdict']}; the safety rules chose "
                            f"{adv['rule_verdict']}.")
@@ -173,7 +177,7 @@ with left:
     if not drafts:
         st.caption("No drafts waiting.")
         st.stop()
-    table = pd.DataFrame([{"Household": a["household_id"], "Advice": a["verdict"] or "—",
+    table = pd.DataFrame([{"Farm": ui.farm_label(a["household_id"]), "Advice": a["verdict"] or "—",
                            "Status": "Forecast changed" if a.get("forecast_changed") else ui.STATUS_TEXT[a["status"]]}
                           for a in drafts])
     wanted = st.session_state.pop("select_advisory", None)

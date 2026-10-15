@@ -8,35 +8,37 @@ import streamlit as st
 import api_client as api
 import ui
 
-ui.header("Households", "One plot at a time: its history, where it is in the crop calendar, and the advice it got.")
-try:
-    ids = api.households()
-except api.ApiError as exc:
-    st.error(str(exc.detail))
-    st.stop()
-top = st.columns([1.2, 3], vertical_alignment="bottom")
-hid = top[0].selectbox("Household", ids)
-if top[1].button("Draft new advice for this household", icon=":material/edit_note:"):
-    with st.spinner("Agent working… (1–3 min on CPU)"):
-        try:
-            res = api.run_agent(hid, "")
-            st.toast(f"Draft ready: {res['advisory'].get('verdict') or 'no advice'}. Sign it in the Review queue.",
-                     icon=":material/check:")
-        except api.ApiError as exc:
-            st.error(str(exc.detail))
+role, mine = st.session_state.get("role", "officer"), st.session_state.get("my_farm")
+officer = role == "officer"
+if officer:
+    ui.header("Farms", "One farm at a time: its history, where it is in the crop calendar, and the advice it got.")
+    top = st.columns([1.4, 3], vertical_alignment="bottom")
+    hid = top[0].selectbox("Farm", list(ui.names()), format_func=ui.farm_label)
+    if top[1].button("Draft new advice for this farm", icon=":material/edit_note:"):
+        with st.spinner("Agent working… (1–3 min on CPU)"):
+            try:
+                res = api.run_agent(hid, "")
+                st.toast(f"Draft ready: {res['advisory'].get('verdict') or 'no advice'}. Review it below.",
+                         icon=":material/check:")
+            except api.ApiError as exc:
+                st.error(str(exc.detail))
+else:
+    hid = mine
+    ui.header("My farm", f"{ui.farm_label(hid)}: where your crop is in its calendar, your area's rain, and advice "
+                         "from your extension officer.")
 p = api.household_profile(hid)
 plot, rot, pat = p["plot"], p["rotation"], p.get("pattern") or {}
 crop = plot.get("active_crop") or "No crop recorded"
 days = plot.get("days_since_planting")
-stage = (plot.get("growth_stage") or "—").replace("_", " ").title()
+stage = ui.stage_label(plot.get("growth_stage"))
 
 m = st.columns(4)
 m[0].metric("Crop", crop)
 m[1].metric("Ward", (plot.get("zone_id") or "—").title())
-m[2].metric("Days since planting", days if days is not None else "Not planted")
-m[3].metric("Stage", stage)
+m[2].metric("Days since planting", days if days is not None else "—")
+m[3].metric("Stage", "Not planted" if plot.get("growth_stage") == "PRE_PLANTING" else stage)
 if plot.get("injection_detected"):
-    st.error("This household's notes contained instruction-like text and were redacted. Verify the record in person.",
+    st.error("This farm's notes contained instruction-like text and were removed. Verify the record in person.",
              icon=":material/gpp_bad:")
 
 st.subheader("Crop calendar")
@@ -89,12 +91,24 @@ with right:
             st.caption(line)
 
 draft = next((a for a in p["advisories"] if a["status"] in ("PENDING_REVIEW", "SECURITY_LOCK", "NEEDS_DATA")), None)
+if not officer:
+    sent = [a for a in p["advisories"] if a["status"] == "APPROVED"]
+    st.subheader("Advice from your extension officer")
+    if not sent:
+        st.caption("No advice yet. When your extension officer approves advice for your farm, it appears here and "
+                   "is sent to you by SMS.")
+    for a in sent:
+        with st.container(border=True):
+            st.markdown(ui.badges(a["verdict"], a["status"]) + f"  <span class='cp-muted'>signed by "
+                        f"{a['officer_signature']} · {(a['reviewed_at'] or '')[:10]}</span>", unsafe_allow_html=True)
+            st.write(a["farmer_message"])
+    st.stop()
 if draft:
     with st.container(border=True):
         st.markdown("### 🤖 AI Generated Advisory Draft (Review Required)")
         st.markdown(ui.badges(draft["verdict"], draft["status"]) + "  Nothing has been sent to the farmer.")
         st.write(draft["rationale"])
-        st.caption("Sources: " + " · ".join(draft["sources"]))
+        st.caption("Based on: " + " · ".join(ui.source_label(x, ui.names()) for x in draft["sources"]))
         can_send = draft["status"] == "PENDING_REVIEW" and not draft.get("forecast_changed")
         if draft.get("forecast_changed"):
             st.warning(f"The rainfall forecast changed since this draft ({draft['forecast_changed']}). Draft new "
@@ -128,7 +142,7 @@ if draft:
                 st.session_state[f"edit-{draft['id']}"] = not editing
                 st.rerun()
 
-st.subheader("Advisory history")
+st.subheader("Advice history")
 if p["advisories"]:
     st.dataframe(pd.DataFrame([{"Drafted": a["created_at"][:16].replace("T", " "), "Advice": a["verdict"] or "—",
                                 "Status": ui.STATUS_TEXT.get(a["status"], a["status"]),

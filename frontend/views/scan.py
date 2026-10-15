@@ -18,15 +18,22 @@ def ai_label(candidates: list[dict]) -> str:
     if not candidates:
         return "AI Analysis: no clear match to a known pest — ⏳ AWAITING EXTENSION OFFICER CONFIRMATION"
     top = candidates[0]
+    low = " Low match: look closely at the photo before confirming." if top["score"] < 0.5 else ""
     return (f"AI Analysis: Consistent with **{top['pest']}** ({top['score'] * 100:.0f}% symptom-match score) "
-            "— ⏳ AWAITING EXTENSION OFFICER CONFIRMATION")
+            f"— ⏳ AWAITING EXTENSION OFFICER CONFIRMATION.{low}")
 
 
 CROPS = ["From household record", "Maize", "Beans", "Kale", "Potato", "Tomato"]
 
-ui.header("Field scan", "Photograph a sick plant. A local model describes it, the pest guide suggests causes, and an "
+ui.header("Field scan" if st.session_state.get("role", "officer") == "officer" else "Report a sick plant",
+          "Photograph a sick plant. A local model describes it, the pest guide suggests causes, and an "
                         "officer confirms before it counts as a pest alert.")
-t_new, t_check = st.tabs(["New photo", "Officer check"])
+role, mine = st.session_state.get("role", "officer"), st.session_state.get("my_farm")
+officer = role == "officer"
+if officer:
+    t_new, t_check = st.tabs(["New photo", "Officer check"])
+else:
+    t_new, t_check = st.container(), None
 
 with t_new:
     left, right = st.columns([1, 1], gap="large")
@@ -35,7 +42,12 @@ with t_new:
         photo = (st.camera_input("Photo", label_visibility="collapsed") if source == "Camera"
                  else st.file_uploader("Photo (JPEG or PNG, max 6 MB)", type=["jpg", "jpeg", "png"]))
         c = st.columns(2)
-        hid = c[0].selectbox("Household", ["None"] + api.households())
+        if officer:
+            hid = c[0].selectbox("Farm", ["None"] + list(ui.names()),
+                                 format_func=lambda h: "No farm" if h == "None" else ui.farm_label(h))
+        else:
+            hid = mine
+            c[0].text_input("Farm", ui.farm_label(mine), disabled=True)
         crop = c[1].selectbox("Crop", CROPS)
         if st.button("Check photo", type="primary", disabled=photo is None, width="stretch"):
             with st.spinner("The local model is looking at the photo… (20–90 s)"):
@@ -50,7 +62,7 @@ with t_new:
         if not res:
             st.caption("Results appear here. Photos stay on this computer.")
         else:
-            st.markdown(f"**Scan #{res['scan_id']}** · {res['household_id'] or 'no household'} · "
+            st.markdown(f"**Photo #{res['scan_id']}** · {ui.farm_label(res['household_id']) if res['household_id'] else 'no farm'} · "
                         f"{res['crop'] or 'crop unknown'}")
             if not res["vision_available"]:
                 st.warning("The vision model is offline, so the photo was saved for the officer to check by eye.")
@@ -65,6 +77,8 @@ with t_new:
                 st.caption("No clear match. See Learn → Pests & diseases.")
             st.caption("Not a diagnosis. It waits in Officer check until a named officer confirms it.")
 
+if t_check is None:
+    st.stop()
 with t_check:
     pending = [s for s in api.scans() if s["status"] == "UNVERIFIED"]
     if not pending:
@@ -76,7 +90,8 @@ with t_check:
             if img:
                 img_col.image(img, width="stretch")
             with body:
-                st.markdown(f"**Scan #{s['id']}** · {s['household_id'] or 'no household'} · {s['crop'] or 'crop unknown'}")
+                st.markdown(f"**Photo #{s['id']}** · {ui.farm_label(s['household_id']) if s['household_id'] else 'no farm'}"
+                            f" · {s['crop'] or 'crop unknown'}")
                 st.write(s["description"] or "No description.")
                 st.warning(ai_label(s["candidates"]), icon=":material/hourglass_top:")
                 top = s["candidates"][0]["pest"] if s["candidates"] else None

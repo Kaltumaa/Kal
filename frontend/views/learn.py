@@ -62,48 +62,29 @@ def greenhouse_check() -> None:
             st.code('curl -X POST http://<this-computer>:8000/greenhouse/readings -H "Content-Type: application/json" '
                     '-d \'{"greenhouse_id": "GH-1", "device_id": "esp32-1", "temp_c": 26.5, "rh_pct": 82}\'',
                     language="bash")
-            if st.button("Simulate a sensor reading"):
-                api.greenhouse_sensor_reading(round(random.uniform(18, 32), 1), round(random.uniform(45, 95)),
-                                              "demo-sensor")
-                st.rerun()
-            st.caption("No real sensor is connected in this demo; the button sends a random reading through the same "
-                       "endpoint a device would use.")
+            if st.session_state.get("role", "officer") == "officer":
+                if st.button("Demo: simulate a sensor reading"):
+                    api.greenhouse_sensor_reading(round(random.uniform(18, 32), 1), round(random.uniform(45, 95)),
+                                                  "demo-sensor")
+                    st.rerun()
+                st.caption("Demo only: no real sensor is connected; this sends a random reading through the same "
+                           "endpoint a device would use.")
 
 
 ui.header("Learn","Guides for officers and farmers. The advisory agent reads the same library.")
 topics = api.knowledge_topics()
 names = ["What can I grow?"] + [t["title"] for t in topics]
-CARD = {  # title -> (material icon, colour, one-line description)
-    "What can I grow?": ("potted_plant", "green", "Best crops for your ward's season, soil and greenhouse"),
-    "Pests & diseases": ("bug_report", "orange", "Spot Fall Armyworm, blight, aphids and bean fly early"),
-    "Pesticides & safe use": ("sanitizer", "red", "Registered options, protective gear, harvest waits"),
-    "Weeds": ("grass", "green", "Striga, couch grass and when weeding matters most"),
-    "Soils": ("landscape", "orange", "Soils around Nairobi, pH and keeping soil healthy"),
-    "Greenhouse growing": ("home_work", "blue", "Best greenhouse crops, plus a humidity and heat check"),
-    "Crop calendar": ("calendar_month", "blue", "When each crop grows, flowers and is ready"),
-    "Pest action thresholds": ("target", "red", "When a pest is close enough to act on"),
-    "When it is safe to spray": ("water_drop", "blue", "How rain changes whether spraying works"),
-}
-choice = st.session_state.get("learn_topic", names[0])
-for start in range(0, len(names), 3):
-    cols = st.columns(3)
-    for col, name in zip(cols, names[start:start + 3]):
-        icon, color, blurb = CARD.get(name, ("article", "green", ""))
-        active = name == choice
-        with col.container(border=True, height=150):
-            st.markdown(f"**:{color}[:material/{icon}:]&nbsp; {name}**")
-            st.caption(blurb)
-            if st.button("Viewing" if active else "Open", key=f"topic-{name}", type="primary" if active else "secondary",
-                         width="stretch", disabled=active):
-                st.session_state["learn_topic"] = name
-                st.rerun()
-st.divider()
-st.subheader(choice)
+ICONS = {"What can I grow?": "potted_plant", "Pests & diseases": "bug_report", "Pesticides & safe use": "sanitizer",
+         "Weeds": "grass", "Soils": "landscape", "Greenhouse growing": "home_work", "Crop calendar": "calendar_month",
+         "Pest action thresholds": "target", "When it is safe to spray": "water_drop"}
 
-if choice == names[0]:
+
+def what_can_i_grow() -> None:
     outlook = {o["zone_id"]: o for o in api.season_outlook()}
     c = st.columns([1.2, 1, 1, 1, 1], vertical_alignment="bottom")
-    ward = c[0].selectbox("Ward", list(outlook), format_func=str.title)
+    mine = st.session_state.get("farm_info", {}).get(st.session_state.get("my_farm") or "", {}).get("zone_id")
+    zones = list(outlook)
+    ward = c[0].selectbox("Ward", zones, format_func=str.title, index=zones.index(mine) if mine in zones else 0)
     o = outlook[ward]
     gh = c[4].selectbox("Greenhouse", ["No", "Yes"]) == "Yes"
     adjust = st.toggle("Adjust the numbers myself")
@@ -121,7 +102,7 @@ if choice == names[0]:
         results = api.suitability(rain, temp, soil, gh)
     except api.ApiError as exc:
         st.error(str(exc.detail))
-        st.stop()
+        return
     st.dataframe(pd.DataFrame([{
         "Crop": r["crop"], "Fit": r["score"], "Greenhouse": GREENHOUSE[r["greenhouse"]],
         "Days to harvest": r["days_to_maturity"], "Drought tolerance": r["drought_tolerance"].title(),
@@ -130,9 +111,13 @@ if choice == names[0]:
         column_config={"Fit": st.column_config.ProgressColumn("Fit", min_value=0, max_value=100, format="%d"),
                        "Why": st.column_config.TextColumn(width="large"), "Tip": st.column_config.TextColumn(width="medium")})
     st.caption("Scores come from a fixed crop table (rainfall, temperature, soil, greenhouse), not a guess.")
-else:
-    slug = topics[names.index(choice) - 1]["slug"]
-    if slug == "greenhouse":
-        greenhouse_check()
-    with st.container(border=True):
-        st.markdown(api.knowledge_topic(slug))
+
+
+with st.expander(":material/potted_plant: **What can I grow?** — best crops for your area's season, soil and greenhouse",
+                 expanded=True):
+    what_can_i_grow()
+for t in topics:
+    with st.expander(f":material/{ICONS.get(t['title'], 'article')}: **{t['title']}**"):
+        if t["slug"] == "greenhouse":
+            greenhouse_check()
+        st.markdown(api.knowledge_topic(t["slug"]))

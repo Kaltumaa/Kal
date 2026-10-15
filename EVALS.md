@@ -104,4 +104,11 @@ finishes and records a crashing task as a FAIL instead of losing the batch.
     where the model called `get_weather_pattern` itself, and task 3 after the reflection node, where the self-check
     passed and the model read the guidance file itself.
 
-  A fresh 5-run model batch on the final code was not re-run before the deadline.
+  Later app-level additions do not touch the agent's decision path:
+  - the officer/farmer views;
+  - farmer names;
+  - the plot-history field log (a planting entry only updates the record the agent reads);
+  - the readable activity log.
+
+  Deterministic evals still pass 8/8 after them. A fresh 5-run model batch on the final code was not re-run before
+  the deadline.
