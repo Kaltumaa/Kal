@@ -76,6 +76,10 @@ def overview():
     return _req("GET", "/overview")
 
 
+def spray_groups() -> list[str]:
+    return _req("GET", "/knowledge/spray-groups")
+
+
 def knowledge_topics():
     return _req("GET", "/knowledge")
 

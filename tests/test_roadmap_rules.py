@@ -98,3 +98,49 @@ def test_agent_end_to_end_wind_hold_and_rotation(temp_db, monkeypatch):
     grace = asyncio.run(workflow.start_run(graph, "HH-DS-003"))           # sprayed pyrethroids twice last season
     assert grace["advisory"]["verdict"] == "SPRAY"
     assert any(s.startswith("plot_actions:#") for s in grace["advisory"]["sources"])
+
+
+def test_spraying_status_is_decided_once_rain_before_wind():
+    assert rain(wind=6)["spray_status"] == "OK"
+    windy = rain(wind=22)
+    assert windy["spray_status"] == "NO_WIND" and windy["spray_label"] == "Too windy (22 km/h)"
+    wet_and_windy = agronomy.rainfall_outlook({"rain_24h_mm": 30, "rain_72h_mm": 80, "rain_7d_mm": 120,
+                                               "storm_risk": "HIGH", "runoff_coeff": 0.3, "issued_at": "2026-10-14",
+                                               "wind_kmh": 30})
+    assert wet_and_windy["spray_status"] == "NO_RAIN"           # rain is the first reason, as in decide()
+
+
+def test_api_serves_spray_groups_and_rejects_bad_field_log_input(temp_db, tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from crop_pilot.api.main import app
+    monkeypatch.setattr(config, "CHECKPOINT_DB_PATH", tmp_path / "ck.db")
+    base = {"action_date": "2026-10-10", "details": "", "role": "farmer"}
+    with TestClient(app) as c:
+        assert c.get("/knowledge/spray-groups").json() == config.CHEM_GROUPS
+        bad_group = c.post("/farms/HH-DS-003/actions", json=base | {"action": "SPRAYING", "chem_group": "Fake"})
+        weeding_on_spray = c.post("/farms/HH-DS-003/actions", json=base | {"action": "SPRAYING", "needs_weeding": True})
+        assert bad_group.status_code == 400 and weeding_on_spray.status_code == 400
+        ok = c.post("/farms/HH-DS-001/actions", json=base | {"action": "OBSERVATION", "needs_weeding": True})
+        assert ok.status_code == 200
+        assert c.get("/farms/HH-DS-001/actions").json()[0]["needs_weeding"] == 1
+
+
+def test_older_database_gets_missing_demo_rows_without_overwrites(temp_db):
+    import sqlite3
+    from crop_pilot.database.init_db import seed_missing
+    conn = sqlite3.connect(temp_db)
+    # Make it look like a database from before the roadmap work, plus one user change that must survive.
+    conn.execute("DELETE FROM plots WHERE household_id = 'HH-DS-010'")
+    conn.execute("DELETE FROM pest_alerts WHERE zone_id = 'RIRUTA' AND pest = 'Late Blight'")
+    conn.execute("DELETE FROM plot_actions")
+    conn.execute("UPDATE weather_cache SET wind_kmh = NULL")
+    conn.execute("UPDATE plots SET field_notes = 'edited by officer' WHERE household_id = 'HH-DS-001'")
+    seed_missing(conn)
+    seed_missing(conn)                                            # running twice adds nothing twice
+    one = lambda q: conn.execute(q).fetchone()[0]                 # noqa: E731
+    assert one("SELECT COUNT(*) FROM plots WHERE household_id = 'HH-DS-010'") == 1
+    assert one("SELECT COUNT(*) FROM pest_alerts WHERE zone_id = 'RIRUTA' AND pest = 'Late Blight'") == 1
+    assert one("SELECT COUNT(*) FROM plot_actions") == 2
+    assert one("SELECT wind_kmh FROM weather_cache WHERE zone_id = 'RIRUTA'") == 22.0
+    assert one("SELECT field_notes FROM plots WHERE household_id = 'HH-DS-001'") == "edited by officer"
+    conn.close()

@@ -52,12 +52,23 @@ def rainfall_outlook(weather: dict, today: date | None = None) -> dict:
     except ValueError:
         age_days = None
     stale = age_days is None or age_days > config.WEATHER_STALE_DAYS
+    too_windy = wind is not None and wind > config.SPRAY_MAX_WIND_KMH
+    # One answer to "can you spray?" for every page: rain first, then wind (same order as decide()).
+    if spray_band == "UNSAFE":
+        spray_status, spray_label = "NO_RAIN", "Don't spray (rain)"
+    elif too_windy:
+        spray_status, spray_label = "NO_WIND", f"Too windy ({wind:.0f} km/h)"
+    elif spray_band == "CAUTION":
+        spray_status, spray_label = "CAREFUL", "Careful: only if no rain for 6 h"
+    else:
+        spray_status, spray_label = "OK", "OK"
 
     return {
         "zone_id": weather.get("zone_id"),
         "rain_24h_mm": r24, "rain_72h_mm": r72, "rain_7d_mm": r7d,
         "storm_risk": storm, "runoff_coeff": runoff,
-        "wind_kmh": wind, "wind_too_strong": wind is not None and wind > config.SPRAY_MAX_WIND_KMH,
+        "wind_kmh": wind, "wind_too_strong": too_windy,
+        "spray_status": spray_status, "spray_label": spray_label,
         "spray_safety_index": index,
         "spray_band": spray_band,
         "washout_risk": washout,

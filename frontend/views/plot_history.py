@@ -45,11 +45,6 @@ with left:
     else:
         st.caption("Nothing logged yet for this plot.")
 
-# Mode-of-action groups, same list as the backend's config.CHEM_GROUPS (the API validates it).
-CHEM_GROUPS = ["Pyrethroids (IRAC 3A)", "Organophosphates (IRAC 1B)", "Avermectins / emamectin (IRAC 6)",
-               "Spinosyns (IRAC 5)", "Diamides (IRAC 28)", "Bt, biological (IRAC 11A)", "Neem, botanical",
-               "Mancozeb / dithiocarbamates (FRAC M03)", "Metalaxyl / phenylamides (FRAC 4)", "Copper (FRAC M01)",
-               "Not sure"]
 CROPS = ["Maize", "Beans", "Kale", "Potato", "Tomato", "Sorghum", "Cowpeas", "Sweet Potato", "Groundnut"]
 with right:
     if role == "farmer":
@@ -59,7 +54,7 @@ with right:
             action = c[0].selectbox("What did you do?", list(ACTION_LABEL), format_func=ACTION_LABEL.get)
             when = c[1].date_input("When", value=pd.Timestamp(st.session_state.get("demo_today", "2026-10-15")).date())
             crop = st.selectbox("Crop (needed for planting)", ["—"] + CROPS)
-            group = st.selectbox("Product group (only for spraying; on the label)", ["—"] + CHEM_GROUPS,
+            group = st.selectbox("Product group (only for spraying; on the label)", ["—"] + api.spray_groups(),
                                  help="Spraying the same group again and again lets pests become resistant. "
                                       "Your next spray advice will suggest a different group.")
             weeding = st.selectbox("Does the plot need weeding before planting? (only for observations)",

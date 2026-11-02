@@ -20,7 +20,7 @@ from crop_pilot.agent.workflow import build_graph, resume_run, start_run
 from crop_pilot.community import forum
 from crop_pilot.core import agronomy, greenhouse, history, knowledge, sanitizer, telemetry, weather_patterns
 from crop_pilot.database.db import DatabaseUnavailable, connect, health_check
-from crop_pilot.database.init_db import ensure_schema
+from crop_pilot.database.init_db import ensure_schema, seed_missing
 from crop_pilot.dispatch import approval
 from crop_pilot.dispatch import followups as desk_followups
 from crop_pilot.fieldscan import service as fieldscan
@@ -39,6 +39,8 @@ async def lifespan(app: FastAPI):
     try:   # add new tables/columns to an existing database; a corrupt one is handled by /health instead
         with connect() as conn:
             ensure_schema(conn)
+            if conn.execute("SELECT COUNT(*) FROM plots").fetchone()[0]:   # only top up a seeded demo database
+                seed_missing(conn)
     except Exception:  # noqa: BLE001
         pass
     async with AsyncSqliteSaver.from_conn_string(str(config.CHECKPOINT_DB_PATH)) as saver:
@@ -274,6 +276,12 @@ def knowledge_season():
 @app.post("/knowledge/suitability")
 def knowledge_suitability(req: SuitabilityRequest):
     return knowledge.suitability(req.season_rain_mm, req.mean_temp_c, req.soil, req.greenhouse, req.rain_7d_mm)
+
+
+@app.get("/knowledge/spray-groups")
+def spray_groups():
+    """Mode-of-action groups a farmer can pick when logging a spray (the same list log_action validates)."""
+    return config.CHEM_GROUPS
 
 
 @app.get("/knowledge/problem")

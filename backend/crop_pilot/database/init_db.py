@@ -257,6 +257,26 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         conn.execute("UPDATE plots SET farmer_name = ? WHERE household_id = ? AND farmer_name IS NULL", (name, hid))
 
 
+def seed_missing(conn: sqlite3.Connection) -> None:
+    """Add demo rows that an older (synthetic) database is missing: new farms, wind speeds, alerts, seeded sprays.
+    Never overwrites: existing farms, alerts and anything users added are left as they are."""
+    conn.executemany(f"INSERT OR IGNORE INTO plots ({PLOT_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)", PLOTS)
+    for row in WEATHER:
+        conn.execute("UPDATE weather_cache SET wind_kmh = ? WHERE zone_id = ? AND wind_kmh IS NULL", (row[10], row[0]))
+    for row in PESTS:
+        if conn.execute("SELECT 1 FROM pest_alerts WHERE zone_id=? AND pest=? AND reported_at=? AND source=?",
+                        (row[0], row[1], row[7], row[8])).fetchone() is None:
+            conn.execute("INSERT INTO pest_alerts (zone_id, pest, lat, lon, distance_km, severity, verified, "
+                         "reported_at, source) VALUES (?,?,?,?,?,?,?,?,?)", row)
+    for row in ACTIONS_SEED:
+        if conn.execute("SELECT 1 FROM plot_actions WHERE household_id=? AND action=? AND action_date=? "
+                        "AND created_at=?", (row[0], row[1], row[2], row[7])).fetchone() is None:
+            conn.execute("INSERT INTO plot_actions (household_id, action, action_date, crop, details, "
+                         "entered_by_role, entered_by, created_at, chem_group) VALUES (?,?,?,?,?,?,?,?,?)", row)
+    for hid, name in FARMER_NAMES.items():
+        conn.execute("UPDATE plots SET farmer_name = ? WHERE household_id = ? AND farmer_name IS NULL", (name, hid))
+
+
 def init_db(path: Path | None = None, reset: bool = False) -> Path:
     path = Path(path or config.DB_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -270,14 +290,7 @@ def init_db(path: Path | None = None, reset: bool = False) -> Path:
                          WEATHER)
         conn.executemany(f"INSERT OR REPLACE INTO plots ({PLOT_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)", PLOTS)
         ensure_schema(conn)
-        if conn.execute("SELECT COUNT(*) FROM pest_alerts").fetchone()[0] == 0:
-            conn.executemany(
-                "INSERT INTO pest_alerts (zone_id, pest, lat, lon, distance_km, severity, verified, reported_at, source)"
-                " VALUES (?,?,?,?,?,?,?,?,?)", PESTS)
-        if conn.execute("SELECT COUNT(*) FROM plot_actions").fetchone()[0] == 0:
-            conn.executemany(
-                "INSERT INTO plot_actions (household_id, action, action_date, crop, details, entered_by_role, "
-                "entered_by, created_at, chem_group) VALUES (?,?,?,?,?,?,?,?,?)", ACTIONS_SEED)
+        seed_missing(conn)
         conn.commit()
     finally:
         conn.close()
