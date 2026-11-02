@@ -4,8 +4,10 @@ These functions are the safety core. The language model never overrides them; it
 """
 from __future__ import annotations
 
+import json
 import math
 from datetime import date
+from functools import lru_cache
 
 from crop_pilot import config
 
@@ -151,29 +153,56 @@ def _latest(log: list[dict], action: str) -> dict | None:
 
 
 def weeds_uncleared(field_log: list[dict] | None) -> dict | None:
-    """The farmer's latest observation says the plot is weedy and no weeding has been logged since."""
+    """The farmer's latest observation answered "needs weeding: yes" and no weeding has been logged since.
+
+    Uses the structured yes/no answer only; free-text notes are never read ("weeding done" or "no weeds" must not
+    block planting).
+    """
     log = field_log or []
-    seen = [e for e in log if e.get("action") == "OBSERVATION" and e.get("action_date")
-            and any(w in (e.get("details") or "").lower() for w in config.WEEDY_WORDS)]
-    if not seen:
+    answered = [e for e in log if e.get("action") == "OBSERVATION" and e.get("needs_weeding") is not None
+                and e.get("action_date")]
+    if not answered:
         return None
-    obs = max(seen, key=lambda e: (e["action_date"], e.get("id") or 0))
+    obs = max(answered, key=lambda e: (e["action_date"], e.get("id") or 0))
+    if not obs["needs_weeding"]:
+        return None
     weeding = _latest(log, "WEEDING")
     return None if weeding and weeding["action_date"] >= obs["action_date"] else obs
 
 
-def chemical_rotation(field_log: list[dict] | None, today: date | None = None) -> dict | None:
-    """Mode-of-action group of the last logged spray (within a year), and whether it was used twice in a row."""
+def group_kind(group: str | None) -> str | None:
+    """IRAC groups (and Bt / neem) are insect sprays; FRAC groups are disease sprays."""
+    if not group or group == "Not sure":
+        return None
+    return "disease" if "FRAC" in group else "insect"
+
+
+@lru_cache(maxsize=1)
+def _pest_types() -> dict[str, str]:
+    data = json.loads((config.REFERENCE_DIR / "pest_symptoms.json").read_text(encoding="utf-8"))
+    return {name.lower(): info.get("type", "") for name, info in data.items()}
+
+
+def threat_kind(pest: str | None) -> str | None:
+    """'insect' for pests, 'disease' for diseases (from the reference guide); None if unknown."""
+    kind = _pest_types().get((pest or "").lower())
+    return {"Pest": "insect", "Disease": "disease"}.get(kind)
+
+
+def chemical_rotation(field_log: list[dict] | None, today: date | None = None, kind: str | None = None) -> dict | None:
+    """Mode-of-action group of the last logged spray of the same kind (within a year), and whether it was used
+    twice in a row. `kind` is 'insect' or 'disease'; a fungicide says nothing about which insecticide to use next."""
     today = today or config.today()
-    sprays = sorted((e for e in field_log or [] if e.get("action") == "SPRAYING" and e.get("chem_group")
-                     and e["chem_group"] != "Not sure" and e.get("action_date")
+    sprays = sorted((e for e in field_log or [] if e.get("action") == "SPRAYING" and group_kind(e.get("chem_group"))
+                     and (kind is None or group_kind(e["chem_group"]) == kind) and e.get("action_date")
                      and (today - date.fromisoformat(e["action_date"][:10])).days <= 365),
                     key=lambda e: (e["action_date"], e.get("id") or 0), reverse=True)
     if not sprays:
         return None
     last = sprays[0]
     repeated = len(sprays) > 1 and sprays[1]["chem_group"] == last["chem_group"]
-    note = (f"The last spray ({last['action_date'][:10]}) used {last['chem_group']}"
+    what = {"insect": "insect spray", "disease": "disease spray"}.get(group_kind(last["chem_group"]), "spray")
+    note = (f"The last {what} ({last['action_date'][:10]}) used {last['chem_group']}"
             + (", twice in a row" if repeated else "")
             + ". Use a product from a different group this time to slow resistance; check the label with the officer.")
     return {"group": last["chem_group"], "date": last["action_date"][:10], "repeated": repeated, "note": note,
@@ -223,7 +252,8 @@ def decide(plot: dict, rain: dict | None, pests: dict | None, *, pattern: dict |
         reasons.append(f"Verified {threat['pest']} ({threat['severity']}) {threat['distance_km']} km away, "
                        f"{threat['age_days']} days old; crop stage {stage} is susceptible.")
         reasons.append(f"Spray-safety index {rain['spray_safety_index']} ({rain['spray_band']}).")
-        rot = chemical_rotation(field_log)
+        kind = threat_kind(threat["pest"])
+        rot = chemical_rotation(field_log, kind=kind) if kind else None
         if rot:
             reasons.append(rot["note"])
         return {"status": "PENDING_REVIEW", "verdict": "SPRAY", "rule": "R3_threat_spray", "reasons": reasons}
@@ -243,7 +273,7 @@ def decide(plot: dict, rain: dict | None, pests: dict | None, *, pattern: dict |
             weedy = weeds_uncleared(field_log)
             if weedy:
                 reasons.append(f"Rain is enough to plant, but the farm's own log ({weedy['action_date'][:10]}) says "
-                               "the plot is still weedy. Weeds take the topsoil moisture new seed needs: clear them "
+                               "the plot needs weeding. Weeds take the topsoil moisture new seed needs: clear them "
                                "first, then plant.")
                 return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R4b_clear_weeds_first",
                         "reasons": reasons}

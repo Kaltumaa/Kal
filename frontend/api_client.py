@@ -183,10 +183,11 @@ def farm_actions(household_id: str):
 
 
 def log_farm_action(household_id: str, action: str, action_date: str, crop: str | None, details: str, role: str,
-                    name: str | None, chem_group: str | None = None):
+                    name: str | None, chem_group: str | None = None, needs_weeding: bool | None = None):
     return _req("POST", f"/farms/{household_id}/actions", json={"action": action, "action_date": action_date,
                                                                 "crop": crop, "details": details, "role": role,
-                                                                "name": name, "chem_group": chem_group})
+                                                                "name": name, "chem_group": chem_group,
+                                                                "needs_weeding": needs_weeding})
 
 
 def reminders(household_id: str):

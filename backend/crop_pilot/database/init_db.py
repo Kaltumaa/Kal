@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS plot_actions (
     entered_by_role TEXT NOT NULL CHECK (entered_by_role IN ('officer','farmer')),
     entered_by      TEXT NOT NULL,
     created_at      TEXT NOT NULL,
-    chem_group      TEXT              -- SPRAYING only: mode-of-action group, for resistance rotation
+    chem_group      TEXT,             -- SPRAYING only: mode-of-action group, for resistance rotation
+    needs_weeding   INTEGER           -- OBSERVATION only: 1 = plot needs weeding before planting, 0 = clean
 );
 
 -- 2. Regional incident registry
@@ -238,8 +239,11 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE plots ADD COLUMN farmer_name TEXT")
     if "wind_kmh" not in {r[1] for r in conn.execute("PRAGMA table_info(weather_cache)")}:
         conn.execute("ALTER TABLE weather_cache ADD COLUMN wind_kmh REAL")
-    if "chem_group" not in {r[1] for r in conn.execute("PRAGMA table_info(plot_actions)")}:
+    action_cols = {r[1] for r in conn.execute("PRAGMA table_info(plot_actions)")}
+    if "chem_group" not in action_cols:
         conn.execute("ALTER TABLE plot_actions ADD COLUMN chem_group TEXT")
+    if "needs_weeding" not in action_cols:
+        conn.execute("ALTER TABLE plot_actions ADD COLUMN needs_weeding INTEGER")
     adv_columns = {r[1] for r in conn.execute("PRAGMA table_info(pending_advisories)")}
     if "officer_citation" not in adv_columns:
         conn.execute("ALTER TABLE pending_advisories ADD COLUMN officer_citation TEXT")

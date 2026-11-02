@@ -37,11 +37,33 @@ def test_spray_advice_asks_for_a_different_chemical_group():
 
 
 def test_weedy_plot_holds_planting_until_weeding_is_logged():
-    weedy = [{"id": 1, "action": "OBSERVATION", "action_date": "2026-10-10", "details": "Plot full of couch grass"}]
+    weedy = [{"id": 1, "action": "OBSERVATION", "action_date": "2026-10-10", "details": "", "needs_weeding": 1}]
     d = agronomy.decide(SOWING, rain(), None, field_log=weedy)
     assert d["verdict"] == "HOLD" and d["rule"] == "R4b_clear_weeds_first"
     cleared = weedy + [{"id": 2, "action": "WEEDING", "action_date": "2026-10-12", "details": ""}]
     assert agronomy.decide(SOWING, rain(), None, field_log=cleared)["verdict"] == "PLANT"
+    # A later observation answering "No" also clears it.
+    clean = weedy + [{"id": 3, "action": "OBSERVATION", "action_date": "2026-10-13", "details": "", "needs_weeding": 0}]
+    assert agronomy.decide(SOWING, rain(), None, field_log=clean)["verdict"] == "PLANT"
+
+
+def test_free_text_about_weeds_never_blocks_planting():
+    # The bug we fixed: word-matching read "weeding done" and "no weeds" as a weedy plot.
+    for text in ["weeding done, plot clean", "no weeds at all", "cleared the bush last week", "plot full of weeds"]:
+        log = [{"id": 1, "action": "OBSERVATION", "action_date": "2026-10-10", "details": text, "needs_weeding": None}]
+        assert agronomy.decide(SOWING, rain(), None, field_log=log)["verdict"] == "PLANT", text
+
+
+def test_rotation_compares_insect_sprays_with_insect_sprays_only():
+    # The bug we fixed: a fungicide (copper, for disease) was used to advise on an armyworm (insect) spray.
+    log = [{"id": 1, "action": "SPRAYING", "action_date": "2026-09-01", "chem_group": "Copper (FRAC M01)"}]
+    d = agronomy.decide(PLOT, rain(), {"top_threat": THREAT}, field_log=log)          # Fall Armyworm = insect
+    assert d["verdict"] == "SPRAY" and "different group" not in " ".join(d["reasons"])
+    blight = THREAT | {"pest": "Late Blight"}                                             # disease
+    potato = PLOT | {"active_crop": "Potato", "growth_stage": "VEGETATIVE"}
+    d = agronomy.decide(potato, rain(), {"top_threat": blight}, field_log=log)
+    assert "last disease spray" in " ".join(d["reasons"]) and "Copper (FRAC M01)" in " ".join(d["reasons"])
+    assert agronomy.threat_kind("Fall Armyworm") == "insect" and agronomy.threat_kind("Late Blight") == "disease"
 
 
 def test_false_start_holds_only_after_a_very_dry_spell():

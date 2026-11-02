@@ -22,7 +22,8 @@ def list_actions(household_id: str) -> list[dict]:
 
 
 def log_action(household_id: str, action: str, action_date: str, crop: str | None, details: str,
-               role: str, name: str | None, chem_group: str | None = None) -> dict:
+               role: str, name: str | None, chem_group: str | None = None,
+               needs_weeding: bool | None = None) -> dict:
     action = (action or "").upper()
     if action not in ACTIONS:
         raise ApprovalError(f"Action must be one of {ACTIONS}.")
@@ -40,6 +41,8 @@ def log_action(household_id: str, action: str, action_date: str, crop: str | Non
         raise ApprovalError("Choose the crop that was planted.")
     if chem_group and (action != "SPRAYING" or chem_group not in config.CHEM_GROUPS):
         raise ApprovalError("A product group is only for spraying, and must be one from the list.")
+    if needs_weeding is not None and action != "OBSERVATION":
+        raise ApprovalError("'Needs weeding' is only for observations.")
     with connect() as conn:
         farm = conn.execute("SELECT * FROM plots WHERE household_id = ?", (household_id,)).fetchone()
         if farm is None:
@@ -51,9 +54,10 @@ def log_action(household_id: str, action: str, action_date: str, crop: str | Non
         else:
             raise ApprovalError("Unknown role.")
         cur = conn.execute("INSERT INTO plot_actions (household_id, action, action_date, crop, details, "
-                           "entered_by_role, entered_by, created_at, chem_group) VALUES (?,?,?,?,?,?,?,?,?)",
+                           "entered_by_role, entered_by, created_at, chem_group, needs_weeding) "
+                           "VALUES (?,?,?,?,?,?,?,?,?,?)",
                            (household_id, action, when.isoformat(), crop_name, text, role, who, telemetry.now_iso(),
-                            chem_group or None))
+                            chem_group or None, None if needs_weeding is None else int(bool(needs_weeding))))
         if action == "PLANTING":
             conn.execute("UPDATE plots SET active_crop = ?, planting_date = ?, days_since_planting = NULL, "
                          "growth_stage = NULL WHERE household_id = ?", (crop_name, when.isoformat(), household_id))

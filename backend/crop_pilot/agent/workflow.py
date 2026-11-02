@@ -459,7 +459,8 @@ async def advisory_compiler_node(state: RunState) -> dict:
         sources.append(rain["citation"])
     if threat:
         sources.append(f"pest_alerts:#{threat['id']}")
-    rot = agronomy.chemical_rotation(plot.get("field_log")) if decision["rule"] == "R3_threat_spray" else None
+    kind = agronomy.threat_kind(threat["pest"]) if threat and decision["rule"] == "R3_threat_spray" else None
+    rot = agronomy.chemical_rotation(plot.get("field_log"), kind=kind) if kind else None
     if rot and rot.get("citation"):
         sources.append(rot["citation"])
     sources += [f"reference:{r['file']}" for r in refs]

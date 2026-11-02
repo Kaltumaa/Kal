@@ -492,6 +492,7 @@ class PlotAction(BaseModel):
     role: str = Field(..., pattern="^(officer|farmer)$")
     name: str | None = Field(None, max_length=80)
     chem_group: str | None = Field(None, max_length=60)
+    needs_weeding: bool | None = None
 
 
 @app.get("/farms/{household_id}/actions")
@@ -505,7 +506,7 @@ def log_farm_action(household_id: str, req: PlotAction):
     _require_db()
     try:
         return plot_actions.log_action(household_id, req.action, req.action_date, req.crop, req.details,
-                                       req.role, req.name, req.chem_group)
+                                       req.role, req.name, req.chem_group, req.needs_weeding)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -555,7 +556,8 @@ def farms_plan():
         zones = {r["zone_id"]: dict(r) for r in conn.execute("SELECT * FROM weather_cache")}
         alerts = [dict(r) for r in conn.execute("SELECT * FROM pest_alerts")]
         logs: dict[str, list[dict]] = {}
-        for r in conn.execute("SELECT id, household_id, action, action_date, details, chem_group FROM plot_actions"):
+        for r in conn.execute("SELECT id, household_id, action, action_date, details, chem_group, needs_weeding "
+                              "FROM plot_actions"):
             logs.setdefault(r["household_id"], []).append(dict(r))
     advs = approval.list_advisories()
     out = []

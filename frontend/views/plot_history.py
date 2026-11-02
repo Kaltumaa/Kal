@@ -39,6 +39,7 @@ with left:
         st.dataframe(pd.DataFrame([{
             "Date": a["action_date"], "Action": ACTION_LABEL.get(a["action"], a["action"]), "Crop": a["crop"] or "",
             "Details": a["details"] or "", "Product group": a.get("chem_group") or "",
+            "Needs weeding": {1: "Yes", 0: "No"}.get(a.get("needs_weeding"), ""),
             "Entered by": f"{a['entered_by']} ({a['entered_by_role']})"} for a in log]),
             hide_index=True, width="stretch")
     else:
@@ -61,12 +62,16 @@ with right:
             group = st.selectbox("Product group (only for spraying; on the label)", ["—"] + CHEM_GROUPS,
                                  help="Spraying the same group again and again lets pests become resistant. "
                                       "Your next spray advice will suggest a different group.")
+            weeding = st.selectbox("Does the plot need weeding before planting? (only for observations)",
+                                   ["—", "Yes", "No"],
+                                   help="If yes, planting advice waits until you log a weeding.")
             details = st.text_input("Details", max_chars=300,
                                     placeholder="e.g. DH04 seed, 50 kg CAN top-dress, 2 h drip irrigation")
             if st.form_submit_button("Save to my plot history", type="primary", width="stretch"):
                 try:
                     r = api.log_farm_action(hid, action, when.isoformat(), None if crop == "—" else crop, details,
-                                            "farmer", None, None if group == "—" or action != "SPRAYING" else group)
+                                            "farmer", None, None if group == "—" or action != "SPRAYING" else group,
+                                            None if weeding == "—" or action != "OBSERVATION" else weeding == "Yes")
                     st.toast("Saved." + (" Your crop and planting date are updated, so the next advice uses them."
                                          if r["updated_record"] else ""), icon=":material/check:")
                     st.rerun()

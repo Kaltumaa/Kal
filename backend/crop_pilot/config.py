@@ -51,8 +51,6 @@ DAGORETTI_SOUTH_WARDS = {"RIRUTA", "WAITHAKA", "MUTUINI", "NGANDO", "UTHIRU"}
 SPRAY_MAX_WIND_KMH = 15.0
 # A false start (wet week after a dry spell) only blocks planting when the last 20 days were very dry.
 FALSE_START_HOLD_PCT = 40
-# Words in a farmer's own field-log observation that mean the plot still needs clearing before sowing.
-WEEDY_WORDS = ("weed", "overgrown", "bush", "couch grass", "striga")
 # Mode-of-action groups (IRAC for insecticides, FRAC for fungicides) a farmer can pick when logging a spray.
 CHEM_GROUPS = ["Pyrethroids (IRAC 3A)", "Organophosphates (IRAC 1B)", "Avermectins / emamectin (IRAC 6)",
                "Spinosyns (IRAC 5)", "Diamides (IRAC 28)", "Bt, biological (IRAC 11A)", "Neem, botanical",
