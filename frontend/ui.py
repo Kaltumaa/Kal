@@ -93,6 +93,17 @@ FLAG_TEXT = {
 }
 
 
+def spray_status(z: dict) -> tuple[str, str]:
+    """(label, colour) for 'can you spray?' in a ward. Same rule as the advice engine: rain first, then wind."""
+    if z.get("spray_band") == "UNSAFE":
+        return "Don't spray (rain)", "red"
+    if z.get("wind_too_strong"):
+        return f"Too windy ({z['wind_kmh']:.0f} km/h)", "orange"
+    if z.get("spray_band") == "CAUTION":
+        return "Careful: only if no rain for 6 h", "orange"
+    return "OK", "green"
+
+
 def stage_label(stage: str | None) -> str:
     return STAGES.get(stage or "", (stage or "—").replace("_", " ").title())
 

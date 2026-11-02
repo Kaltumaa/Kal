@@ -44,8 +44,7 @@ def season_cell(p: dict) -> str:
 
 
 def spraying(z: dict) -> str:
-    return {"SAFE": tag("OK", "green"), "CAUTION": tag("Only if no rain for 6 h", "orange"),
-            "UNSAFE": tag("Don't spray", "red")}[z["spray_band"]]
+    return tag(*ui.spray_status(z))
 
 
 ui.header("This week", "What to tell farmers in each ward, and what is waiting for you.")
@@ -133,7 +132,7 @@ st.subheader("Rainfall numbers")
 st.dataframe(pd.DataFrame([{"Ward": z["zone_id"].title(), "Next 24 h (mm)": z["rain_24h_mm"],
                             "Next 3 days (mm)": z["rain_72h_mm"], "Next 7 days (mm)": z["rain_7d_mm"],
                             "Storm": z["storm_risk"].title(),
-                            "Spraying": {"SAFE": "OK", "CAUTION": "Careful", "UNSAFE": "Don't"}[z["spray_band"]],
+                            "Wind (km/h)": z.get("wind_kmh"), "Spraying": ui.spray_status(z)[0],
                             "Spray score": z["spray_safety_index"],
                             "Season vs normal": f"{z['pattern'].get('season_anomaly_pct', 0):+d}%",
                             "Forecast issued": str(z["forecast_issued_at"])[:10]} for z in ov["zones"]]),

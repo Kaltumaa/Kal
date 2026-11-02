@@ -101,6 +101,9 @@ if not officer:
         alerts.append(("error", f"Heavy rain coming ({z['rain_72h_mm']:.0f} mm in 3 days): hold field work."))
     elif z and z["spray_band"] == "UNSAFE":
         alerts.append(("error", "Rain soon: don't spray now; it would wash off."))
+    elif z and z.get("wind_too_strong"):
+        alerts.append(("warning", f"Windy ({z['wind_kmh']:.0f} km/h): don't spray today, it would drift onto "
+                                  "neighbours' crops. Spray early in the morning when it is calm."))
     elif z and z["spray_band"] == "CAUTION":
         alerts.append(("warning", "Spray only if no rain is expected for the next 6 hours."))
     if pat.get("onset") == "FALSE_START_RISK":
@@ -119,7 +122,7 @@ if not officer:
     st.dataframe(pd.DataFrame([{"Area": ("▶ " if x["zone_id"] == zone else "") + x["zone_id"].title(),
                                 "Next 24 h (mm)": x["rain_24h_mm"], "Next 3 days (mm)": x["rain_72h_mm"],
                                 "Next 7 days (mm)": x["rain_7d_mm"], "Storm": x["storm_risk"].title(),
-                                "Spraying": {"SAFE": "OK", "CAUTION": "Careful", "UNSAFE": "Don't"}[x["spray_band"]],
+                                "Wind (km/h)": x.get("wind_kmh"), "Spraying": ui.spray_status(x)[0],
                                 "Spray score": x["spray_safety_index"]} for x in ov["zones"]]),
                  hide_index=True, width="stretch",
                  column_config={"Spray score": st.column_config.ProgressColumn("Spray score", min_value=0,
@@ -140,7 +143,11 @@ if not officer:
         with st.container(border=True):
             st.markdown(ui.badges(a["verdict"], a["status"]) + f"  <span class='cp-muted'>signed by "
                         f"{a['officer_signature']} · {(a['reviewed_at'] or '')[:10]}</span>", unsafe_allow_html=True)
-            st.write(a["farmer_message"])
+            langs = (a.get("sent_languages") or "en").split(",")
+            if "en" in langs:
+                st.write(a["farmer_message"])
+            if "sw" in langs and a.get("farmer_message_sw"):
+                st.markdown(f"**Kiswahili:** {a['farmer_message_sw']}")
     st.stop()
 if draft:
     with st.container(border=True):
@@ -158,10 +165,17 @@ if draft:
         editing = st.session_state.get(f"edit-{draft['id']}", False)
         msg = st.text_area("SMS to the farmer", draft["farmer_message"] or "", max_chars=320, height=90,
                            disabled=not (editing and can_send), key=f"msg-{draft['id']}")
+        msg_sw = st.text_area("Ujumbe kwa Kiswahili", draft.get("farmer_message_sw") or "", max_chars=320, height=90,
+                              disabled=not (editing and can_send), key=f"msgsw-{draft['id']}",
+                              placeholder="No Swahili draft.")
         if can_send:
             citation = st.text_area("Citation (required: the records this advice rests on)",
                                     ui.suggested_citation(draft, api.farm_actions(hid)), height=70, max_chars=600,
                                     key=f"cite-{draft['id']}")
+            lc = st.columns(2)
+            send_en = lc[0].checkbox("Send in English", value=True, key=f"en-{draft['id']}")
+            send_sw = lc[1].checkbox("Send in Kiswahili", value=False, key=f"sw-{draft['id']}",
+                                     help="Both languages are covered by the same signature.")
             c = st.columns([1.4, 1.6, 1.2])
             name = c[0].text_input("Your full name (signature)", key=f"sig-{draft['id']}",
                                    placeholder="e.g. Wanjiru Kamau")
@@ -174,7 +188,8 @@ if draft:
                     st.error("Tick the confirmation box first.")
                 else:
                     try:
-                        r = api.approve(draft["id"], name, msg, citation)
+                        langs = [lang for lang, on in (("en", send_en), ("sw", send_sw)) if on]
+                        r = api.approve(draft["id"], name, msg, citation, msg_sw, langs)
                         st.toast(f"Signed by {r['officer']}. SMS queued (simulated).", icon=":material/check:")
                         st.session_state.pop(f"edit-{draft['id']}", None)
                         st.rerun()
