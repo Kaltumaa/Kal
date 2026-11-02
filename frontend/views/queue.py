@@ -71,7 +71,7 @@ def detail(adv: dict) -> None:
 
         if rain.get("spray_safety_index") is not None and adv["status"] != "NEEDS_DATA":
             m = st.columns(4)
-            m[0].metric("Spraying", {"SAFE": "OK", "CAUTION": "Careful", "UNSAFE": "Don't"}.get(rain.get("spray_band"), "—"),
+            m[0].metric("Spraying", ui.spray_status(rain)[0] if rain.get("spray_band") else "—",
                         f'score {rain["spray_safety_index"]:.0f}/100',
                         delta_color="off")
             m[1].metric("Rain, 7 days", f'{rain.get("rain_7d_mm") or 0:.0f} mm')
@@ -107,10 +107,10 @@ def detail(adv: dict) -> None:
                     msg_sw = st.text_area("Ujumbe kwa Kiswahili", adv.get("farmer_message_sw") or "", max_chars=320,
                                           height=90, placeholder="No Swahili draft. Write one to send it in Kiswahili.")
                     st.caption(sw_origin(adv.get("flags") or []))
-                    lc = st.columns(2)
-                    send_en = lc[0].checkbox("Send in English", value=True)
-                    send_sw = lc[1].checkbox("Send in Kiswahili", value=False,
-                                             help="Both languages are covered by the same signature below.")
+                    lc = st.columns([1, 1.2, 1.4], vertical_alignment="center")
+                    lc[0].markdown("**Send in**", help="Both languages are covered by the same signature below.")
+                    send_en = lc[1].checkbox("English", value=True)
+                    send_sw = lc[2].checkbox("Kiswahili", value=False)
                     citation = st.text_area("Citation (required: the records this advice rests on)",
                                             ui.suggested_citation(adv, api.farm_actions(adv["household_id"])),
                                             height=80, max_chars=600)
