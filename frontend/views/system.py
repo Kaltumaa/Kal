@@ -83,8 +83,9 @@ def outbox() -> None:
                 st.caption("No messages sent yet.")
             for o in out:
                 with st.container(border=True):
+                    lang = {"sw": "Kiswahili"}.get(o.get("language"), "English")
                     st.markdown(f"**{ui.farm_label(o['household_id'])}** <span class='cp-muted'>· signed by {o['officer_signature']}"
-                                f" · {o['queued_at'][:16].replace('T', ' ')} UTC</span>", unsafe_allow_html=True)
+                                f" · {o['queued_at'][:16].replace('T', ' ')} UTC · {lang}</span>", unsafe_allow_html=True)
                     st.write(o["message"])
     with t_backup:
         if degraded:

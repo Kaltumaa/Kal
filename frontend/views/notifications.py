@@ -6,6 +6,7 @@ import streamlit as st
 import api_client as api
 import ui
 
+LANGUAGE = {"en": "English", "sw": "Kiswahili"}
 ICON = {"advice": ":material/sms:", "photo": ":material/photo_camera:", "reminder": ":material/alarm:"}
 
 hid = st.session_state.get("my_farm")
@@ -21,7 +22,11 @@ for n in items:
     with st.container(border=True):
         st.markdown(f"{ICON.get(n['kind'], '')} **{n['title']}**  <span class='cp-muted'>· "
                     f"{(n['when'] or '')[:16].replace('T', ' ')} · from {n['from']}</span>", unsafe_allow_html=True)
-        st.write(n["body"])
+        messages = n.get("messages") or [{"language": "en", "text": n["body"]}]
+        for m in messages:
+            if len(messages) > 1:
+                st.caption(LANGUAGE.get(m["language"], m["language"]))
+            st.write(m["text"])
         if n.get("what"):
             st.markdown(f"**What it is:** {n['what']}")
         if n.get("steps"):

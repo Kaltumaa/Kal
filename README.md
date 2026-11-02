@@ -344,7 +344,13 @@ tests/         unit, gate and architecture-boundary tests
 
 * Outbound is **simulated** (a `dispatch_outbox` table). No SMS/USSD gateway is wired in, by design for the challenge.
 * The rainfall cache is static; there is no scheduled CHIRPS/TAMSAT ingest yet.
-* English only; Swahili farmer messages are a next step.
+* Swahili farmer messages use **fixed templates** for Plant / Spray / Hold (shown next to the English draft; the
+  officer edits them and ticks which language(s) to send under one signature). Crop and pest names stay in English
+  unless a Swahili term is in `data/reference`. The templates do not include the English seasonal or rotation tip,
+  and they have not yet been checked by a native-speaker extension officer.
+  Translation by the local model exists but is off by default (`CROP_PILOT_SW_MODEL=1`). Its output must keep every
+  number and name and must not repeat itself, or the template is used. In our tests, though, `qwen2.5:3b` wrote
+  Swahili that passed those checks and still meant nothing.
 * The vision model is small (1.9 B) and unreliable on its own. We found and fixed real failures. A leading
   prompt made it invent "holes and chewed edges" on a healthy weed, which was then matched to Fall Armyworm. It
   also returns nothing for "answer with one word", and its weed/crop answer flips with word order. It now gets
@@ -376,7 +382,7 @@ tests/         unit, gate and architecture-boundary tests
 
 * Real SMS / USSD delivery through a gateway such as Africa's Talking, after officer sign-off.
 * Live CHIRPS / TAMSAT rainfall and a national forecast feed instead of the static cache.
-* Swahili (and other local language) farmer messages.
+* Swahili messages reviewed by native-speaker officers, a stronger local translation model, and other local languages.
 * Officer and farmer logins, with a verified officer ID as the signature.
 * Field validation with Dagoretti South extension officers and farmers, then tuning thresholds on real outcomes.
 * A larger, field-tested vision model for crop photos.

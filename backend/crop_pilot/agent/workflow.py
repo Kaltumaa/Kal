@@ -275,6 +275,104 @@ def _template_message(verdict: str | None, plot: dict, rain: dict | None, threat
         pest=(threat or {}).get("pest", "A pest"), distance=(threat or {}).get("distance_km"), reason=reason)
 
 
+# Fixed Swahili wording, used when the local model is off or its translation fails a check. Crop and pest names
+# stay exactly as in the English draft: we do not invent local names that are not in data/reference.
+SW_SIGN = " - Huduma ya Ugani, Dagoretti South"
+SW_TEMPLATES = {
+    "PLANT": "Mvua zinaanza katika eneo lako (mm {rain_7d} zinatarajiwa wiki hii). Panda {crop} sasa kwa mbegu "
+             "zilizothibitishwa." + SW_SIGN,
+    "SPRAY": "{pest} imethibitishwa km {distance} kutoka shamba lako. Kagua {crop} leo; ukiona uharibifu, nyunyiza "
+             "asubuhi na mapema kwa dawa iliyosajiliwa na PCPB, vaa glavu na barakoa, na ufuate muda wa kusubiri "
+             "kabla ya kuvuna ulioandikwa kwenye lebo." + SW_SIGN,
+    "HOLD": "Subiri kwanza kufanya kazi shambani kwenye {crop}. {reason} Tutakujulisha." + SW_SIGN,
+}
+SW_REASONS = {
+    "washout": "Mvua kubwa inatarajiwa (mm {rain_72h} ndani ya siku 3).",
+    "pre_planting": "Mvua bado hazijaanza kikamilifu.",
+    "no_threat": "Hakuna mdudu aliyethibitishwa karibu nawe; endelea kukagua shamba kila wiki.",
+}
+
+
+def _template_message_sw(verdict: str | None, plot: dict, rain: dict | None, threat: dict | None) -> str | None:
+    if verdict not in SW_TEMPLATES:
+        return None
+    if rain and (rain.get("washout_risk") or rain.get("spray_band") == "UNSAFE"):
+        reason = SW_REASONS["washout"].format(rain_72h=rain["rain_72h_mm"])
+    elif plot.get("growth_stage") == "PRE_PLANTING":
+        reason = SW_REASONS["pre_planting"]
+    else:
+        reason = SW_REASONS["no_threat"]
+    return SW_TEMPLATES[verdict].format(
+        rain_7d=(rain or {}).get("rain_7d_mm"), crop=(plot.get("active_crop") or "crop").lower(),
+        pest=(threat or {}).get("pest", "Mdudu"), distance=(threat or {}).get("distance_km"), reason=reason)
+
+
+def check_swahili(english: str, swahili: str, keep: list[str]) -> list[str]:
+    """Why a model translation cannot be shown (empty = usable). Every number and named term must survive."""
+    problems = []
+    if not swahili or len(swahili) > 320 or sanitizer.detect_injection(swahili):
+        problems.append("empty, too long or instruction-like")
+    numbers = re.findall(r"\d+(?:\.\d+)?", english)
+    if any(n not in swahili for n in numbers):
+        problems.append("a number from the English draft is missing")
+    if any(term and term.lower() not in swahili.lower() for term in keep):
+        problems.append("a crop or pest name was changed")
+    words = re.findall(r"\w+", swahili.lower())
+    if len(words) >= 12 and len(set(words)) / len(words) < 0.55:
+        problems.append("repetitive text")
+    return problems
+
+
+async def _llm_translate(run_id: str, english: str, keep: list[str]) -> str | None:
+    system = ("Translate this SMS from an agricultural extension officer into plain, simple Swahili for a farmer in "
+              "Kenya. Keep every number and unit exactly. Keep these names exactly as written, do not translate them: "
+              + ", ".join(keep or ["(none)"]) + ". Keep PCPB as is. Do not add advice. Max 300 characters. End with "
+              "'" + SW_SIGN.strip() + "'. Respond as JSON with one key: farmer_message_sw.")
+    try:
+        reply = await llm.chat([{"role": "system", "content": system}, {"role": "user", "content": english}],
+                               json_mode=True, temperature=0.1)
+    except llm.LLMUnavailable as exc:
+        telemetry.record(run_id, "ollama", "chat:translate_sw", {"english": english}, {"error": str(exc)[:200]},
+                         latency_ms=0, status="error")
+        return None
+    content = reply["message"].get("content", "")
+    try:
+        parsed = json.loads(content)
+    except ValueError:
+        match = re.search(r"\{.*\}", content, re.S)
+        try:
+            parsed = json.loads(match.group(0)) if match else {}
+        except ValueError:
+            parsed = {}
+    text = parsed.get("farmer_message_sw") if isinstance(parsed, dict) else None
+    status = "ok" if isinstance(text, str) and text.strip() else "error"
+    telemetry.record(run_id, "ollama", "chat:translate_sw", {"english": english}, parsed if status == "ok" else content,
+                     latency_ms=reply["latency_ms"], token_count=reply["tokens"], status=status)
+    return text if status == "ok" else None
+
+
+async def swahili_message(run_id: str, english: str, verdict: str | None, plot: dict, rain: dict | None,
+                          threat: dict | None, use_llm: bool) -> tuple[str | None, list[str]]:
+    """(Swahili farmer message, flags). Model translation when enabled and it passes the checks, else the template."""
+    flags = []
+    keep = [n for n in ((threat or {}).get("pest"), (plot.get("active_crop") or "").lower()) if n and n in english]
+    if use_llm:
+        raw = await _llm_translate(run_id, english, keep)
+        if raw is not None:
+            text, hits = sanitizer.scrub_free_text(raw, 320)
+            problems = check_swahili(english, text, keep) if not hits else ["instruction-like"]
+            if not problems:
+                return text, ["sw_model_translation"]
+            flags.append("sw_translation_rejected:" + problems[0].replace(" ", "_"))
+        else:
+            flags.append("sw_translation_failed")
+    template = _template_message_sw(verdict, plot, rain, threat)
+    if template is None:
+        return None, flags
+    text, _ = sanitizer.scrub_free_text(template, 320)
+    return text, flags + ["sw_template"]
+
+
 def _llm_evidence_view(plot: dict, rain: dict | None, pests: dict | None, refs: list[dict]) -> dict:
     """The only view of the data the compiler model sees: typed, scrubbed fields; no raw notes."""
     rotation_note = history.rotation(plot.get("active_crop"), plot.get("crop_history") or []).get("note")
@@ -411,6 +509,11 @@ async def advisory_compiler_node(state: RunState) -> dict:
         with_tip = f"{body} {tip}{sign}"
         if len(with_tip) <= 320:
             message = with_tip
+    message_sw = None
+    if decision["status"] == "PENDING_REVIEW":
+        message_sw, sw_flags = await swahili_message(run_id, message, decision["verdict"], plot, rain, threat,
+                                                     use_llm=bool(state.get("llm_used")) and config.SW_TRANSLATE_WITH_MODEL)
+        flags += sw_flags
 
     evidence_summary = {
         "rule": decision["rule"],
@@ -435,7 +538,8 @@ async def advisory_compiler_node(state: RunState) -> dict:
         flags.append("prompt_injection_detected")
 
     draft = {"run_id": run_id, "household_id": state["household_id"], "status": decision["status"],
-             "verdict": decision["verdict"], "farmer_message": message, "rationale": rationale,
+             "verdict": decision["verdict"], "farmer_message": message, "farmer_message_sw": message_sw,
+             "rationale": rationale,
              "sources": sources, "evidence": evidence_summary, "flags": flags,
              "rule_verdict": decision["verdict"], "model_verdict": model_verdict}
     kind, days, why = plan_followup(decision, pattern, threat)
@@ -469,9 +573,10 @@ def check_draft(draft: dict, evidence: dict) -> list[str]:
             problems.append("PLANT advice for a crop that is already in the ground")
         if rain and rain.get("rain_7d_mm", 0) < agronomy.planting_threshold(plot.get("active_crop")):
             problems.append("PLANT below the crop's planting-rain threshold")
-    msg = draft.get("farmer_message") or ""
-    if len(msg) > 320 or sanitizer.detect_injection(msg):
-        problems.append("farmer message too long or contains instruction-like text")
+    for key in ("farmer_message", "farmer_message_sw"):
+        msg = draft.get(key) or ""
+        if len(msg) > 320 or sanitizer.detect_injection(msg):
+            problems.append("farmer message too long or contains instruction-like text")
     return problems
 
 
@@ -491,6 +596,7 @@ async def self_check_node(state: RunState) -> dict:
         flags.append("self_check_failed")
         draft.update(status="NEEDS_DATA", verdict=None,
                      farmer_message="Draft withheld: the agent's self-check failed twice. Officer to review the evidence.",
+                     farmer_message_sw=None,
                      rationale=f"{draft['rationale']} Self-check problems: {'; '.join(problems)}.")
         draft["flags"] = flags
     telemetry.record(run_id, "graph", "self_check", {"attempt": attempt + 1, "verdict": state["draft"].get("verdict")},

@@ -57,6 +57,8 @@ class RunRequest(BaseModel):
 class ApproveRequest(BaseModel):
     officer_name: str = Field(..., max_length=80)
     final_message: str | None = Field(None, max_length=320)
+    final_message_sw: str | None = Field(None, max_length=320)
+    languages: list[str] = Field(["en"], min_length=1, max_length=2)   # "en" and/or "sw", one signature for both
     citation: str = Field(..., max_length=600)
 
 
@@ -152,7 +154,8 @@ def advisories(status: str | None = Query(None, pattern="^(PENDING_REVIEW|SECURI
 async def approve(advisory_id: int, req: ApproveRequest):
     _require_db()
     try:
-        result = approval.approve(advisory_id, req.officer_name, req.final_message, req.citation)
+        result = approval.approve(advisory_id, req.officer_name, req.final_message, req.citation,
+                                  req.final_message_sw, req.languages)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
     result["graph"] = await resume_run(app.state.graph, result["run_id"], "APPROVED", result["officer"])
@@ -618,15 +621,21 @@ def farmer_notifications(household_id: str):
     _require_db()
     items = []
     advs = {a["id"]: a for a in approval.list_advisories("APPROVED")}
+    sent: dict[int, list[dict]] = {}
     for o in approval.outbox():
         if o["household_id"] == household_id:
-            adv = advs.get(o["advisory_id"]) or {}
-            threat = (adv.get("evidence") or {}).get("pest_threat") or {}
-            steps = knowledge.advice_steps(adv.get("verdict"), threat.get("pest"))
-            info = knowledge.problem_info(threat.get("pest")) or {}
-            items.append({"when": o["queued_at"], "kind": "advice", "title": "Advice from your extension officer",
-                          "body": o["message"], "from": o["officer_signature"], "steps": steps,
-                          "what": info.get("what")})
+            sent.setdefault(o["advisory_id"], []).append(o)
+    for advisory_id, rows in sent.items():
+        rows.sort(key=lambda o: approval.LANGUAGES.index(o.get("language") or "en"))
+        adv = advs.get(advisory_id) or {}
+        threat = (adv.get("evidence") or {}).get("pest_threat") or {}
+        steps = knowledge.advice_steps(adv.get("verdict"), threat.get("pest"))
+        info = knowledge.problem_info(threat.get("pest")) or {}
+        # Only the language(s) the officer signed; both carry the same signature.
+        messages = [{"language": o.get("language") or "en", "text": o["message"]} for o in rows]
+        items.append({"when": rows[0]["queued_at"], "kind": "advice", "title": "Advice from your extension officer",
+                      "body": messages[0]["text"], "messages": messages, "from": rows[0]["officer_signature"],
+                      "steps": steps, "what": info.get("what")})
     for sc in fieldscan.farmer_view(household_id):
         if not sc["waiting"]:
             body = sc["officer_note"] or f"Result: {sc['officer_finding']}."

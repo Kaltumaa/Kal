@@ -115,7 +115,8 @@ def get_weather_pattern(zone_id: str, rain_7d_mm: Optional[float] = None) -> dic
 def draft_advisory(run_id: str, household_id: str, status: str, verdict: Optional[str],
                    farmer_message: str, rationale: str, sources: list[str],
                    evidence: dict, flags: Optional[list[str]] = None,
-                   rule_verdict: Optional[str] = None, model_verdict: Optional[str] = None) -> dict:
+                   rule_verdict: Optional[str] = None, model_verdict: Optional[str] = None,
+                   farmer_message_sw: Optional[str] = None) -> dict:
     """WRITE: stage a draft advisory in the pending_advisories queue for a named officer to review.
 
     This cannot send anything. Allowed statuses: PENDING_REVIEW, SECURITY_LOCK, NEEDS_DATA.
@@ -139,6 +140,12 @@ def draft_advisory(run_id: str, household_id: str, status: str, verdict: Optiona
     if hits:
         status, verdict = "SECURITY_LOCK", "HOLD"
         flags.append("injection_in_drafted_message")
+    message_sw = None
+    if farmer_message_sw:
+        message_sw, hits_sw = sanitizer.scrub_free_text(farmer_message_sw, MAX_MESSAGE_CHARS)
+        if hits_sw:
+            status, verdict, message_sw = "SECURITY_LOCK", "HOLD", None
+            flags.append("injection_in_drafted_message")
     rationale_clean, _ = sanitizer.scrub_free_text(rationale, 2000)
 
     with connect() as conn:
@@ -147,11 +154,11 @@ def draft_advisory(run_id: str, household_id: str, status: str, verdict: Optiona
             return {"ok": True, "advisory_id": existing["id"], "status": existing["status"], "idempotent_replay": True}
         cur = conn.execute(
             "INSERT INTO pending_advisories (run_id, household_id, verdict, status, farmer_message, rationale,"
-            " evidence_json, sources_json, flags_json, rule_verdict, model_verdict, created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            " evidence_json, sources_json, flags_json, rule_verdict, model_verdict, created_at, farmer_message_sw)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (run_id, sanitizer.normalise_text(household_id)[:32], verdict, status, message, rationale_clean,
              json.dumps(evidence, default=str), json.dumps(clean_sources), json.dumps(sorted(set(flags))),
-             rule_verdict, model_verdict, now_iso()))
+             rule_verdict, model_verdict, now_iso(), message_sw))
     return {"ok": True, "advisory_id": cur.lastrowid, "status": status, "verdict": verdict,
             "sources": clean_sources, "note": "Staged for officer review. Nothing has been sent."}
 

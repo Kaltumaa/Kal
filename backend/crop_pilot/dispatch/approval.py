@@ -72,10 +72,27 @@ def validate_citation(citation: str | None, sources: list[str]) -> str:
     return text
 
 
+LANGUAGES = ("en", "sw")
+
+
+def _final_text(edited: str | None, stored: str | None, label: str) -> str | None:
+    if edited is None or not edited.strip():
+        return stored
+    text, hits = sanitizer.scrub_free_text(edited, 320)
+    if hits:
+        raise ApprovalError(f"Edited {label} message contains instruction-like text; not sent.")
+    return text
+
+
 def approve(advisory_id: int, officer_name: str, final_message: str | None = None,
-            citation: str | None = None) -> dict:
+            citation: str | None = None, final_message_sw: str | None = None,
+            languages: list[str] | tuple[str, ...] = ("en",)) -> dict:
+    """Sign and send. `languages` picks English and/or Swahili; one signature covers every message sent."""
     started = time.perf_counter()
     officer = validate_signature(officer_name)
+    langs = [lang for lang in LANGUAGES if lang in set(languages or ())]
+    if not langs or set(languages) - set(LANGUAGES):
+        raise ApprovalError("Choose the language(s) to send: English, Kiswahili or both.")
     with connect() as conn:
         row = _load(conn, advisory_id)
         if row["status"] != "PENDING_REVIEW":
@@ -86,24 +103,29 @@ def approve(advisory_id: int, officer_name: str, final_message: str | None = Non
             raise ApprovalError(f"The rainfall forecast changed since this draft ({changed}). Re-run the agent for "
                                 "this household and sign the new draft instead.")
         cited = validate_citation(citation, json.loads(row["sources_json"] or "[]"))
-        message = row["farmer_message"]
-        if final_message is not None and final_message.strip():
-            message, hits = sanitizer.scrub_free_text(final_message, 320)
-            if hits:
-                raise ApprovalError("Edited message contains instruction-like text; not sent.")
+        message = _final_text(final_message, row["farmer_message"], "English")
+        message_sw = _final_text(final_message_sw, row["farmer_message_sw"], "Swahili")
+        texts = {"en": message, "sw": message_sw}
+        missing = [lang for lang in langs if not (texts[lang] or "").strip()]
+        if missing:
+            raise ApprovalError("There is no " + ("Swahili" if "sw" in missing else "English")
+                                + " message to send. Write it, or untick that language.")
         ts = telemetry.now_iso()
         conn.execute("UPDATE pending_advisories SET status='APPROVED', officer_signature=?, reviewed_at=?,"
-                     " transmitted_at=?, farmer_message=?, officer_citation=? WHERE id=?",
-                     (officer, ts, ts, message, cited, advisory_id))
-        cur = conn.execute("INSERT INTO dispatch_outbox (advisory_id, household_id, message, officer_signature,"
-                           " queued_at) VALUES (?,?,?,?,?)", (advisory_id, row["household_id"], message, officer, ts))
+                     " transmitted_at=?, farmer_message=?, farmer_message_sw=?, sent_languages=?, officer_citation=?"
+                     " WHERE id=?", (officer, ts, ts, message, message_sw, ",".join(langs), cited, advisory_id))
+        outbox_ids = [conn.execute("INSERT INTO dispatch_outbox (advisory_id, household_id, message, language,"
+                                   " officer_signature, queued_at) VALUES (?,?,?,?,?,?)",
+                                   (advisory_id, row["household_id"], texts[lang], lang, officer, ts)).lastrowid
+                      for lang in langs]
         conn.execute("UPDATE tool_calls SET approved_by=? WHERE run_id=?", (officer, row["run_id"]))
-        outbox_id = cur.lastrowid
+    sent = {lang: texts[lang] for lang in langs}
     telemetry.record(row["run_id"], "officer", "approve_and_dispatch", {"advisory_id": advisory_id, "citation": cited},
-                     {"outbox_id": outbox_id, "channel": "SMS_SIMULATED", "message": message},
+                     {"outbox_ids": outbox_ids, "channel": "SMS_SIMULATED", "messages": sent},
                      latency_ms=(time.perf_counter() - started) * 1000, actor=officer, approved_by=officer)
     return {"advisory_id": advisory_id, "run_id": row["run_id"], "status": "APPROVED", "officer": officer,
-            "outbox_id": outbox_id, "message": message}
+            "outbox_id": outbox_ids[0], "outbox_ids": outbox_ids, "languages": langs,
+            "message": sent.get("en") or sent["sw"], "messages": sent}
 
 
 def reject(advisory_id: int, officer_name: str, reason: str = "") -> dict:

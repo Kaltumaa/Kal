@@ -23,6 +23,16 @@ def ward_summary() -> None:
                icon=":material/groups:")
 
 
+def sw_origin(flags: list[str]) -> str:
+    """Tell the officer where the Swahili text came from, so a template is never mistaken for a reviewed translation."""
+    if "sw_model_translation" in flags:
+        return ("Kiswahili: translated by the local model (numbers, crop and pest names checked). "
+                "Read it before sending.")
+    if "sw_template" in flags:
+        return "Kiswahili: fixed template wording. Edit it if the English message has changed."
+    return "Kiswahili: no draft for this advice."
+
+
 @st.fragment
 def detail(adv: dict) -> None:
     ev = adv.get("evidence") or {}
@@ -94,6 +104,13 @@ def detail(adv: dict) -> None:
             if can_sign:
                 with st.form(f"sign-{adv['id']}", border=False):
                     msg = st.text_area("Message to the farmer", adv["farmer_message"] or "", max_chars=320, height=90)
+                    msg_sw = st.text_area("Ujumbe kwa Kiswahili", adv.get("farmer_message_sw") or "", max_chars=320,
+                                          height=90, placeholder="No Swahili draft. Write one to send it in Kiswahili.")
+                    st.caption(sw_origin(adv.get("flags") or []))
+                    lc = st.columns(2)
+                    send_en = lc[0].checkbox("Send in English", value=True)
+                    send_sw = lc[1].checkbox("Send in Kiswahili", value=False,
+                                             help="Both languages are covered by the same signature below.")
                     citation = st.text_area("Citation (required: the records this advice rests on)",
                                             ui.suggested_citation(adv, api.farm_actions(adv["household_id"])),
                                             height=80, max_chars=600)
@@ -108,7 +125,8 @@ def detail(adv: dict) -> None:
                             if not ok:
                                 st.error("Tick the confirmation box to send.")
                             else:
-                                r = api.approve(adv["id"], name, msg, citation)
+                                langs = [lang for lang, on in (("en", send_en), ("sw", send_sw)) if on]
+                                r = api.approve(adv["id"], name, msg, citation, msg_sw, langs)
                                 st.session_state["just_sent"] = (ui.names().get(adv["household_id"], adv["household_id"]),
                                                                   r["officer"])
                                 st.rerun()

@@ -44,9 +44,11 @@ def advisories(status: str | None = None):
     return _req("GET", "/advisories", params={"status": status} if status else None)
 
 
-def approve(advisory_id: int, officer_name: str, final_message: str | None, citation: str):
+def approve(advisory_id: int, officer_name: str, final_message: str | None, citation: str,
+            final_message_sw: str | None = None, languages: list[str] | None = None):
     return _req("POST", f"/advisories/{advisory_id}/approve",
-                json={"officer_name": officer_name, "final_message": final_message, "citation": citation})
+                json={"officer_name": officer_name, "final_message": final_message, "citation": citation,
+                      "final_message_sw": final_message_sw, "languages": languages or ["en"]})
 
 
 def reject(advisory_id: int, officer_name: str, reason: str):

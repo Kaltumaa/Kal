@@ -18,6 +18,9 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
 VISION_MODEL = os.environ.get("CROP_PILOT_VISION_MODEL", "moondream")
 LLM_TIMEOUT_S = float(os.environ.get("CROP_PILOT_LLM_TIMEOUT", "120"))
 DISABLE_LLM = os.environ.get("CROP_PILOT_DISABLE_LLM") == "1"
+# Swahili farmer messages come from fixed templates unless this is on. Off by default: in our tests qwen2.5:3b wrote
+# Swahili that kept the numbers and names but was meaningless (and once vulgar). Turn on for a stronger local model.
+SW_TRANSLATE_WITH_MODEL = os.environ.get("CROP_PILOT_SW_MODEL") == "1"
 
 # Third-party MCP server (official reference filesystem server), pinned to a release > 2 weeks old.
 FS_MCP_PACKAGE = "@modelcontextprotocol/server-filesystem@2026.8.31"

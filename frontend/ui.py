@@ -86,6 +86,10 @@ FLAG_TEXT = {
     "blocked_tool_request": "The AI asked for a tool it is not allowed to use (blocked)",
     "llm_skipped_status_needs_data": "Not enough farm data, so no AI text was written",
     "llm_skipped_status_security_lock": "Record locked, so no AI text was written",
+    "sw_template": "Kiswahili message uses fixed template wording",
+    "sw_model_translation": "Kiswahili message translated by the local model",
+    "sw_translation_failed": "The local model could not translate to Kiswahili; template used",
+    "sw_translation_rejected": "The model's Kiswahili changed a number or name; template used",
 }
 
 

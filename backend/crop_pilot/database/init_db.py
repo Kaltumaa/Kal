@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS pending_advisories (
     status            TEXT NOT NULL CHECK (status IN
                         ('PENDING_REVIEW','SECURITY_LOCK','NEEDS_DATA','APPROVED','REJECTED')),
     farmer_message    TEXT,
+    farmer_message_sw TEXT,                -- Swahili version (model translation or fixed template); may be NULL
+    sent_languages    TEXT,                -- comma list of what the officer signed and sent: en, sw
     rationale         TEXT,
     evidence_json     TEXT NOT NULL,
     sources_json      TEXT NOT NULL,
@@ -141,6 +143,7 @@ CREATE TABLE IF NOT EXISTS dispatch_outbox (
     household_id      TEXT NOT NULL,
     channel           TEXT NOT NULL DEFAULT 'SMS_SIMULATED',
     message           TEXT NOT NULL,
+    language          TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en','sw')),
     officer_signature TEXT NOT NULL CHECK (length(trim(officer_signature)) >= 5),
     queued_at         TEXT NOT NULL
 );
@@ -240,6 +243,12 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     adv_columns = {r[1] for r in conn.execute("PRAGMA table_info(pending_advisories)")}
     if "officer_citation" not in adv_columns:
         conn.execute("ALTER TABLE pending_advisories ADD COLUMN officer_citation TEXT")
+    for col in ("farmer_message_sw", "sent_languages"):
+        if col not in adv_columns:
+            conn.execute(f"ALTER TABLE pending_advisories ADD COLUMN {col} TEXT")
+    if "language" not in {r[1] for r in conn.execute("PRAGMA table_info(dispatch_outbox)")}:
+        conn.execute("ALTER TABLE dispatch_outbox ADD COLUMN language TEXT NOT NULL DEFAULT 'en'"
+                     " CHECK (language IN ('en','sw'))")
     for hid, name in FARMER_NAMES.items():
         conn.execute("UPDATE plots SET farmer_name = ? WHERE household_id = ? AND farmer_name IS NULL", (name, hid))
 
