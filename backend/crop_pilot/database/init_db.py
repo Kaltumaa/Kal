@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS plot_actions (
     details         TEXT,
     entered_by_role TEXT NOT NULL CHECK (entered_by_role IN ('officer','farmer')),
     entered_by      TEXT NOT NULL,
-    created_at      TEXT NOT NULL
+    created_at      TEXT NOT NULL,
+    chem_group      TEXT              -- SPRAYING only: mode-of-action group, for resistance rotation
 );
 
 -- 2. Regional incident registry
@@ -82,7 +83,8 @@ CREATE TABLE IF NOT EXISTS weather_cache (
     storm_risk        TEXT CHECK (storm_risk IN ('LOW','MODERATE','HIGH')),
     runoff_coeff      REAL NOT NULL DEFAULT 0.3,   -- soil/slope runoff coefficient 0..1
     source            TEXT,
-    issued_at         TEXT NOT NULL
+    issued_at         TEXT NOT NULL,
+    wind_kmh          REAL                          -- forecast wind for the spray window
 );
 
 -- 4. Performance / audit trace. Every agent action and every human decision lands here.
@@ -146,13 +148,17 @@ CREATE TABLE IF NOT EXISTS dispatch_outbox (
 
 # Dagoretti South wards (real place names, synthetic numbers).
 WEATHER = [
-    # zone, lat, lon, 24h, 72h, 7d, storm, runoff, source, issued
-    ("RIRUTA", -1.2850, 36.7350, 1.5, 7.0, 31.0, "LOW", 0.35, "CHIRPS-style synthetic outlook", "2026-10-14"),
-    ("WAITHAKA", -1.2780, 36.7120, 34.0, 82.0, 120.0, "HIGH", 0.45, "CHIRPS-style synthetic outlook", "2026-10-14"),
-    ("MUTUINI", -1.2900, 36.7000, 0.5, 3.0, 18.0, "LOW", 0.30, "CHIRPS-style synthetic outlook", "2026-10-14"),
-    ("NGANDO", -1.3000, 36.7300, 2.0, 6.0, 14.0, "LOW", 0.25, "CHIRPS-style synthetic outlook", "2026-10-14"),
-    ("UTHIRU", -1.2650, 36.7150, 3.0, 9.0, 22.0, "MODERATE", 0.40, "CHIRPS-style synthetic outlook", "2026-10-14"),
+    # zone, lat, lon, 24h, 72h, 7d, storm, runoff, source, issued, wind km/h
+    ("RIRUTA", -1.2850, 36.7350, 1.5, 7.0, 31.0, "LOW", 0.35, "CHIRPS-style synthetic outlook", "2026-10-14", 22.0),
+    ("WAITHAKA", -1.2780, 36.7120, 34.0, 82.0, 120.0, "HIGH", 0.45, "CHIRPS-style synthetic outlook", "2026-10-14",
+     18.0),
+    ("MUTUINI", -1.2900, 36.7000, 0.5, 3.0, 18.0, "LOW", 0.30, "CHIRPS-style synthetic outlook", "2026-10-14", 6.0),
+    ("NGANDO", -1.3000, 36.7300, 2.0, 6.0, 14.0, "LOW", 0.25, "CHIRPS-style synthetic outlook", "2026-10-14", 9.0),
+    ("UTHIRU", -1.2650, 36.7150, 3.0, 9.0, 22.0, "MODERATE", 0.40, "CHIRPS-style synthetic outlook", "2026-10-14",
+     10.0),
 ]
+WEATHER_COLUMNS = ("zone_id, centroid_lat, centroid_lon, rain_24h_mm, rain_72h_mm, rain_7d_mm, storm_risk, "
+                   "runoff_coeff, source, issued_at, wind_kmh")
 
 PLOTS = [
     # Task 1 – clean baseline: beans not yet planted, short-rains onset -> PLANT
@@ -183,6 +189,9 @@ PLOTS = [
     # Task 8 – ordinary household used for the corrupt-database recovery drill
     ("HH-DS-008", "NGANDO", "-1.3004", "36.7296", "Beans>Maize", "Maize", "2026-08-01", "75",
      "TASSELING", "Crop looks even. Top-dressing done.", 1),
+    # Demo – tomato under verified late blight in a windy ward: SPRAY would drift, so HOLD until the wind drops
+    ("HH-DS-010", "RIRUTA", "-1.2858", "36.7366", "Kale>Beans", "Tomato", "2026-08-30", "46",
+     "VEGETATIVE_FLOWERING", "Staked tomatoes, first trusses setting.", 1),
 ]
 
 PESTS = [
@@ -193,6 +202,17 @@ PESTS = [
     ("UTHIRU", "Late Blight", -1.2660, 36.7165, None, "HIGH", 1, "2026-10-11", "Plant clinic report"),
     ("RIRUTA", "Aphids", -1.2845, 36.7355, None, "LOW", 1, "2026-08-01", "Plant clinic report (stale)"),
     ("NGANDO", "Fall Armyworm", None, None, 12.0, "HIGH", 1, "2026-10-13", "County bulletin"),
+    ("RIRUTA", "Late Blight", -1.2855, 36.7362, None, "HIGH", 1, "2026-10-12", "Officer field verification"),
+]
+
+# Seeded field-log history (synthetic): Grace sprayed the same chemical group twice last season, so her SPRAY
+# advice asks for a different mode-of-action group.
+ACTIONS_SEED = [
+    # household, action, date, crop, details, role, by, created, chem_group
+    ("HH-DS-003", "SPRAYING", "2026-04-02", "Maize", "Sprayed the whorls for armyworm", "farmer", "Grace Wanjiku",
+     "2026-04-02T07:00:00+00:00", "Pyrethroids (IRAC 3A)"),
+    ("HH-DS-003", "SPRAYING", "2026-04-20", "Maize", "Second spray, damage still on some plants", "farmer",
+     "Grace Wanjiku", "2026-04-20T07:00:00+00:00", "Pyrethroids (IRAC 3A)"),
 ]
 
 
@@ -201,6 +221,7 @@ FARMER_NAMES = {
     "HH-DS-001": "Peter Njoroge", "HH-DS-002": "Mary Achieng", "HH-DS-003": "Grace Wanjiku",
     "HH-DS-004": "Joseph Ouma", "HH-DS-005": "Agnes Muthoni", "HH-DS-006": "Samuel Kiprono",
     "HH-DS-007": "Esther Nduta", "HH-DS-008": "David Mwangi", "HH-DS-009": "Ruth Wairimu",
+    "HH-DS-010": "Lucy Wambui",
 }
 PLOT_COLUMNS = ("household_id, zone_id, lat, lon, crop_history, active_crop, planting_date, days_since_planting, "
                 "growth_stage, field_notes, is_synthetic")
@@ -212,6 +233,10 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     columns = {r[1] for r in conn.execute("PRAGMA table_info(plots)")}
     if "farmer_name" not in columns:
         conn.execute("ALTER TABLE plots ADD COLUMN farmer_name TEXT")
+    if "wind_kmh" not in {r[1] for r in conn.execute("PRAGMA table_info(weather_cache)")}:
+        conn.execute("ALTER TABLE weather_cache ADD COLUMN wind_kmh REAL")
+    if "chem_group" not in {r[1] for r in conn.execute("PRAGMA table_info(plot_actions)")}:
+        conn.execute("ALTER TABLE plot_actions ADD COLUMN chem_group TEXT")
     adv_columns = {r[1] for r in conn.execute("PRAGMA table_info(pending_advisories)")}
     if "officer_citation" not in adv_columns:
         conn.execute("ALTER TABLE pending_advisories ADD COLUMN officer_citation TEXT")
@@ -227,13 +252,19 @@ def init_db(path: Path | None = None, reset: bool = False) -> Path:
     conn = sqlite3.connect(path)
     try:
         conn.executescript(SCHEMA)
-        conn.executemany("INSERT OR REPLACE INTO weather_cache VALUES (?,?,?,?,?,?,?,?,?,?)", WEATHER)
+        ensure_schema(conn)                      # upgrade older databases before inserting new columns
+        conn.executemany(f"INSERT OR REPLACE INTO weather_cache ({WEATHER_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                         WEATHER)
         conn.executemany(f"INSERT OR REPLACE INTO plots ({PLOT_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)", PLOTS)
         ensure_schema(conn)
         if conn.execute("SELECT COUNT(*) FROM pest_alerts").fetchone()[0] == 0:
             conn.executemany(
                 "INSERT INTO pest_alerts (zone_id, pest, lat, lon, distance_km, severity, verified, reported_at, source)"
                 " VALUES (?,?,?,?,?,?,?,?,?)", PESTS)
+        if conn.execute("SELECT COUNT(*) FROM plot_actions").fetchone()[0] == 0:
+            conn.executemany(
+                "INSERT INTO plot_actions (household_id, action, action_date, crop, details, entered_by_role, "
+                "entered_by, created_at, chem_group) VALUES (?,?,?,?,?,?,?,?,?)", ACTIONS_SEED)
         conn.commit()
     finally:
         conn.close()

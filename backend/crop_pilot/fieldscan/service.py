@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import base64
 import binascii
+import io
 import json
 import time
 
 import httpx
+from PIL import Image, ImageFilter, ImageStat, UnidentifiedImageError
 
 from crop_pilot import config
 from crop_pilot.core import knowledge, sanitizer, telemetry
@@ -45,13 +47,35 @@ CREATE TABLE IF NOT EXISTS field_scans (
 def _ensure(conn) -> None:
     conn.executescript(SCHEMA)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(field_scans)")}
-    for col in ("officer_finding", "officer_note"):
+    for col in ("officer_finding", "officer_note", "image_quality"):
         if col not in cols:
             conn.execute(f"ALTER TABLE field_scans ADD COLUMN {col} TEXT")   # fixed names, no user input
 
 
 class ScanError(ValueError):
     pass
+
+
+# Measured on real farmer photos vs blurred/darkened copies: sharp photos scored 300-5000, blurred 22-43;
+# normal brightness 130-160, darkened 26-31. See tests/test_hub.py.
+BLUR_MIN_SHARPNESS = 60.0
+DARK_MAX_BRIGHTNESS = 40.0
+_LAPLACIAN = ImageFilter.Kernel((3, 3), [0, 1, 0, 1, -4, 1, 0, 1, 0], scale=1, offset=128)
+
+
+def image_quality(raw: bytes) -> dict:
+    """Blurry or dark photos make any AI suggestion unreliable; flag them for the officer (no model involved)."""
+    try:
+        g = Image.open(io.BytesIO(raw)).convert("L")
+    except (UnidentifiedImageError, OSError):
+        return {"issues": ["unreadable"], "sharpness": None, "brightness": None}
+    g.thumbnail((640, 640))
+    w, h = g.size
+    g = g.crop((w // 10, h // 10, w - w // 10, h - h // 10)) if min(w, h) >= 20 else g
+    sharp = round(ImageStat.Stat(g.filter(_LAPLACIAN)).var[0], 1)
+    bright = round(ImageStat.Stat(g).mean[0], 1)
+    issues = (["blurry"] if sharp < BLUR_MIN_SHARPNESS else []) + (["dark"] if bright < DARK_MAX_BRIGHTNESS else [])
+    return {"issues": issues, "sharpness": sharp, "brightness": bright}
 
 
 def _ask(image_b64: str, prompt: str, max_tokens: int) -> tuple[str, dict]:
@@ -101,6 +125,7 @@ def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
             row = conn.execute("SELECT active_crop FROM plots WHERE upper(household_id)=?", (hid,)).fetchone()
             crop = sanitizer.normalise_crop(row["active_crop"]) if row else None
 
+    quality = image_quality(raw)
     run_id = f"scan-{int(time.time() * 1000)}"
     model_used = VISION_MODEL
     try:
@@ -130,8 +155,9 @@ def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
     ext = "png" if raw[:4] == b"\x89PNG" else "jpg"
     with connect() as conn:
         cur = conn.execute("INSERT INTO field_scans (household_id, crop, image_file, model, description, "
-                           "candidates_json, created_at) VALUES (?,?,?,?,?,?,?)",
-                           (hid, crop, "pending", model_used, description, json.dumps(candidates), telemetry.now_iso()))
+                           "candidates_json, created_at, image_quality) VALUES (?,?,?,?,?,?,?,?)",
+                           (hid, crop, "pending", model_used, description, json.dumps(candidates), telemetry.now_iso(),
+                            json.dumps(quality)))
         scan_id = cur.lastrowid
         name = f"scan_{scan_id}.{ext}"
         (SCAN_DIR / name).write_bytes(raw)
@@ -140,7 +166,7 @@ def analyse(image_b64: str, household_id: str | None, crop: str | None) -> dict:
             "plant_seen": knowledge.plant_seen(description), "category": verdict["category"],
             "damage_signs": verdict["signs"],
             "candidates": candidates, "model": model_used, "status": "UNVERIFIED",
-            "vision_available": status == "ok", "injection_flag": bool(hits)}
+            "vision_available": status == "ok", "injection_flag": bool(hits), "image_quality": quality}
 
 
 def list_scans() -> list[dict]:
@@ -149,6 +175,7 @@ def list_scans() -> list[dict]:
         rows = [dict(r) for r in conn.execute("SELECT * FROM field_scans ORDER BY id DESC LIMIT 50")]
     for r in rows:
         r["candidates"] = json.loads(r.pop("candidates_json") or "[]")
+        r["image_quality"] = json.loads(r.get("image_quality") or "{}")
     return rows
 
 
@@ -182,8 +209,11 @@ def farmer_view(household_id: str) -> list[dict]:
 def submit_for_review(image_b64: str, household_id: str) -> dict:
     """Farmer submission: the photo is analysed for the officer, but the farmer only gets a receipt."""
     res = analyse(image_b64, household_id, None)
+    issues = [i for i in res["image_quality"]["issues"] if i != "unreadable"]
+    tip = (f" Tip: the photo looks {' and '.join(issues)}; if you can, send another one in daylight, held steady "
+           "and close to the leaf.") if issues else ""
     return {"scan_id": res["scan_id"], "status": "WAITING_FOR_OFFICER",
-            "message": "Sent to your extension officer for review. You will see the result in Notifications."}
+            "message": "Sent to your extension officer for review. You will see the result in Notifications." + tip}
 
 
 def review(scan_id: int, officer_name: str, decision: str, pest: str | None = None, severity: str = "MEDIUM",

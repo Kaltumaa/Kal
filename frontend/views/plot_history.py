@@ -38,11 +38,17 @@ with left:
     if log:
         st.dataframe(pd.DataFrame([{
             "Date": a["action_date"], "Action": ACTION_LABEL.get(a["action"], a["action"]), "Crop": a["crop"] or "",
-            "Details": a["details"] or "", "Entered by": f"{a['entered_by']} ({a['entered_by_role']})"} for a in log]),
+            "Details": a["details"] or "", "Product group": a.get("chem_group") or "",
+            "Entered by": f"{a['entered_by']} ({a['entered_by_role']})"} for a in log]),
             hide_index=True, width="stretch")
     else:
         st.caption("Nothing logged yet for this plot.")
 
+# Mode-of-action groups, same list as the backend's config.CHEM_GROUPS (the API validates it).
+CHEM_GROUPS = ["Pyrethroids (IRAC 3A)", "Organophosphates (IRAC 1B)", "Avermectins / emamectin (IRAC 6)",
+               "Spinosyns (IRAC 5)", "Diamides (IRAC 28)", "Bt, biological (IRAC 11A)", "Neem, botanical",
+               "Mancozeb / dithiocarbamates (FRAC M03)", "Metalaxyl / phenylamides (FRAC 4)", "Copper (FRAC M01)",
+               "Not sure"]
 CROPS = ["Maize", "Beans", "Kale", "Potato", "Tomato", "Sorghum", "Cowpeas", "Sweet Potato", "Groundnut"]
 with right:
     if role == "farmer":
@@ -52,12 +58,15 @@ with right:
             action = c[0].selectbox("What did you do?", list(ACTION_LABEL), format_func=ACTION_LABEL.get)
             when = c[1].date_input("When", value=pd.Timestamp(st.session_state.get("demo_today", "2026-10-15")).date())
             crop = st.selectbox("Crop (needed for planting)", ["—"] + CROPS)
+            group = st.selectbox("Product group (only for spraying; on the label)", ["—"] + CHEM_GROUPS,
+                                 help="Spraying the same group again and again lets pests become resistant. "
+                                      "Your next spray advice will suggest a different group.")
             details = st.text_input("Details", max_chars=300,
                                     placeholder="e.g. DH04 seed, 50 kg CAN top-dress, 2 h drip irrigation")
             if st.form_submit_button("Save to my plot history", type="primary", width="stretch"):
                 try:
                     r = api.log_farm_action(hid, action, when.isoformat(), None if crop == "—" else crop, details,
-                                            "farmer", None)
+                                            "farmer", None, None if group == "—" or action != "SPRAYING" else group)
                     st.toast("Saved." + (" Your crop and planting date are updated, so the next advice uses them."
                                          if r["updated_record"] else ""), icon=":material/check:")
                     st.rerun()

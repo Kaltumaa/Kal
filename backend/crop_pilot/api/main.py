@@ -488,6 +488,7 @@ class PlotAction(BaseModel):
     details: str = Field("", max_length=300)
     role: str = Field(..., pattern="^(officer|farmer)$")
     name: str | None = Field(None, max_length=80)
+    chem_group: str | None = Field(None, max_length=60)
 
 
 @app.get("/farms/{household_id}/actions")
@@ -501,7 +502,7 @@ def log_farm_action(household_id: str, req: PlotAction):
     _require_db()
     try:
         return plot_actions.log_action(household_id, req.action, req.action_date, req.crop, req.details,
-                                       req.role, req.name)
+                                       req.role, req.name, req.chem_group)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -550,6 +551,9 @@ def farms_plan():
         plots = [dict(r) for r in conn.execute("SELECT * FROM plots ORDER BY household_id")]
         zones = {r["zone_id"]: dict(r) for r in conn.execute("SELECT * FROM weather_cache")}
         alerts = [dict(r) for r in conn.execute("SELECT * FROM pest_alerts")]
+        logs: dict[str, list[dict]] = {}
+        for r in conn.execute("SELECT id, household_id, action, action_date, details, chem_group FROM plot_actions"):
+            logs.setdefault(r["household_id"], []).append(dict(r))
     advs = approval.list_advisories()
     out = []
     for row in plots:
@@ -560,9 +564,9 @@ def farms_plan():
         rain = agronomy.rainfall_outlook(zone) if zone else None
         pests = agronomy.score_pest_alerts(alerts, plot.get("lat"), plot.get("lon"), plot.get("active_crop"),
                                            plot.get("growth_stage")) if plot.get("found") else None
-        decision = agronomy.decide(plot, rain, pests)
-        rot = history.rotation(plot.get("active_crop"), plot.get("crop_history") or [])
         pat = weather_patterns.assess(zone["zone_id"], rain["rain_7d_mm"]) if zone and rain else {}
+        decision = agronomy.decide(plot, rain, pests, pattern=pat, field_log=logs.get(row["household_id"], []))
+        rot = history.rotation(plot.get("active_crop"), plot.get("crop_history") or [])
         plan = decision["verdict"] if decision["status"] == "PENDING_REVIEW" else decision["status"]
         if decision["verdict"] in (None, "HOLD") and plot.get("growth_stage") in HARVEST_STAGES \
                 and decision["status"] == "PENDING_REVIEW":

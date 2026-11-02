@@ -325,6 +325,14 @@ def plan_followup(decision: dict, pattern: dict, threat: dict | None) -> tuple[s
         return "FIELD_VISIT", 3, "Field visit to record the crop, ward and planting date before any advice."
     if rule == "R2_washout_hold":
         return "RECHECK_AFTER_RAIN", 3, "Re-check the spraying and planting window once the heavy rain has passed."
+    if rule == "R2b_wind_hold":
+        return "RECHECK_WIND", 1, "Re-check the wind tomorrow morning; spray once it is below 15 km/h."
+    if rule == "R4b_clear_weeds_first":
+        return "SEEDLING_CHECK", 7, "Check the plot is cleared of weeds, then confirm the planting window."
+    if rule == "R4c_false_start_hold":
+        return "RERUN_AT_ONSET", 7, "Re-run the advice after a second good rain (false start this week)."
+    if rule == "R6b_scout_soon":
+        return "RESCOUT", 3, "Scout this farm within 3 days: a verified pest is just outside the action radius."
     if rule == "R3_threat_spray":
         pest = (threat or {}).get("pest", "the pest")
         return "RESCOUT", 7, f"Re-scout for {pest} 7 days after spraying; check whether damage stopped."
@@ -342,7 +350,7 @@ async def advisory_compiler_node(state: RunState) -> dict:
     ev, flags = state.get("evidence", {}), list(state.get("flags", []))
     plot, rain, pests, refs = ev.get("plot", {}), ev.get("rain"), ev.get("pests"), ev.get("references", [])
     pattern = ev.get("pattern") or {}
-    decision = agronomy.decide(plot, rain, pests)
+    decision = agronomy.decide(plot, rain, pests, pattern=pattern, field_log=plot.get("field_log"))
     threat = (pests or {}).get("top_threat")
     rotation = history.rotation(plot.get("active_crop"), plot.get("crop_history") or [])
 
@@ -353,6 +361,9 @@ async def advisory_compiler_node(state: RunState) -> dict:
         sources.append(rain["citation"])
     if threat:
         sources.append(f"pest_alerts:#{threat['id']}")
+    rot = agronomy.chemical_rotation(plot.get("field_log")) if decision["rule"] == "R3_threat_spray" else None
+    if rot and rot.get("citation"):
+        sources.append(rot["citation"])
     sources += [f"reference:{r['file']}" for r in refs]
     if not sources:
         sources.append(f"plots:{state['household_id']}")   # a record lookup was attempted; cite it

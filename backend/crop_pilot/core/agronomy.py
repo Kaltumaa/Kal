@@ -25,6 +25,8 @@ def rainfall_outlook(weather: dict, today: date | None = None) -> dict:
     r7d = max(r72, float(weather.get("rain_7d_mm") or 0))
     storm = (weather.get("storm_risk") or "MODERATE").upper()
     runoff = min(1.0, max(0.0, float(weather.get("runoff_coeff") or 0.3)))
+    wind = weather.get("wind_kmh")
+    wind = None if wind is None else max(0.0, float(wind))
 
     # Wash-off: rain within 24 h of spraying is the main risk; 72 h rain matters more on high-runoff soils.
     penalty_24h = min(70.0, r24 * 7.0)
@@ -53,6 +55,7 @@ def rainfall_outlook(weather: dict, today: date | None = None) -> dict:
         "zone_id": weather.get("zone_id"),
         "rain_24h_mm": r24, "rain_72h_mm": r72, "rain_7d_mm": r7d,
         "storm_risk": storm, "runoff_coeff": runoff,
+        "wind_kmh": wind, "wind_too_strong": wind is not None and wind > config.SPRAY_MAX_WIND_KMH,
         "spray_safety_index": index,
         "spray_band": spray_band,
         "washout_risk": washout,
@@ -142,9 +145,50 @@ def crops_plantable_now(rain_7d_mm: float, washout: bool) -> list[str]:
 
 
 # ---------------------------------------------------------------------------------- rule engine
-def decide(plot: dict, rain: dict | None, pests: dict | None) -> dict:
-    """The safe verdict. Ordered rules; first match wins. Returns verdict, status and reasons."""
+def _latest(log: list[dict], action: str) -> dict | None:
+    rows = [e for e in log if e.get("action") == action and e.get("action_date")]
+    return max(rows, key=lambda e: (e["action_date"], e.get("id") or 0)) if rows else None
+
+
+def weeds_uncleared(field_log: list[dict] | None) -> dict | None:
+    """The farmer's latest observation says the plot is weedy and no weeding has been logged since."""
+    log = field_log or []
+    seen = [e for e in log if e.get("action") == "OBSERVATION" and e.get("action_date")
+            and any(w in (e.get("details") or "").lower() for w in config.WEEDY_WORDS)]
+    if not seen:
+        return None
+    obs = max(seen, key=lambda e: (e["action_date"], e.get("id") or 0))
+    weeding = _latest(log, "WEEDING")
+    return None if weeding and weeding["action_date"] >= obs["action_date"] else obs
+
+
+def chemical_rotation(field_log: list[dict] | None, today: date | None = None) -> dict | None:
+    """Mode-of-action group of the last logged spray (within a year), and whether it was used twice in a row."""
+    today = today or config.today()
+    sprays = sorted((e for e in field_log or [] if e.get("action") == "SPRAYING" and e.get("chem_group")
+                     and e["chem_group"] != "Not sure" and e.get("action_date")
+                     and (today - date.fromisoformat(e["action_date"][:10])).days <= 365),
+                    key=lambda e: (e["action_date"], e.get("id") or 0), reverse=True)
+    if not sprays:
+        return None
+    last = sprays[0]
+    repeated = len(sprays) > 1 and sprays[1]["chem_group"] == last["chem_group"]
+    note = (f"The last spray ({last['action_date'][:10]}) used {last['chem_group']}"
+            + (", twice in a row" if repeated else "")
+            + ". Use a product from a different group this time to slow resistance; check the label with the officer.")
+    return {"group": last["chem_group"], "date": last["action_date"][:10], "repeated": repeated, "note": note,
+            "citation": f"plot_actions:#{last['id']}" if last.get("id") else None}
+
+
+def decide(plot: dict, rain: dict | None, pests: dict | None, *, pattern: dict | None = None,
+           field_log: list[dict] | None = None) -> dict:
+    """The safe verdict. Ordered rules; first match wins. Returns verdict, status and reasons.
+
+    `pattern` (get_weather_pattern) and `field_log` (the farm's own log) are optional; without them the rules
+    behave exactly as before.
+    """
     reasons: list[str] = []
+    pattern = pattern or {}
     if not plot.get("found") or not plot.get("profile_complete"):
         return {"status": "NEEDS_DATA", "verdict": None, "rule": "R0_missing_profile",
                 "reasons": ["Household profile is missing a crop or zone; schedule a field visit."]}
@@ -163,20 +207,52 @@ def decide(plot: dict, rain: dict | None, pests: dict | None) -> dict:
                        f"spray-safety index {rain['spray_safety_index']} ({rain['spray_band']}).")
         if threat:
             reasons.append(f"Verified {threat['pest']} {threat['distance_km']} km away: spray once the window opens.")
+        if stage == "PRE_PLANTING" and rain["storm_risk"] == "HIGH":
+            reasons.append("Heavy storms can crust bare soil and trap seedlings: after the storm, loosen the top "
+                           "layer lightly before sowing.")
         return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R2_washout_hold", "reasons": reasons}
+
+    if threat and rain.get("wind_too_strong"):
+        reasons.append(f"Verified {threat['pest']} ({threat['severity']}) {threat['distance_km']} km away, but wind "
+                       f"is {rain['wind_kmh']:.0f} km/h (spray only below {config.SPRAY_MAX_WIND_KMH:.0f} km/h). "
+                       "Spray would drift onto neighbouring crops, water and bees.")
+        reasons.append("Spray early in the morning once the wind drops.")
+        return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R2b_wind_hold", "reasons": reasons}
 
     if threat:
         reasons.append(f"Verified {threat['pest']} ({threat['severity']}) {threat['distance_km']} km away, "
                        f"{threat['age_days']} days old; crop stage {stage} is susceptible.")
         reasons.append(f"Spray-safety index {rain['spray_safety_index']} ({rain['spray_band']}).")
+        rot = chemical_rotation(field_log)
+        if rot:
+            reasons.append(rot["note"])
         return {"status": "PENDING_REVIEW", "verdict": "SPRAY", "rule": "R3_threat_spray", "reasons": reasons}
 
     if stage == "PRE_PLANTING":
         crop = plot.get("active_crop")
         need = planting_threshold(crop)
         if not rain["washout_risk"] and rain["rain_7d_mm"] >= need:
+            recent = pattern.get("recent_pct_of_normal")
+            if pattern.get("onset") == "FALSE_START_RISK" and recent is not None \
+                    and recent < config.FALSE_START_HOLD_PCT:
+                reasons.append(f"{rain['rain_7d_mm']} mm expected this week, but the last 20 days had only {recent}% "
+                               "of normal rain. This looks like a false start: the rains may stop again and dry "
+                               "out the seed. Wait for a second good rain before planting.")
+                return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R4c_false_start_hold",
+                        "reasons": reasons}
+            weedy = weeds_uncleared(field_log)
+            if weedy:
+                reasons.append(f"Rain is enough to plant, but the farm's own log ({weedy['action_date'][:10]}) says "
+                               "the plot is still weedy. Weeds take the topsoil moisture new seed needs: clear them "
+                               "first, then plant.")
+                return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R4b_clear_weeds_first",
+                        "reasons": reasons}
             reasons.append(f"{rain['rain_7d_mm']} mm expected over 7 days; {crop} needs about {need:.0f} mm to "
                            f"establish, and there is no washout risk.")
+            if pattern.get("onset") == "FALSE_START_RISK":
+                reasons.append("The rains follow a dry spell (false-start risk): plant part of the plot now and the "
+                               "rest after a second wet week.")
+            reasons.append("Use certified seed with the official certification label.")
             return {"status": "PENDING_REVIEW", "verdict": "PLANT", "rule": "R4_planting_window", "reasons": reasons}
         reasons.append(f"Only {rain['rain_7d_mm']} mm expected over 7 days; {crop} needs about {need:.0f} mm. "
                        f"Wait for the rains.")
@@ -184,6 +260,14 @@ def decide(plot: dict, rain: dict | None, pests: dict | None) -> dict:
         if alternatives:
             reasons.append(f"Drought-tolerant options that could go in now: {', '.join(alternatives)}.")
         return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R5_wait_for_onset", "reasons": reasons}
+
+    near = [a for a in (pests or {}).get("verified_alerts", [])
+            if a.get("crop_susceptible") and not a.get("actionable") and a["distance_km"] <= 2 * a["action_radius_km"]]
+    if near:
+        a0 = near[0]
+        reasons.append(f"Verified {a0['pest']} {a0['distance_km']} km away: outside the {a0['action_radius_km']:.0f} km "
+                       f"action radius, but close enough to scout this week. Do not spray yet.")
+        return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R6b_scout_soon", "reasons": reasons}
 
     reasons.append(f"No actionable verified pest threat; crop at {stage}. Continue routine scouting.")
     return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R6_monitor", "reasons": reasons}

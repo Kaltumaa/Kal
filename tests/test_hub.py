@@ -146,10 +146,12 @@ def test_reminder_not_logged_until_done(temp_db):
     conn = sqlite3.connect(temp_db, isolation_level=None)
     count = lambda: conn.execute("SELECT COUNT(*) FROM tool_calls").fetchone()[0]   # noqa: E731
     before = count()
-    assert actions.list_actions("HH-DS-003") == [] and before == count()
+    seeded = len(actions.list_actions("HH-DS-003"))          # her two seeded sprays from last season
+    assert before == count()
     done = reminders.mark_done(r["reminder_id"])
     log = actions.list_actions("HH-DS-003")
-    assert done["done"] and len(log) == 1 and log[0]["action"] == "WEEDING" and log[0]["entered_by"] == "Grace Wanjiku"
+    assert done["done"] and len(log) == seeded + 1
+    assert log[0]["action"] == "WEEDING" and log[0]["entered_by"] == "Grace Wanjiku"
     assert count() == before + 1
 
 
@@ -226,3 +228,21 @@ def test_suitability_reasons_quote_the_numbers():
     text = " ".join(beans["reasons"])
     assert "420 mm" in text and "300–600 mm" in text and "16–26 °C" in text
     assert beans["plant_now"] is True and beans["harvest_if_planted_now"]
+
+
+def test_blurry_and_dark_photos_are_flagged_for_the_officer():
+    import io
+    from PIL import Image, ImageDraw, ImageFilter
+    img = Image.new("RGB", (400, 400), (90, 150, 70))
+    d = ImageDraw.Draw(img)
+    for x in range(0, 400, 8):                                   # fine leaf-vein-like detail
+        d.line([(x, 0), (400 - x, 400)], fill=(20, 60, 20), width=1)
+
+    def png(im):
+        buf = io.BytesIO()
+        im.save(buf, "PNG")
+        return buf.getvalue()
+
+    assert fieldscan.image_quality(png(img))["issues"] == []
+    assert "blurry" in fieldscan.image_quality(png(img.filter(ImageFilter.GaussianBlur(6))))["issues"]
+    assert "dark" in fieldscan.image_quality(png(Image.eval(img, lambda v: v // 6)))["issues"]

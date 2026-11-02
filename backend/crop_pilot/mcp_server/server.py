@@ -23,7 +23,7 @@ mcp = FastMCP("crop-pilot")
 
 DRAFT_STATUSES = {"PENDING_REVIEW", "SECURITY_LOCK", "NEEDS_DATA"}   # APPROVED is unreachable from here
 VERDICTS = {"PLANT", "SPRAY", "HOLD"}
-SOURCE_RE = re.compile(r"^(plots|weather_cache|pest_alerts|reference):[A-Za-z0-9_\-./#:@ ]{1,120}$")
+SOURCE_RE = re.compile(r"^(plots|plot_actions|weather_cache|pest_alerts|reference):[A-Za-z0-9_\-./#:@ ]{1,120}$")
 MAX_MESSAGE_CHARS = 320
 
 
@@ -71,6 +71,12 @@ def get_plot_context(household_id: str) -> dict:
         elif clean.get("lat") is not None:
             clean["location_source"] = "plot GPS"
         clean["citation"] = f"plots:{clean['household_id']}"
+        # The farm's own field log (latest 20), so the rules can check weeding and past spray groups.
+        with connect() as conn:
+            log = conn.execute("SELECT id, action, action_date, crop, details, chem_group FROM plot_actions "
+                               "WHERE household_id = ? ORDER BY action_date DESC, id DESC LIMIT 20",
+                               (clean["household_id"],)).fetchall()
+        clean["field_log"] = [dict(r) | {"details": sanitizer.scrub_free_text(r["details"], 300)[0]} for r in log]
     return clean
 
 
@@ -113,7 +119,7 @@ def draft_advisory(run_id: str, household_id: str, status: str, verdict: Optiona
     """WRITE: stage a draft advisory in the pending_advisories queue for a named officer to review.
 
     This cannot send anything. Allowed statuses: PENDING_REVIEW, SECURITY_LOCK, NEEDS_DATA.
-    Every draft must cite at least one source (plots:, weather_cache:, pest_alerts:, reference:).
+    Every draft must cite at least one source (plots:, plot_actions:, weather_cache:, pest_alerts:, reference:).
     Idempotent per run_id.
     """
     flags = list(flags or [])
@@ -161,14 +167,16 @@ CREATE TABLE IF NOT EXISTS followups (
     CHECK (status = 'OPEN' OR closed_by IS NOT NULL)
 );
 """
-FOLLOWUP_KINDS = {"RESCOUT", "RECHECK_AFTER_RAIN", "RERUN_AT_ONSET", "SEEDLING_CHECK", "FIELD_VISIT", "VERIFY_RECORD"}
+FOLLOWUP_KINDS = {"RESCOUT", "RECHECK_AFTER_RAIN", "RECHECK_WIND", "RERUN_AT_ONSET", "SEEDLING_CHECK", "FIELD_VISIT",
+                  "VERIFY_RECORD"}
 
 
 @mcp.tool()
 def schedule_followup(run_id: str, household_id: str, kind: str, days_from_now: int, reason: str) -> dict:
     """WRITE: put an internal follow-up task on the extension desk's list (e.g. re-scout in 7 days, re-check after
     the rain, field visit). It is a reminder for the officer only: it never contacts the farmer.
-    kind is one of RESCOUT, RECHECK_AFTER_RAIN, RERUN_AT_ONSET, SEEDLING_CHECK, FIELD_VISIT, VERIFY_RECORD.
+    kind is one of RESCOUT, RECHECK_AFTER_RAIN, RECHECK_WIND, RERUN_AT_ONSET, SEEDLING_CHECK, FIELD_VISIT,
+    VERIFY_RECORD.
     Idempotent per run_id and kind."""
     kind = (kind or "").upper()
     if kind not in FOLLOWUP_KINDS:

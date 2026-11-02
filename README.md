@@ -140,6 +140,12 @@ to it. Wards, households, rainfall and season outlooks are rows of data. To serv
 | Weather pattern | CHIRPS-format dekadal history + season outlook → `get_weather_pattern` | Season below/above normal → variety and drainage advice; late rains; **false-start risk** → "plant in two batches". Never flips the verdict |
 | Self-check (reflection) | `self_check` node in the graph, before anything is written | Checks the most stringent rain signal is respected, the ward is in Dagoretti South, and evidence and sources are complete. On a problem it re-gathers once; if it still fails, the draft is withheld as NEEDS_DATA |
 | Plot history | `crop_history` (past seasons, oldest → newest) → `core/history.py` | Rotation risk (e.g. maize after maize raises Fall Armyworm, MLN and Striga carry-over), a sourced reason and an SMS tip. It never flips the verdict |
+| Wind | `weather_cache.wind_kmh` → `get_rainfall_outlook` | SPRAY becomes **HOLD** above 15 km/h (drift onto neighbours' crops, water and bees); re-check tomorrow morning |
+| Field log: weeds | Farmer's own `OBSERVATION` entries → `get_plot_context` | PLANT becomes **HOLD: clear weeds first** if the latest observation says the plot is weedy and no weeding is logged since |
+| Field log: past sprays | `SPRAYING` entries with a mode-of-action group (IRAC/FRAC) | SPRAY advice names the last group used (and "twice in a row") and asks for a different group; cites `plot_actions:#N` |
+| False start | `get_weather_pattern` onset + last 20 days vs normal | PLANT becomes **HOLD** only when the last 20 days had under 40 % of normal rain; otherwise "plant in two batches" |
+| Pest just outside radius | Verified alerts up to 2× the action radius | **Scout within 3 days**, do not spray yet |
+| Photo quality | Sharpness and brightness of the farmer's photo (no model) | Blurry or dark photos are flagged to the officer as unreliable; the farmer gets a tip to retake it in daylight |
 
 ## Technology stack
 
@@ -326,6 +332,10 @@ tests/         unit, gate and architecture-boundary tests
 * **Officer-entered data is ground truth.** Structured fields (e.g. the planting date) always win over numbers parsed
   from free text, and conflicts are reported; field notes are never parsed into numbers. On **Learn**, numbers the
   officer types override the ward outlook.
+* Wind speeds per ward (`weather_cache.wind_kmh`) are synthetic, like the rainfall. The 15 km/h spraying limit, the
+  40 % false-start threshold and the photo sharpness/brightness cut-offs are our rules of thumb (the photo ones were
+  measured on real farmer photos against blurred and darkened copies); they should be checked with the county's
+  agronomist. Lucy Wambui (`HH-DS-010`, Riruta) is a demo farm added to show the wind hold.
 * Planting thresholds are rules of thumb: about 25 mm in a week for maize, beans, potato and kale; about 15 mm for
   sorghum and cowpeas, 18 mm for sweet potato vines and 20 mm for groundnut (`config.py`). They should be checked
   with the county's agronomist.

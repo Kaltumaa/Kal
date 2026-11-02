@@ -86,6 +86,10 @@ def officer_page() -> None:
                 st.markdown(f"**Photo #{s['id']}** · {ui.farm_label(s['household_id']) if s['household_id'] else 'no farm'}"
                             f" · {s['crop'] or 'crop unknown'}")
                 st.caption(f"AI description: {s['description'] or '—'}")
+                issues = [i for i in (s.get("image_quality") or {}).get("issues", []) if i != "unreadable"]
+                if issues:
+                    st.error(f"Photo quality: {' and '.join(issues)}. The AI suggestion below is unreliable; ask the "
+                             "farmer for a clearer daylight photo, or check in the field.", icon=":material/blur_on:")
                 st.warning(ai_label(s["candidates"]), icon=":material/hourglass_top:")
                 top = s["candidates"][0]["pest"] if s["candidates"] else None
                 options = list(dict.fromkeys(([top] if top else []) + [
