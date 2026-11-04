@@ -75,6 +75,29 @@ def validate_citation(citation: str | None, sources: list[str]) -> str:
 LANGUAGES = ("en", "sw")
 
 
+# GSM-7: the plain SMS alphabet. One character outside it (a curly quote, an en dash, an emoji) turns the whole
+# message into UCS-2, where a segment holds 70 characters instead of 160, so the SMS costs two to three times more.
+GSM7 = set("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§"
+           "¿abcdefghijklmnopqrstuvwxyzäöñüà")
+GSM7_EXT = set("^{}\\[~]|€")
+TYPOGRAPHY = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "...", "\u00a0": " ", "•": "-",
+              "°": " deg"}
+
+
+def sms_safe(text: str) -> str:
+    """Same words, plain punctuation: swap typographic characters for their GSM-7 equivalents."""
+    return "".join(TYPOGRAPHY.get(ch, ch) for ch in text or "")
+
+
+def sms_parts(text: str) -> int:
+    """How many SMS segments a message takes (GSM-7: 160, or 153 each when split; otherwise UCS-2: 70 / 67)."""
+    text = text or ""
+    if all(ch in GSM7 or ch in GSM7_EXT for ch in text):
+        units = sum(2 if ch in GSM7_EXT else 1 for ch in text)
+        return 1 if units <= 160 else -(-units // 153)
+    return 1 if len(text) <= 70 else -(-len(text) // 67)
+
+
 def _final_text(edited: str | None, stored: str | None, label: str) -> str | None:
     if edited is None or not edited.strip():
         return stored
@@ -86,13 +109,20 @@ def _final_text(edited: str | None, stored: str | None, label: str) -> str | Non
 
 def approve(advisory_id: int, officer_name: str, final_message: str | None = None,
             citation: str | None = None, final_message_sw: str | None = None,
-            languages: list[str] | tuple[str, ...] = ("en",)) -> dict:
-    """Sign and send. `languages` picks English and/or Swahili; one signature covers every message sent."""
+            languages: list[str] | tuple[str, ...] = ("en",), call: bool = False) -> dict:
+    """Sign and send. `languages` picks English and/or Swahili; one signature covers every message sent.
+    `call` also phones the farmer (Africa's Talking voice) and reads out the signed message: for feature phones and
+    farmers who cannot read an SMS. Kiswahili is spoken when it was signed, otherwise English."""
     started = time.perf_counter()
     officer = validate_signature(officer_name)
     langs = [lang for lang in LANGUAGES if lang in set(languages or ())]
     if not langs or set(languages) - set(LANGUAGES):
         raise ApprovalError("Choose the language(s) to send: English, Kiswahili or both.")
+    if call:
+        from crop_pilot.dispatch import voice_calls          # local import: voice_calls imports this module
+        with connect() as conn:
+            hid = _load(conn, advisory_id)["household_id"]
+        voice_calls.check_phone(hid)                          # refuse before signing, not after
     with connect() as conn:
         row = _load(conn, advisory_id)
         if row["status"] != "PENDING_REVIEW":
@@ -105,6 +135,8 @@ def approve(advisory_id: int, officer_name: str, final_message: str | None = Non
         cited = validate_citation(citation, json.loads(row["sources_json"] or "[]"))
         message = _final_text(final_message, row["farmer_message"], "English")
         message_sw = _final_text(final_message_sw, row["farmer_message_sw"], "Swahili")
+        # What the officer signs is exactly what goes out by SMS (plain punctuation, so it stays cheap).
+        message, message_sw = (sms_safe(message) if message else message), (sms_safe(message_sw) if message_sw else message_sw)
         texts = {"en": message, "sw": message_sw}
         missing = [lang for lang in langs if not (texts[lang] or "").strip()]
         if missing:
@@ -114,18 +146,29 @@ def approve(advisory_id: int, officer_name: str, final_message: str | None = Non
         conn.execute("UPDATE pending_advisories SET status='APPROVED', officer_signature=?, reviewed_at=?,"
                      " transmitted_at=?, farmer_message=?, farmer_message_sw=?, sent_languages=?, officer_citation=?"
                      " WHERE id=?", (officer, ts, ts, message, message_sw, ",".join(langs), cited, advisory_id))
+        # Always queued as SMS, whether or not the farmer uses the app: SMS needs no data and reaches any phone.
         outbox_ids = [conn.execute("INSERT INTO dispatch_outbox (advisory_id, household_id, message, language,"
-                                   " officer_signature, queued_at) VALUES (?,?,?,?,?,?)",
-                                   (advisory_id, row["household_id"], texts[lang], lang, officer, ts)).lastrowid
+                                   " officer_signature, queued_at, sms_parts) VALUES (?,?,?,?,?,?,?)",
+                                   (advisory_id, row["household_id"], texts[lang], lang, officer, ts,
+                                    sms_parts(texts[lang]))).lastrowid
                       for lang in langs]
         conn.execute("UPDATE tool_calls SET approved_by=? WHERE run_id=?", (officer, row["run_id"]))
     sent = {lang: texts[lang] for lang in langs}
+    voice = None
+    if call:
+        call_lang = "sw" if "sw" in langs else "en"
+        try:       # the advice is signed and its SMS queued; a call problem must not hide that
+            voice = voice_calls.queue_call(row["household_id"], sent[call_lang], call_lang, "advice", advisory_id,
+                                           officer)
+        except ApprovalError as exc:
+            voice = {"call_id": None, "status": "FAILED", "error": str(exc)}
     telemetry.record(row["run_id"], "officer", "approve_and_dispatch", {"advisory_id": advisory_id, "citation": cited},
-                     {"outbox_ids": outbox_ids, "channel": "SMS_SIMULATED", "messages": sent},
+                     {"outbox_ids": outbox_ids, "channel": "SMS_SIMULATED", "messages": sent,
+                      "call_id": voice and voice["call_id"]},
                      latency_ms=(time.perf_counter() - started) * 1000, actor=officer, approved_by=officer)
     return {"advisory_id": advisory_id, "run_id": row["run_id"], "status": "APPROVED", "officer": officer,
             "outbox_id": outbox_ids[0], "outbox_ids": outbox_ids, "languages": langs,
-            "message": sent.get("en") or sent["sw"], "messages": sent}
+            "message": sent.get("en") or sent["sw"], "messages": sent, "call": voice}
 
 
 def reject(advisory_id: int, officer_name: str, reason: str = "") -> dict:

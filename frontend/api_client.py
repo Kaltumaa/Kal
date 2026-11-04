@@ -45,10 +45,10 @@ def advisories(status: str | None = None):
 
 
 def approve(advisory_id: int, officer_name: str, final_message: str | None, citation: str,
-            final_message_sw: str | None = None, languages: list[str] | None = None):
+            final_message_sw: str | None = None, languages: list[str] | None = None, call: bool = False):
     return _req("POST", f"/advisories/{advisory_id}/approve",
                 json={"officer_name": officer_name, "final_message": final_message, "citation": citation,
-                      "final_message_sw": final_message_sw, "languages": languages or ["en"]})
+                      "final_message_sw": final_message_sw, "languages": languages or ["en"], "call": call})
 
 
 def reject(advisory_id: int, officer_name: str, reason: str):
@@ -78,6 +78,15 @@ def overview():
 
 def spray_groups() -> list[str]:
     return _req("GET", "/knowledge/spray-groups")
+
+
+def terrain_options() -> dict:
+    return _req("GET", "/knowledge/terrain")
+
+
+def set_terrain(household_id: str, slope: str, soil: str, officer_name: str, intercrop: str | None = None):
+    return _req("POST", f"/farms/{household_id}/terrain",
+                json={"slope": slope, "soil": soil, "intercrop": intercrop, "officer_name": officer_name})
 
 
 def knowledge_topics():
@@ -117,9 +126,21 @@ def scan_image(scan_id: int) -> bytes | None:
 
 
 def review_scan(scan_id: int, officer_name: str, decision: str, pest: str | None = None, severity: str = "MEDIUM",
-                note: str = ""):
+                note: str = "", finding: str | None = None, call: bool = False, call_script: str | None = None,
+                call_language: str = "sw"):
     return _req("POST", f"/scans/{scan_id}/review", json={"officer_name": officer_name, "decision": decision,
-                                                          "pest": pest, "severity": severity, "note": note})
+                                                          "pest": pest, "severity": severity, "note": note,
+                                                          "finding": finding, "call": call,
+                                                          "call_script": call_script, "call_language": call_language})
+
+
+def scan_groups():
+    return _req("GET", "/scans/groups")
+
+
+def review_scan_batch(scan_ids: list[int], officer_name: str, pest: str, severity: str, note: str):
+    return _req("POST", "/scans/review-batch", json={"scan_ids": scan_ids, "officer_name": officer_name,
+                                                     "pest": pest, "severity": severity, "note": note})
 
 
 def forum_topics():
@@ -130,8 +151,9 @@ def forum(topic: str | None = None):
     return _req("GET", "/forum", params={"topic": topic} if topic else None)
 
 
-def forum_post(author: str, topic: str, body: str):
-    return _req("POST", "/forum", json={"author": author, "topic": topic, "body": body})
+def forum_post(author: str, topic: str, body: str, zone_id: str | None = None, household_id: str | None = None):
+    return _req("POST", "/forum", json={"author": author, "topic": topic, "body": body, "zone_id": zone_id,
+                                        "household_id": household_id})
 
 
 def run_ward(zone_id: str):
@@ -187,11 +209,15 @@ def farm_actions(household_id: str):
 
 
 def log_farm_action(household_id: str, action: str, action_date: str, crop: str | None, details: str, role: str,
-                    name: str | None, chem_group: str | None = None, needs_weeding: bool | None = None):
+                    name: str | None, chem_group: str | None = None, needs_weeding: bool | None = None,
+                    soil_moist: bool | None = None, seed_check: str | None = None, as_intercrop: bool = False):
     return _req("POST", f"/farms/{household_id}/actions", json={"action": action, "action_date": action_date,
                                                                 "crop": crop, "details": details, "role": role,
                                                                 "name": name, "chem_group": chem_group,
-                                                                "needs_weeding": needs_weeding})
+                                                                "needs_weeding": needs_weeding,
+                                                                "soil_moist": soil_moist,
+                                                                "seed_check": seed_check,
+                                                                "as_intercrop": as_intercrop})
 
 
 def reminders(household_id: str):
@@ -218,9 +244,75 @@ def my_photos(household_id: str):
     return _req("GET", f"/farms/{household_id}/photos")
 
 
-def notifications(household_id: str):
-    return _req("GET", f"/farms/{household_id}/notifications")
+def notifications(household_id: str, seen: bool = False):
+    return _req("GET", f"/farms/{household_id}/notifications", params={"seen": seen})
+
+
+def set_language(household_id: str, language: str):
+    return _req("POST", f"/farms/{household_id}/language", json={"language": language})
 
 
 def problem(name: str):
     return _req("GET", "/knowledge/problem", params={"name": name})
+
+
+def community_reports():
+    return _req("GET", "/community/reports")
+
+
+def review_report(post_id: int, officer_name: str, decision: str, pest: str | None, severity: str,
+                  zone_id: str | None, note: str):
+    return _req("POST", f"/community/reports/{post_id}/review",
+                json={"officer_name": officer_name, "decision": decision, "pest": pest, "severity": severity,
+                      "zone_id": zone_id, "note": note})
+
+
+def sms_inbound(household_id: str, text: str):
+    return _req("POST", "/sms/inbound", json={"household_id": household_id, "text": text})
+
+
+def sms_messages(household_id: str | None = None):
+    return _req("GET", "/sms", params={"household_id": household_id} if household_id else None)
+
+
+def speech_status():
+    return _req("GET", "/speech/status")
+
+
+def transcribe(audio_b64: str, language: str | None):
+    # The first voice note loads the speech model, which can take a few minutes on a laptop.
+    return _req("POST", "/speech/transcribe", timeout=600, json={"audio_b64": audio_b64, "language": language})
+
+
+def cells():
+    return _req("GET", "/cells")
+
+
+def my_cell(household_id: str):
+    return _req("GET", f"/farms/{household_id}/cell")
+
+
+def cell_photo(lead_id: str, neighbour_id: str, image_b64: str):
+    return _req("POST", f"/farms/{lead_id}/cell/photos", json={"neighbour_id": neighbour_id, "image_b64": image_b64},
+                timeout=600)
+
+
+def set_contact(household_id: str, officer_name: str, phone: str | None, phone_type: str | None, cell_id: str | None):
+    return _req("POST", f"/farms/{household_id}/contact", json={"officer_name": officer_name, "phone": phone,
+                                                                 "phone_type": phone_type, "cell_id": cell_id})
+
+
+def integrations():
+    return _req("GET", "/integrations", timeout=10)
+
+
+def voice_calls(household_id: str | None = None):
+    return _req("GET", "/voice/calls", params={"household_id": household_id} if household_id else None)
+
+
+def retry_call(call_id: int):
+    return _req("POST", f"/voice/calls/{call_id}/retry")
+
+
+def simulate_call(call_id: int, answer: bool, digit: str | None):
+    return _req("POST", f"/voice/calls/{call_id}/simulate", json={"answer": answer, "digit": digit})

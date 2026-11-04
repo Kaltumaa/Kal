@@ -25,6 +25,47 @@ h1, h2, h3 {letter-spacing: -0.01em;}
 .t-green {background: #DCF5E5; color: #14632F;} .t-orange {background: #FFF1D6; color: #8A5300;}
 .t-red {background: #FDE2E2; color: #A12A2A;} .t-gray {background: #EEF1EC; color: #4B5B51;}
 .cp-muted {color: #66756B; font-size: 0.85rem;}
+.cp-wgrid {display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; margin: 4px 0 8px;}
+.cp-ward {background: #fff; border: 1px solid #E4E9E2; border-top: 4px solid var(--accent, #1F7A4D);
+          border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;}
+.cp-ward .wh {display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;}
+.cp-ward .wn {font-weight: 800; font-size: 1.08rem; color: #1B2A21;}
+.cp-ward .why {color: #4B5B51; font-size: 0.85rem; line-height: 1.45;}
+.cp-stats {display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;}
+.cp-stat {background: #F6F8F5; border-radius: 10px; padding: 7px 10px; min-width: 0;}
+.cp-stat b {display: block; font-size: 1.02rem; color: #1B2A21; white-space: nowrap;}
+.cp-stat span {font-size: 0.68rem; color: #66756B; text-transform: uppercase; letter-spacing: .04em; font-weight: 600;}
+.cp-row {font-size: 0.83rem; color: #33443A; line-height: 1.6;}
+.cp-row .lbl {color: #66756B; font-weight: 600; margin-right: 6px; display: inline-block; min-width: 64px;}
+.cp-chip {display: inline-block; background: #EEF4EF; color: #1F5B3B; border-radius: 999px; padding: 1px 9px;
+          margin: 2px 4px 2px 0; font-size: 0.77rem; font-weight: 600;}
+.cp-chip.red {background: #FDE2E2; color: #A12A2A;} .cp-chip.ok {background: #DCF5E5; color: #14632F;}
+.cp-chip.gray {background: #EEF1EC; color: #66756B;}
+.cp-legend {display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.8rem; color: #4B5B51; margin: 6px 0 2px;}
+.cp-legend i {display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px;}
+.cp-callout {background: #F3F8F4; border-left: 4px solid #1F7A4D; border-radius: 8px; padding: 10px 14px;
+             font-size: 0.86rem; color: #2B3B31; margin: 6px 0;}
+.cp-callout.warn {background: #FFF6E6; border-left-color: #D98E04;}
+.cp-crops {display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 4px 0 8px;}
+.cp-cropcard {background: #fff; border: 1px solid #E4E9E2; border-radius: 14px; padding: 12px 14px;
+              display: flex; flex-direction: column; gap: 6px;}
+.cp-cropcard .cn {font-weight: 800; font-size: 1rem; color: #1B2A21;}
+.cp-cropcard .meta {font-size: 0.8rem; color: #66756B;}
+.cp-prog {height: 7px; background: #EEF1EC; border-radius: 99px; overflow: hidden;}
+.cp-prog span {display: block; height: 100%; background: #1F7A4D; border-radius: 99px;}
+.cp-seasons {display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 6px;}
+.cp-season {background: #fff; border: 1px solid #E4E9E2; border-radius: 12px; padding: 6px 12px; text-align: center;}
+.cp-season.now {border-color: #1F7A4D; background: #EEF6F0;}
+.cp-season small {display: block; font-size: 0.68rem; color: #66756B; text-transform: uppercase; letter-spacing: .04em;}
+.cp-season b {font-size: 0.88rem; color: #1B2A21;}
+.cp-arrow {color: #A3B1A7; font-size: 1.1rem;}
+.cp-log {border-left: 2px solid #DDE6DF; margin-left: 8px; padding-left: 0;}
+.cp-entry {position: relative; padding: 2px 0 12px 22px;}
+.cp-entry::before {content: ""; position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%;
+                   background: var(--dot, #1F7A4D); border: 2px solid #fff; box-shadow: 0 0 0 1px #DDE6DF;}
+.cp-entry .t {font-weight: 700; color: #1B2A21; font-size: 0.9rem;}
+.cp-entry .d {color: #66756B; font-size: 0.78rem;}
+.cp-entry .x {color: #33443A; font-size: 0.85rem; margin-top: 2px;}
 .cp-status {font-size: 0.78rem; color: #66756B; line-height: 1.7;}
 .cp-dot {display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px;}
 .ok {background: #22A06B;} .warn {background: #E2A100;} .bad {background: #D64545;}
@@ -93,9 +134,55 @@ FLAG_TEXT = {
 }
 
 
-SPRAY_COLOUR = {"NO_RAIN": "red", "NO_WIND": "orange", "CAREFUL": "orange", "OK": "green"}
+SPRAY_COLOUR = {"NO_RAIN": "red", "RAIN_SOON": "orange", "NO_WIND": "orange", "CAREFUL": "orange", "OK": "green"}
 OLD_SPRAY_LABEL = {"UNSAFE": ("Don't spray (rain)", "red"), "CAUTION": ("Careful: only if no rain for 6 h", "orange"),
                    "SAFE": ("OK", "green")}
+
+
+def voice_note(key: str) -> dict | None:
+    """A record button: the farmer picks the language they will speak, records, and gets text to check.
+    Returns the transcription (text, suggested_action) once, or None."""
+    import base64
+
+    import api_client as api
+    with st.expander("🎙️ Record a voice note instead of typing", expanded=False):
+        try:
+            status = api.speech_status()
+        except api.ApiError:
+            status = {"available": False}
+        if not status.get("available"):
+            st.caption("Voice notes need the speech model on this computer. Type your note below instead.")
+            return None
+        c = st.columns([1, 2], vertical_alignment="bottom")
+        lang = c[0].selectbox("I will speak in", ["sw", "en", "auto"], key=f"{key}-lang",
+                              format_func={"sw": "Kiswahili", "en": "English", "auto": "Let the app detect"}.get)
+        audio = c[1].audio_input("Record", key=f"{key}-audio")
+        st.caption("The recording is turned into text on this computer and nothing is saved until you press Save. "
+                   "Sheng and other local languages are not supported yet. The first recording takes longer while "
+                   "the speech model loads.")
+        if audio is not None and st.button("Turn my voice into text", key=f"{key}-go", icon=":material/subtitles:"):
+            with st.spinner("Listening…"):
+                try:
+                    r = api.transcribe(base64.b64encode(audio.getvalue()).decode(), None if lang == "auto" else lang)
+                except api.ApiError as exc:
+                    st.error(str(exc.detail))
+                    return None
+            if r.get("flagged") or not r.get("text"):
+                st.warning("No usable text came out of that recording. Try again closer to the phone, or type it.")
+                return None
+            st.success(f"Heard: “{r['text']}”. Check it in the box below and edit it before saving.")
+            return r
+    return None
+
+
+def language_defaults(plot: dict) -> tuple[bool, bool, str]:
+    """(send English, send Kiswahili, caption) from the farmer's preferred language and when they last used the app."""
+    pref = plot.get("language") or "en"
+    seen = plot.get("farmer_last_seen")
+    words = {"en": "English", "sw": "Kiswahili", "both": "English and Kiswahili"}[pref]
+    app = f"last opened the app {seen[:10]}" if seen else "has not opened the app"
+    return (pref in ("en", "both"), pref in ("sw", "both"),
+            f"Farmer prefers **{words}** and {app}. The message goes by SMS either way (no internet needed).")
 
 
 def spray_status(z: dict) -> tuple[str, str]:
@@ -175,3 +262,29 @@ def suggested_citation(adv: dict, field_log: list[dict] | None = None) -> str:
     if field_log:
         parts.append(f"plot history entry ID: {field_log[0]['id']}")
     return "Citing " + ", ".join(parts) if parts else ""
+
+
+def search_markdown(md: str, query: str) -> str | None:
+    """The parts of a guide that mention the search words: matching sections, and only the matching rows of a
+    table (with its header). None if nothing matches."""
+    words = [w for w in query.lower().split() if w]
+    hit = lambda text: all(w in text.lower() for w in words)              # noqa: E731
+    sections, cur = [], []
+    for line in md.splitlines():
+        if line.startswith("#") and cur:
+            sections.append(cur)
+            cur = []
+        cur.append(line)
+    sections.append(cur)
+    out = []
+    for sec in sections:
+        if not hit("\n".join(sec)):
+            continue
+        head = [l for l in sec if l.startswith("#")]
+        table = [l for l in sec if l.lstrip().startswith("|")]
+        rows = [l for l in table[2:] if hit(l)]
+        if table and rows and not hit("\n".join(l for l in sec if l not in table)):
+            out.append("\n".join(head + [""] + table[:2] + rows))       # just the matching table rows
+        else:
+            out.append("\n".join(sec))
+    return "\n\n".join(out) if out else None

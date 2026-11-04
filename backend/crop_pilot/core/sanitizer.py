@@ -87,9 +87,21 @@ def normalise_crop(value: object) -> str | None:
     return CROP_ALIASES[match[0]] if match else None
 
 
+def normalise_seasons(value: object) -> list[list[str]]:
+    """Past seasons, oldest first, each a list of the crops grown together ("Maize+Beans>Kale" ->
+    [["Maize", "Beans"], ["Kale"]]). Seasons are split by > , ; / |; crops in one season by + & "and" "na"."""
+    seasons = []
+    for part in re.split(r"[>,;/|]+", normalise_text(value)):
+        crops = [c for c in (normalise_crop(x) for x in re.split(r"\s*(?:\+|&|\band\b|\bna\b)\s*", part, flags=re.I))
+                 if c]
+        if crops:
+            seasons.append(list(dict.fromkeys(crops)))
+    return seasons
+
+
 def normalise_history(value: object) -> list[str]:
-    parts = re.split(r"[>,;/|]+", normalise_text(value))
-    return [c for c in (normalise_crop(p) for p in parts) if c]
+    """The main (first-named) crop of each past season, for crop-rotation checks."""
+    return [s[0] for s in normalise_seasons(value)]
 
 
 def normalise_zone(value: object) -> str | None:
@@ -228,6 +240,27 @@ def scrub_plot(row: dict | None, today: date | None = None) -> dict:
     if hits:
         quality.append("prompt-injection pattern found in field notes; notes redacted")
 
+    # Terrain is a pick-list on the officer's visit form; anything else (typos, old free text) counts as unknown.
+    slope = normalise_text(row.get("slope")).lower() or None
+    soil = normalise_text(row.get("soil")).lower() or None
+    if slope and slope not in config.SLOPES:
+        quality.append(f"slope {row.get('slope')!r} not recognised; ignored")
+        slope = None
+    if soil and soil not in config.SOILS:
+        quality.append(f"soil {row.get('soil')!r} not recognised; ignored")
+        soil = None
+
+    companions = []
+    for raw_c in re.split(r"[,;+]", normalise_text(row.get("intercrop"))):
+        if not raw_c.strip():
+            continue
+        c = normalise_crop(raw_c)
+        if c is None or c == crop:
+            quality.append(f"companion crop {raw_c.strip()!r} not recognised; ignored")
+        elif c not in companions:
+            companions.append(c)
+    intercrop = companions[0] if companions else None
+
     profile_complete = bool(crop) and bool(zone)
     if not profile_complete:
         quality.append("profile incomplete: needs active crop and zone before any advice")
@@ -241,10 +274,17 @@ def scrub_plot(row: dict | None, today: date | None = None) -> dict:
         "lon": lon,
         "active_crop": crop,
         "crop_history": history,
+        "seasons": normalise_seasons(row.get("crop_history")),
         "planting_date": planted.isoformat() if planted else None,
         "days_since_planting": days,
         "growth_stage": stage,
         "field_notes": notes,
+        "slope": slope,
+        "soil": soil,
+        "intercrop": intercrop,
+        "companions": companions,
+        "language": row.get("language") if row.get("language") in ("en", "sw", "both") else None,
+        "farmer_last_seen": normalise_text(row.get("farmer_last_seen"))[:32] or None,
         "injection_detected": bool(hits),
         "injection_patterns": hits,
         "profile_complete": profile_complete,

@@ -27,7 +27,24 @@ CREATE TABLE IF NOT EXISTS plots (
     growth_stage        TEXT,            -- as recorded; the agent re-derives it
     field_notes         TEXT,            -- unformatted narrative (prompt-injection surface)
     is_synthetic        INTEGER NOT NULL DEFAULT 1,
-    farmer_name         TEXT             -- invented name for the demo; never a real person
+    farmer_name         TEXT,            -- invented name for the demo; never a real person
+    slope               TEXT,            -- flat | gentle | terraced | steep (officer, on a field visit)
+    soil                TEXT,            -- red loam | black cotton | sandy loam | clay loam
+    intercrop           TEXT,            -- companion crop grown in the same plot (e.g. beans under maize)
+    language            TEXT,            -- farmer's message language: en | sw | both (NULL = English)
+    farmer_last_seen    TEXT,            -- last time the farmer opened their notifications in the app
+    cell_id             TEXT,            -- Nyumba Kumi cell (nyumba_cells.cell_id)
+    phone               TEXT,            -- +2547XXXXXXXX; demo numbers are fake (+25470000xxxx)
+    phone_type          TEXT             -- smartphone | feature (no data: reached by SMS and voice call)
+);
+
+-- Nyumba Kumi cells: up to ten neighbouring households. The lead farmer has a smartphone and sends photos for
+-- neighbours who do not; the officer still reviews everything.
+CREATE TABLE IF NOT EXISTS nyumba_cells (
+    cell_id           TEXT PRIMARY KEY,
+    name              TEXT NOT NULL,
+    zone_id           TEXT NOT NULL,
+    lead_household_id TEXT NOT NULL
 );
 
 -- Farmer's own reminders. Not logged when created; ticking one done adds a field-log entry (and an audit line).
@@ -56,7 +73,9 @@ CREATE TABLE IF NOT EXISTS plot_actions (
     entered_by      TEXT NOT NULL,
     created_at      TEXT NOT NULL,
     chem_group      TEXT,             -- SPRAYING only: mode-of-action group, for resistance rotation
-    needs_weeding   INTEGER           -- OBSERVATION only: 1 = plot needs weeding before planting, 0 = clean
+    needs_weeding   INTEGER,          -- OBSERVATION only: 1 = plot needs weeding before planting, 0 = clean
+    soil_moist      INTEGER,          -- OBSERVATION only: 1 = soil moist to a hand's depth (~15 cm), 0 = not yet
+    seed_check      TEXT              -- VARIETY/PLANTING: KEPHIS label SMS result VERIFIED | FAILED | NOT_CHECKED
 );
 
 -- 2. Regional incident registry
@@ -85,7 +104,11 @@ CREATE TABLE IF NOT EXISTS weather_cache (
     runoff_coeff      REAL NOT NULL DEFAULT 0.3,   -- soil/slope runoff coefficient 0..1
     source            TEXT,
     issued_at         TEXT NOT NULL,
-    wind_kmh          REAL                          -- forecast wind for the spray window
+    wind_kmh          REAL,                         -- forecast wind for the spray window
+    peak_rain_mm_h    REAL,                         -- heaviest hour of rain in the last 72 h (intensity)
+    peak_rain_at      TEXT,                         -- its date: past = observed, today or later = forecast
+    dry_spell_days_ahead REAL,                      -- longest dry run in the 2-week outlook after this week
+    dry_hours_ahead   REAL                          -- hours until the next forecast rain (rain-fastness of a spray)
 );
 
 -- 4. Performance / audit trace. Every agent action and every human decision lands here.
@@ -146,13 +169,14 @@ CREATE TABLE IF NOT EXISTS dispatch_outbox (
     message           TEXT NOT NULL,
     language          TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en','sw')),
     officer_signature TEXT NOT NULL CHECK (length(trim(officer_signature)) >= 5),
-    queued_at         TEXT NOT NULL
+    queued_at         TEXT NOT NULL,
+    sms_parts         INTEGER           -- how many SMS segments the message takes
 );
 """
 
 # Dagoretti South wards (real place names, synthetic numbers).
 WEATHER = [
-    # zone, lat, lon, 24h, 72h, 7d, storm, runoff, source, issued, wind km/h
+    # zone, lat, lon, 24h, 72h, 7d, storm, runoff, source, issued, wind km/h  (peak intensity: PEAK_RAIN below)
     ("RIRUTA", -1.2850, 36.7350, 1.5, 7.0, 31.0, "LOW", 0.35, "CHIRPS-style synthetic outlook", "2026-10-14", 22.0),
     ("WAITHAKA", -1.2780, 36.7120, 34.0, 82.0, 120.0, "HIGH", 0.45, "CHIRPS-style synthetic outlook", "2026-10-14",
      18.0),
@@ -163,6 +187,16 @@ WEATHER = [
 ]
 WEATHER_COLUMNS = ("zone_id, centroid_lat, centroid_lon, rain_24h_mm, rain_72h_mm, rain_7d_mm, storm_risk, "
                    "runoff_coeff, source, issued_at, wind_kmh")
+
+# Heaviest hour of rain and its date (synthetic): past dates are observed, today or later are forecast. Uthiru has a
+# violent thunderstorm forecast for tomorrow; Waithaka's already fell.
+PEAK_RAIN = {"RIRUTA": (6.0, "2026-10-13"), "WAITHAKA": (48.0, "2026-10-14"), "MUTUINI": (2.0, "2026-10-12"),
+             "NGANDO": (3.0, "2026-10-13"), "UTHIRU": (42.0, "2026-10-16")}
+# Longest dry run (days) in the 2-week outlook after this week (synthetic). Mutuini's rain is followed by a dry spell.
+DRY_SPELL_AHEAD = {"RIRUTA": 4, "WAITHAKA": 2, "MUTUINI": 12, "NGANDO": 9, "UTHIRU": 5}
+# Hours until the next forecast rain (synthetic, short-range forecast). Every ward has a dry spraying window today
+# except Waithaka, which is already on a washout hold.
+DRY_HOURS_AHEAD = {"RIRUTA": 14, "WAITHAKA": 3, "MUTUINI": 20, "NGANDO": 18, "UTHIRU": 9}
 
 PLOTS = [
     # Task 1 – clean baseline: beans not yet planted, short-rains onset -> PLANT
@@ -196,6 +230,21 @@ PLOTS = [
     # Demo – tomato under verified late blight in a windy ward: SPRAY would drift, so HOLD until the wind drops
     ("HH-DS-010", "RIRUTA", "-1.2858", "36.7366", "Kale>Beans", "Tomato", "2026-08-30", "46",
      "VEGETATIVE_FLOWERING", "Staked tomatoes, first trusses setting.", 1),
+    # Demo – beans on a steep, unterraced slope in Riruta: plants with Peter, but along the contour with tied ridges
+    ("HH-DS-011", "RIRUTA", "-1.2836", "36.7381", "Beans>Maize", "Beans", "", "not planted",
+     "PRE_PLANTING", "Plot on the hillside above the stream, no terraces yet.", 1),
+    # Demo – sorghum ready to sow in Uthiru, but a 42 mm/h thunderstorm is forecast tomorrow -> sow after it
+    ("HH-DS-012", "UTHIRU", "-1.2644", "36.7171", "Sorghum>Beans", "Sorghum", "", "not planted",
+     "PRE_PLANTING", "Land dug last week, left bare.", 1),
+    # Demo – maize with beans in the same plot, Ngando (season expected below normal): layout tip for a dry season
+    ("HH-DS-013", "NGANDO", "-1.3011", "36.7288", "Maize+Beans>Maize+Beans", "Maize", "", "not planted",
+     "PRE_PLANTING", "Grows maize and beans together every season.", 1),
+    # Demo – beans just up in Uthiru, no bean fly report near: risk window, so scout twice a week (no spray ahead of it)
+    ("HH-DS-015", "UTHIRU", "-1.2671", "36.7139", "Maize>Beans>Maize", "Beans", "2026-10-08", "7",
+     "EMERGENCE", "Beans coming up evenly, no damage seen yet.", 1),
+    # Demo – cowpeas in Mutuini: enough rain this week, but 12 dry days follow in the outlook -> false start, HOLD
+    ("HH-DS-014", "MUTUINI", "-1.2911", "36.6992", "Maize>Beans", "Cowpeas", "", "not planted",
+     "PRE_PLANTING", "Seed bought, land ready.", 1),
 ]
 
 PESTS = [
@@ -217,6 +266,9 @@ ACTIONS_SEED = [
      "2026-04-02T07:00:00+00:00", "Pyrethroids (IRAC 3A)"),
     ("HH-DS-003", "SPRAYING", "2026-04-20", "Maize", "Second spray, damage still on some plants", "farmer",
      "Grace Wanjiku", "2026-04-20T07:00:00+00:00", "Pyrethroids (IRAC 3A)"),
+    # John keeps a kale strip along the plot edge, planted before his maize and beans: several crops at once.
+    ("HH-DS-013", "PLANTING", "2026-09-20", "Kale", "Kale strip along the edge of the plot", "farmer",
+     "John Otieno", "2026-09-20T07:00:00+00:00", None),
 ]
 
 
@@ -225,8 +277,29 @@ FARMER_NAMES = {
     "HH-DS-001": "Peter Njoroge", "HH-DS-002": "Mary Achieng", "HH-DS-003": "Grace Wanjiku",
     "HH-DS-004": "Joseph Ouma", "HH-DS-005": "Agnes Muthoni", "HH-DS-006": "Samuel Kiprono",
     "HH-DS-007": "Esther Nduta", "HH-DS-008": "David Mwangi", "HH-DS-009": "Ruth Wairimu",
-    "HH-DS-010": "Lucy Wambui",
+    "HH-DS-010": "Lucy Wambui", "HH-DS-011": "Daniel Kamau", "HH-DS-012": "Faith Akinyi",
+    "HH-DS-013": "John Otieno", "HH-DS-014": "Rose Chebet", "HH-DS-015": "Paul Mutua",
 }
+# Message language each farmer prefers (synthetic); the rest default to English.
+LANGUAGE_PREF = {"HH-DS-003": "sw", "HH-DS-002": "both", "HH-DS-014": "sw"}
+# Companion crop grown in the same plot (synthetic).
+INTERCROP = {"HH-DS-001": "Maize", "HH-DS-002": "Beans", "HH-DS-013": "Beans"}
+# Terrain recorded on the officer's last visit (synthetic): slope, soil.
+TERRAIN = {
+    "HH-DS-001": ("flat", "red loam"), "HH-DS-002": ("gentle", "red loam"), "HH-DS-003": ("gentle", "red loam"),
+    "HH-DS-004": ("flat", "black cotton"), "HH-DS-006": ("gentle", "red loam"), "HH-DS-007": ("terraced", "clay loam"),
+    "HH-DS-008": ("flat", "black cotton"), "HH-DS-009": ("flat", "red loam"), "HH-DS-010": ("gentle", "sandy loam"),
+    "HH-DS-011": ("steep", "red loam"), "HH-DS-012": ("flat", "red loam"), "HH-DS-013": ("gentle", "red loam"),
+    "HH-DS-014": ("gentle", "red loam"), "HH-DS-015": ("gentle", "red loam"),
+}
+# Nyumba Kumi cells (synthetic). Lead farmers have smartphones; most neighbours have feature phones.
+CELLS = [("RIR-1", "Riruta cell 1", "RIRUTA", "HH-DS-001"), ("UTH-1", "Uthiru cell 1", "UTHIRU", "HH-DS-015")]
+CELL_MEMBERS = {"HH-DS-001": "RIR-1", "HH-DS-005": "RIR-1", "HH-DS-006": "RIR-1", "HH-DS-009": "RIR-1",
+                "HH-DS-010": "RIR-1", "HH-DS-011": "RIR-1", "HH-DS-015": "UTH-1", "HH-DS-007": "UTH-1",
+                "HH-DS-012": "UTH-1"}
+FEATURE_PHONES = {"HH-DS-005", "HH-DS-009", "HH-DS-011", "HH-DS-007", "HH-DS-012", "HH-DS-003", "HH-DS-014"}
+# Fake numbers in a block no Kenyan operator uses for customers; never a real person's number.
+PHONES = {f"HH-DS-{i:03d}": f"+25470000{i:04d}" for i in range(1, 16)}
 PLOT_COLUMNS = ("household_id, zone_id, lat, lon, crop_history, active_crop, planting_date, days_since_planting, "
                 "growth_stage, field_notes, is_synthetic")
 
@@ -237,32 +310,53 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     columns = {r[1] for r in conn.execute("PRAGMA table_info(plots)")}
     if "farmer_name" not in columns:
         conn.execute("ALTER TABLE plots ADD COLUMN farmer_name TEXT")
-    if "wind_kmh" not in {r[1] for r in conn.execute("PRAGMA table_info(weather_cache)")}:
-        conn.execute("ALTER TABLE weather_cache ADD COLUMN wind_kmh REAL")
+    for col in ("slope", "soil", "intercrop", "language", "farmer_last_seen", "cell_id", "phone", "phone_type"):
+        if col not in columns:
+            conn.execute(f"ALTER TABLE plots ADD COLUMN {col} TEXT")
+    weather_cols = {r[1] for r in conn.execute("PRAGMA table_info(weather_cache)")}
+    for col, kind in (("wind_kmh", "REAL"), ("peak_rain_mm_h", "REAL"), ("peak_rain_at", "TEXT"),
+                      ("dry_spell_days_ahead", "REAL"), ("dry_hours_ahead", "REAL")):
+        if col not in weather_cols:
+            conn.execute(f"ALTER TABLE weather_cache ADD COLUMN {col} {kind}")
     action_cols = {r[1] for r in conn.execute("PRAGMA table_info(plot_actions)")}
     if "chem_group" not in action_cols:
         conn.execute("ALTER TABLE plot_actions ADD COLUMN chem_group TEXT")
-    if "needs_weeding" not in action_cols:
-        conn.execute("ALTER TABLE plot_actions ADD COLUMN needs_weeding INTEGER")
+    for col in ("needs_weeding", "soil_moist"):
+        if col not in action_cols:
+            conn.execute(f"ALTER TABLE plot_actions ADD COLUMN {col} INTEGER")
+    if "seed_check" not in action_cols:
+        conn.execute("ALTER TABLE plot_actions ADD COLUMN seed_check TEXT")
     adv_columns = {r[1] for r in conn.execute("PRAGMA table_info(pending_advisories)")}
     if "officer_citation" not in adv_columns:
         conn.execute("ALTER TABLE pending_advisories ADD COLUMN officer_citation TEXT")
     for col in ("farmer_message_sw", "sent_languages"):
         if col not in adv_columns:
             conn.execute(f"ALTER TABLE pending_advisories ADD COLUMN {col} TEXT")
-    if "language" not in {r[1] for r in conn.execute("PRAGMA table_info(dispatch_outbox)")}:
+    outbox_cols = {r[1] for r in conn.execute("PRAGMA table_info(dispatch_outbox)")}
+    if "language" not in outbox_cols:
         conn.execute("ALTER TABLE dispatch_outbox ADD COLUMN language TEXT NOT NULL DEFAULT 'en'"
                      " CHECK (language IN ('en','sw'))")
+    if "sms_parts" not in outbox_cols:
+        conn.execute("ALTER TABLE dispatch_outbox ADD COLUMN sms_parts INTEGER")
     for hid, name in FARMER_NAMES.items():
         conn.execute("UPDATE plots SET farmer_name = ? WHERE household_id = ? AND farmer_name IS NULL", (name, hid))
 
 
 def seed_missing(conn: sqlite3.Connection) -> None:
-    """Add demo rows that an older (synthetic) database is missing: new farms, wind speeds, alerts, seeded sprays.
+    """Add demo rows that an older (synthetic) database is missing: new farms, wind speeds, alerts, seeded sprays, terrain.
     Never overwrites: existing farms, alerts and anything users added are left as they are."""
     conn.executemany(f"INSERT OR IGNORE INTO plots ({PLOT_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)", PLOTS)
     for row in WEATHER:
         conn.execute("UPDATE weather_cache SET wind_kmh = ? WHERE zone_id = ? AND wind_kmh IS NULL", (row[10], row[0]))
+    for zone, (peak, at) in PEAK_RAIN.items():
+        conn.execute("UPDATE weather_cache SET peak_rain_mm_h = ?, peak_rain_at = ? WHERE zone_id = ? "
+                     "AND peak_rain_mm_h IS NULL", (peak, at, zone))
+    for zone, days in DRY_SPELL_AHEAD.items():
+        conn.execute("UPDATE weather_cache SET dry_spell_days_ahead = ? WHERE zone_id = ? "
+                     "AND dry_spell_days_ahead IS NULL", (days, zone))
+    for zone, hours in DRY_HOURS_AHEAD.items():
+        conn.execute("UPDATE weather_cache SET dry_hours_ahead = ? WHERE zone_id = ? AND dry_hours_ahead IS NULL",
+                     (hours, zone))
     for row in PESTS:
         if conn.execute("SELECT 1 FROM pest_alerts WHERE zone_id=? AND pest=? AND reported_at=? AND source=?",
                         (row[0], row[1], row[7], row[8])).fetchone() is None:
@@ -275,6 +369,20 @@ def seed_missing(conn: sqlite3.Connection) -> None:
                          "entered_by_role, entered_by, created_at, chem_group) VALUES (?,?,?,?,?,?,?,?,?)", row)
     for hid, name in FARMER_NAMES.items():
         conn.execute("UPDATE plots SET farmer_name = ? WHERE household_id = ? AND farmer_name IS NULL", (name, hid))
+    for hid, (slope, soil) in TERRAIN.items():
+        conn.execute("UPDATE plots SET slope = ?, soil = ? WHERE household_id = ? AND slope IS NULL AND soil IS NULL",
+                     (slope, soil, hid))
+    for hid, lang in LANGUAGE_PREF.items():
+        conn.execute("UPDATE plots SET language = ? WHERE household_id = ? AND language IS NULL", (lang, hid))
+    for hid, crop in INTERCROP.items():
+        conn.execute("UPDATE plots SET intercrop = ? WHERE household_id = ? AND intercrop IS NULL", (crop, hid))
+    conn.executemany("INSERT OR IGNORE INTO nyumba_cells (cell_id, name, zone_id, lead_household_id) VALUES (?,?,?,?)",
+                     CELLS)
+    for hid, cell in CELL_MEMBERS.items():
+        conn.execute("UPDATE plots SET cell_id = ? WHERE household_id = ? AND cell_id IS NULL", (cell, hid))
+    for hid, phone in PHONES.items():
+        conn.execute("UPDATE plots SET phone = ?, phone_type = ? WHERE household_id = ? AND phone IS NULL",
+                     (phone, "feature" if hid in FEATURE_PHONES else "smartphone", hid))
 
 
 def init_db(path: Path | None = None, reset: bool = False) -> Path:

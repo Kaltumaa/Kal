@@ -23,7 +23,8 @@ def list_actions(household_id: str) -> list[dict]:
 
 def log_action(household_id: str, action: str, action_date: str, crop: str | None, details: str,
                role: str, name: str | None, chem_group: str | None = None,
-               needs_weeding: bool | None = None) -> dict:
+               needs_weeding: bool | None = None, soil_moist: bool | None = None,
+               seed_check: str | None = None, as_intercrop: bool = False) -> dict:
     action = (action or "").upper()
     if action not in ACTIONS:
         raise ApprovalError(f"Action must be one of {ACTIONS}.")
@@ -43,6 +44,10 @@ def log_action(household_id: str, action: str, action_date: str, crop: str | Non
         raise ApprovalError("A product group is only for spraying, and must be one from the list.")
     if needs_weeding is not None and action != "OBSERVATION":
         raise ApprovalError("'Needs weeding' is only for observations.")
+    if soil_moist is not None and action != "OBSERVATION":
+        raise ApprovalError("'Soil moist' is only for observations.")
+    if seed_check is not None and (action not in ("VARIETY", "PLANTING") or seed_check not in config.SEED_CHECKS):
+        raise ApprovalError(f"A seed label check is only for seed or planting entries, one of {config.SEED_CHECKS}.")
     with connect() as conn:
         farm = conn.execute("SELECT * FROM plots WHERE household_id = ?", (household_id,)).fetchone()
         if farm is None:
@@ -54,14 +59,23 @@ def log_action(household_id: str, action: str, action_date: str, crop: str | Non
         else:
             raise ApprovalError("Unknown role.")
         cur = conn.execute("INSERT INTO plot_actions (household_id, action, action_date, crop, details, "
-                           "entered_by_role, entered_by, created_at, chem_group, needs_weeding) "
-                           "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                           "entered_by_role, entered_by, created_at, chem_group, needs_weeding, soil_moist, "
+                           "seed_check) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                            (household_id, action, when.isoformat(), crop_name, text, role, who, telemetry.now_iso(),
-                            chem_group or None, None if needs_weeding is None else int(bool(needs_weeding))))
-        if action == "PLANTING":
+                            chem_group or None, None if needs_weeding is None else int(bool(needs_weeding)),
+                            None if soil_moist is None else int(bool(soil_moist)), seed_check))
+        if action == "PLANTING" and as_intercrop:
+            # Planted alongside the main crop: added to the companion crops; the main crop's record is untouched.
+            current = [c for c in (farm["intercrop"] or "").split(",") if c.strip()]
+            if crop_name != farm["active_crop"] and crop_name not in current:
+                current.append(crop_name)
+            conn.execute("UPDATE plots SET intercrop = ? WHERE household_id = ?", (",".join(current) or None,
+                                                                                    household_id))
+        elif action == "PLANTING":
             conn.execute("UPDATE plots SET active_crop = ?, planting_date = ?, days_since_planting = NULL, "
                          "growth_stage = NULL WHERE household_id = ?", (crop_name, when.isoformat(), household_id))
     telemetry.record(f"plot-{household_id}", role, "log_plot_action",
                      {"household_id": household_id, "action": action, "date": when.isoformat(), "crop": crop_name},
                      {"action_id": cur.lastrowid}, latency_ms=0, actor=who)
-    return {"action_id": cur.lastrowid, "action": action, "entered_by": who, "updated_record": action == "PLANTING"}
+    return {"action_id": cur.lastrowid, "action": action, "entered_by": who, "updated_record": action == "PLANTING",
+            "as_intercrop": action == "PLANTING" and bool(as_intercrop)}

@@ -196,14 +196,18 @@ def suitability(season_rain_mm: float, mean_temp_c: float, soil: str | None, gre
         rain_ok = under_cover or lo <= season_rain_mm <= hi
         rain_text = ("Watered under cover" if under_cover else
                      f"{season_rain_mm:.0f} mm rain (needs {lo:.0f}–{hi:.0f})" if rain_ok else
-                     f"{season_rain_mm:.0f} mm rain: {lo - season_rain_mm:.0f} mm short (needs {lo:.0f}+)"
-                     if season_rain_mm < lo else f"{season_rain_mm:.0f} mm rain: too wet (max {hi:.0f})")
+                     f"Not enough rain: {season_rain_mm:.0f} mm this season, it needs at least {lo:.0f} mm. Water "
+                     "it, or choose a drought-tolerant crop" if season_rain_mm < lo else
+                     f"Too much rain: {season_rain_mm:.0f} mm this season, it does best under {hi:.0f} mm. Plant on "
+                     "raised beds")
         temp_ok = tlo <= mean_temp_c <= thi
+        cover = " A greenhouse can help." if c["greenhouse"] in ("best", "yes") and mean_temp_c < tlo else ""
         temp_text = (f"{mean_temp_c:.1f} °C (best {tlo:.0f}–{thi:.0f})" if temp_ok else
-                     f"{mean_temp_c:.1f} °C: {'too cool' if mean_temp_c < tlo else 'too warm'} (best {tlo:.0f}–{thi:.0f})")
+                     f"{'Too cool' if mean_temp_c < tlo else 'Too warm'} here: about {mean_temp_c:.0f} °C on average, "
+                     f"it grows best at {tlo:.0f}–{thi:.0f} °C, so it grows slower and yields less.{cover}")
         soil_ok = not soil or soil in c["soils"]
         soil_text = (f"{(soil or 'any soil').capitalize()} suits it" if soil_ok else
-                     f"{soil.capitalize()}: prefers {', '.join(c['soils'])}")
+                     f"{soil.capitalize()} is not its best soil: it prefers {', '.join(c['soils'])}")
         checks = [{"kind": "rain", "ok": rain_ok, "text": rain_text},
                   {"kind": "temp", "ok": temp_ok, "text": temp_text},
                   {"kind": "soil", "ok": soil_ok, "text": soil_text}]

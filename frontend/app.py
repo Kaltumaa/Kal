@@ -44,6 +44,7 @@ if st.session_state["role"] == "officer":
             st.Page("views/home.py", title="Dashboard", icon=":material/dashboard:", default=True),
             st.Page("views/queue.py", title="Review queue", icon=":material/fact_check:"),
             st.Page("views/household.py", title="Farms", icon=":material/home_pin:"),
+            st.Page("views/crop_calendar.py", title="Crop calendar", icon=":material/calendar_month:"),
             st.Page("views/plot_history.py", title="Plot history", icon=":material/history:"),
             st.Page("views/scan.py", title="Verify photos", icon=":material/photo_camera:"),
         ],
@@ -54,6 +55,7 @@ if st.session_state["role"] == "officer":
         "System": [
             st.Page(system.activity_log, title="Activity log", icon=":material/receipt_long:", url_path="activity"),
             st.Page(system.outbox, title="Sent messages", icon=":material/outbox:", url_path="sent"),
+            st.Page(system.phone_calls, title="Phone calls", icon=":material/call:", url_path="calls"),
         ],
     }
 else:
@@ -66,9 +68,11 @@ else:
             st.Page("views/household.py", title="My farm", icon=":material/home_pin:", default=True),
             st.Page("views/notifications.py", title=f"Notifications ({count})" if count else "Notifications",
                     icon=":material/notifications:"),
+            st.Page("views/crop_calendar.py", title="Crop calendar", icon=":material/calendar_month:"),
             st.Page("views/plot_history.py", title="Plot history", icon=":material/history:"),
             st.Page("views/reminders.py", title="Reminders", icon=":material/alarm:"),
             st.Page("views/scan.py", title="AI Scan", icon=":material/photo_camera:"),
+            st.Page("views/nyumba_kumi.py", title="Nyumba Kumi", icon=":material/groups:"),
         ],
         "Farmer hub": [
             st.Page("views/learn.py", title="Learn", icon=":material/menu_book:"),

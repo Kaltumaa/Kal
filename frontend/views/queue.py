@@ -107,10 +107,20 @@ def detail(adv: dict) -> None:
                     msg_sw = st.text_area("Ujumbe kwa Kiswahili", adv.get("farmer_message_sw") or "", max_chars=320,
                                           height=90, placeholder="No Swahili draft. Write one to send it in Kiswahili.")
                     st.caption(sw_origin(adv.get("flags") or []))
+                    want_en, want_sw, lang_note = ui.language_defaults(
+                        api.household_profile(adv["household_id"])["plot"])
                     lc = st.columns([1, 1.2, 1.4], vertical_alignment="center")
                     lc[0].markdown("**Send in**", help="Both languages are covered by the same signature below.")
-                    send_en = lc[1].checkbox("English", value=True)
-                    send_sw = lc[2].checkbox("Kiswahili", value=False)
+                    send_en = lc[1].checkbox("English", value=want_en)
+                    send_sw = lc[2].checkbox("Kiswahili", value=want_sw)
+                    st.caption(lang_note)
+                    farm = st.session_state.get("farm_info", {}).get(adv["household_id"], {})
+                    call = st.checkbox("📞 Also phone the farmer and read this message out"
+                                       + (" (feature phone, no data)" if farm.get("phone_type") == "feature" else ""),
+                                       value=farm.get("phone_type") == "feature" and farm.get("has_phone", False),
+                                       disabled=not farm.get("has_phone"),
+                                       help="Read in Kiswahili if you send Kiswahili, otherwise English. The farmer "
+                                            "presses 1 if they heard it or 2 to ask for a visit. The SMS still goes.")
                     citation = st.text_area("Citation (required: the records this advice rests on)",
                                             ui.suggested_citation(adv, api.farm_actions(adv["household_id"])),
                                             height=80, max_chars=600)
@@ -126,7 +136,9 @@ def detail(adv: dict) -> None:
                                 st.error("Tick the confirmation box to send.")
                             else:
                                 langs = [lang for lang, on in (("en", send_en), ("sw", send_sw)) if on]
-                                r = api.approve(adv["id"], name, msg, citation, msg_sw, langs)
+                                r = api.approve(adv["id"], name, msg, citation, msg_sw, langs, call)
+                                if r.get("call") and r["call"].get("status") == "FAILED":
+                                    st.session_state["call_failed"] = r["call"].get("error")
                                 st.session_state["just_sent"] = (ui.names().get(adv["household_id"], adv["household_id"]),
                                                                   r["officer"])
                                 st.rerun()
@@ -222,6 +234,10 @@ with st.container(border=True):
                     st.error(str(exc.detail))
 ward_summary()
 
+failed_call = st.session_state.pop("call_failed", None)
+if failed_call:
+    st.warning(f"The SMS was sent, but the phone call could not be placed: {failed_call} Retry it from "
+               "**Phone calls**.", icon=":material/phone_disabled:")
 sent = st.session_state.pop("just_sent", None)
 if sent:
     st.toast(f"Sent to {sent[0]}, signed by {sent[1]}.", icon=":material/check_circle:")
@@ -241,7 +257,8 @@ if picked == views[1]:
 
     st.dataframe(pd.DataFrame([{
         "Farm": f"{f['farmer_name']} · {(f['zone_id'] or '—').title()}",
-        "Do now": PLAN.get(f["plan"], f["plan"]),
+        "Do now": PLAN.get(f["plan"], f["plan"])
+                  + (f": {f['title']}" if f.get("title") and f["plan"] in ("PLANT", "SPRAY", "HOLD") else ""),
         "Draft": DRAFT.get(f["draft_status"], f["draft_status"]),
         "Crop": f"{f['crop'] or '—'}, {ui.stage_label(f['stage']).lower()}"
                 + (f", day {f['days']}" if f["days"] is not None else ""),

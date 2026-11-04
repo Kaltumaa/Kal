@@ -4,11 +4,14 @@ Run:  uvicorn crop_pilot.api.main:app --port 8000   (with PYTHONPATH=backend)
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
 import shutil
 import time
 from contextlib import asynccontextmanager
+from datetime import date
 
 from fastapi import FastAPI, HTTPException, Query, Response
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -17,16 +20,19 @@ from pydantic import BaseModel, Field
 from crop_pilot import config
 from crop_pilot.agent import llm
 from crop_pilot.agent.workflow import build_graph, resume_run, start_run
-from crop_pilot.community import forum
+from crop_pilot.community import cells, forum
 from crop_pilot.core import agronomy, greenhouse, history, knowledge, sanitizer, telemetry, weather_patterns
 from crop_pilot.database.db import DatabaseUnavailable, connect, health_check
 from crop_pilot.database.init_db import ensure_schema, seed_missing
 from crop_pilot.dispatch import approval
 from crop_pilot.dispatch import followups as desk_followups
+from crop_pilot.dispatch import sms, voice_calls
+from crop_pilot.fieldscan import deepleaf
 from crop_pilot.fieldscan import service as fieldscan
 from crop_pilot.greenhouse import readings as gh_readings
 from crop_pilot.plots import actions as plot_actions
 from crop_pilot.plots import reminders as farm_reminders
+from crop_pilot.voice import speech
 
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
@@ -49,6 +55,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Mkulima Hub Extension Co-Pilot API", version="1.0.0", lifespan=lifespan)
+# Carrier webhooks (/voice/callback): also served here so the internal telephony simulator can post to them.
+from crop_pilot.api.voice_hooks import router as voice_webhooks  # noqa: E402
+app.include_router(voice_webhooks)
 
 
 class RunRequest(BaseModel):
@@ -62,6 +71,7 @@ class ApproveRequest(BaseModel):
     final_message_sw: str | None = Field(None, max_length=320)
     languages: list[str] = Field(["en"], min_length=1, max_length=2)   # "en" and/or "sw", one signature for both
     citation: str = Field(..., max_length=600)
+    call: bool = False                 # also phone the farmer and read the signed message (feature phones)
 
 
 class RejectRequest(BaseModel):
@@ -108,7 +118,8 @@ def farms():
     for r in rows:
         c = sanitizer.scrub_plot(r)
         out.append({"household_id": r["household_id"], "farmer_name": r.get("farmer_name") or r["household_id"],
-                    "zone_id": c.get("zone_id"), "crop": c.get("active_crop")})
+                    "zone_id": c.get("zone_id"), "crop": c.get("active_crop"), "cell_id": r.get("cell_id"),
+                    "phone_type": r.get("phone_type"), "has_phone": bool(r.get("phone"))})
     return out
 
 
@@ -157,7 +168,7 @@ async def approve(advisory_id: int, req: ApproveRequest):
     _require_db()
     try:
         result = approval.approve(advisory_id, req.officer_name, req.final_message, req.citation,
-                                  req.final_message_sw, req.languages)
+                                  req.final_message_sw, req.languages, req.call)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
     result["graph"] = await resume_run(app.state.graph, result["run_id"], "APPROVED", result["officer"])
@@ -242,6 +253,18 @@ def overview():
                            "crop": c.get("active_crop"), "stage": c.get("growth_stage"),
                            "days": c.get("days_since_planting"), "flagged": c.get("injection_detected")})
     outlooks = [agronomy.rainfall_outlook(z) for z in zones]
+    today = config.today()
+    for a in alerts:
+        # Map fields: how far the report reaches (action radius), its age, and whether it still counts.
+        if a["lat"] is None and a["zone_id"] in centroids:
+            a["lat"], a["lon"] = centroids[a["zone_id"]]
+            a["placed_at"] = "ward centre"
+        try:
+            a["age_days"] = (today - date.fromisoformat(str(a["reported_at"])[:10])).days
+        except ValueError:
+            a["age_days"] = None
+        a["action_radius_km"] = config.PEST_RADIUS_KM.get(a["pest"].lower(), config.DEFAULT_PEST_RADIUS_KM)
+        a["active"] = bool(a["verified"]) and a["age_days"] is not None and 0 <= a["age_days"] <= config.PEST_MAX_AGE_DAYS
     return {"zones": [{**o, "lat": z["centroid_lat"], "lon": z["centroid_lon"],
                        "plant_now": agronomy.crops_plantable_now(o["rain_7d_mm"], o["washout_risk"]),
                        "pattern": weather_patterns.assess(z["zone_id"], o["rain_7d_mm"])}
@@ -284,6 +307,12 @@ def spray_groups():
     return config.CHEM_GROUPS
 
 
+@app.get("/knowledge/terrain")
+def terrain_options():
+    return {"slopes": list(config.SLOPES), "soils": config.SOILS,
+            "companions": sorted(agronomy.CEREALS | agronomy.LEGUMES)}
+
+
 @app.get("/knowledge/problem")
 def knowledge_problem(name: str = Query(..., max_length=60)):
     """What a pest, disease or weed is, how to fix it and prevent it: the message a farmer receives."""
@@ -311,6 +340,33 @@ class ScanReview(BaseModel):
     pest: str | None = Field(None, max_length=60)
     severity: str = Field("MEDIUM", pattern="^(LOW|MEDIUM|HIGH)$")
     note: str = Field("", max_length=1200)
+    finding: str | None = Field(None, max_length=60)      # DISMISSED only: no problem / not a plant / field visit
+    call: bool = False                                     # also phone the farmer with the result
+    call_script: str | None = Field(None, max_length=600)  # what they will hear (officer-written or edited)
+    call_language: str = Field("sw", pattern="^(en|sw)$")
+
+
+class ScanBatchReview(BaseModel):
+    scan_ids: list[int] = Field(..., min_length=2, max_length=50)
+    officer_name: str = Field(..., max_length=80)
+    pest: str = Field(..., max_length=60)
+    severity: str = Field("MEDIUM", pattern="^(LOW|MEDIUM|HIGH)$")
+    note: str = Field("", max_length=1200)
+
+
+@app.get("/scans/groups")
+def scan_groups():
+    _require_db()
+    return fieldscan.review_groups()
+
+
+@app.post("/scans/review-batch")
+def review_scan_batch(req: ScanBatchReview):
+    _require_db()
+    try:
+        return fieldscan.review_batch(req.scan_ids, req.officer_name, req.pest, req.severity, req.note)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
 
 
 @app.post("/scans")
@@ -340,7 +396,8 @@ def scan_image(scan_id: int):
 def review_scan(scan_id: int, req: ScanReview):
     _require_db()
     try:
-        return fieldscan.review(scan_id, req.officer_name, req.decision, req.pest, req.severity, req.note)
+        return fieldscan.review(scan_id, req.officer_name, req.decision, req.pest, req.severity, req.note,
+                                req.finding, req.call, req.call_script, req.call_language)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -350,6 +407,164 @@ class ForumPost(BaseModel):
     author: str = Field(..., max_length=40)
     topic: str = Field(..., max_length=40)
     body: str = Field(..., max_length=800)
+    zone_id: str | None = Field(None, max_length=20)
+    household_id: str | None = Field(None, max_length=32)
+
+
+class ReportReview(BaseModel):
+    officer_name: str = Field(..., max_length=80)
+    decision: str = Field(..., pattern="^(CONFIRMED|NOT_CONFIRMED)$")
+    pest: str | None = Field(None, max_length=60)
+    severity: str = Field("MEDIUM", pattern="^(LOW|MEDIUM|HIGH)$")
+    zone_id: str | None = Field(None, max_length=20)
+    note: str = Field("", max_length=400)
+
+
+@app.get("/community/reports")
+def community_reports():
+    _require_db()
+    return forum.pending_reports()
+
+
+@app.post("/community/reports/{post_id}/review")
+def review_community_report(post_id: int, req: ReportReview):
+    _require_db()
+    try:
+        return forum.review_report(post_id, req.officer_name, req.decision, req.pest, req.severity, req.zone_id,
+                                   req.note)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+class VoiceNote(BaseModel):
+    audio_b64: str = Field(..., max_length=14_000_000)
+    language: str | None = Field(None, pattern="^(en|sw)$")     # None = detect automatically
+
+
+@app.get("/speech/status")
+def speech_status():
+    return {"available": speech.available(), "model": f"whisper-{speech.MODEL_SIZE}", "languages": speech.LANGUAGES}
+
+
+@app.post("/speech/transcribe")
+def speech_transcribe(req: VoiceNote):
+    """A farmer's voice note as text (local Whisper). A draft only: the farmer checks it before saving."""
+    try:
+        audio = base64.b64decode(req.audio_b64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, detail="The recording could not be read.")
+    try:
+        return speech.transcribe(audio, req.language)
+    except speech.SpeechUnavailable as exc:
+        raise HTTPException(503, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc))
+    except Exception as exc:                                   # undecodable audio from the browser, model errors
+        raise HTTPException(400, detail=f"Could not turn the recording into text ({type(exc).__name__}).")
+
+
+# --- Nyumba Kumi cells and voice calls ------------------------------------------------------------------------
+@app.get("/cells")
+def nyumba_cells():
+    _require_db()
+    return cells.list_cells()
+
+
+@app.get("/farms/{household_id}/cell")
+def farm_cell(household_id: str):
+    """For the lead farmer: neighbours, their photo results (officer findings only) and visit requests."""
+    _require_db()
+    return cells.lead_view(household_id)
+
+
+class NeighbourPhoto(BaseModel):
+    neighbour_id: str = Field(..., max_length=32)
+    image_b64: str = Field(..., max_length=9_000_000)
+
+
+@app.post("/farms/{household_id}/cell/photos")
+def cell_photo(household_id: str, req: NeighbourPhoto):
+    """Lead farmer sends a photo for a neighbour in their cell. Receipt only, like the farmer's own upload."""
+    _require_db()
+    try:
+        return cells.submit_for_neighbour(household_id, req.neighbour_id, req.image_b64)
+    except approval.ApprovalError as exc:
+        raise HTTPException(403, detail=str(exc))
+    except fieldscan.ScanError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+class Contact(BaseModel):
+    officer_name: str = Field(..., max_length=80)
+    phone: str | None = Field(None, max_length=20)
+    phone_type: str | None = Field(None, pattern="^(smartphone|feature)$")
+    cell_id: str | None = Field(None, max_length=16)
+
+
+@app.post("/farms/{household_id}/contact")
+def set_contact(household_id: str, req: Contact):
+    _require_db()
+    try:
+        return cells.set_contact(household_id, req.officer_name, req.phone, req.phone_type, req.cell_id)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+@app.get("/integrations")
+def integrations():
+    """Which optional outside services are switched on (keys are never returned)."""
+    return {"deepleaf": deepleaf.status(), "voice": voice_calls.status()}
+
+
+@app.get("/voice/calls")
+def calls(household_id: str | None = None):
+    _require_db()
+    return voice_calls.list_calls(household_id)
+
+
+@app.post("/voice/calls/{call_id}/retry")
+def retry_call(call_id: int):
+    _require_db()
+    try:
+        return voice_calls.place(call_id)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+class SimulatedAnswer(BaseModel):
+    answer: bool = True
+    digit: str | None = Field(None, pattern="^[0-9]$")
+
+
+@app.post("/voice/calls/{call_id}/simulate")
+def simulate_call(call_id: int, req: SimulatedAnswer):
+    """Demo: play the farmer's phone for a SIMULATED call (same handlers as the Africa's Talking webhooks)."""
+    _require_db()
+    try:
+        return voice_calls.simulate(call_id, req.answer, req.digit)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+class InboundSms(BaseModel):
+    household_id: str = Field(..., max_length=32)    # a real gateway maps the sender's phone number to this
+    text: str = Field(..., max_length=480)
+
+
+@app.post("/sms/inbound")
+def sms_inbound(req: InboundSms):
+    """A farmer's SMS command (simulated gateway): log field work, set a reminder or report a problem offline."""
+    _require_db()
+    try:
+        return sms.receive(req.household_id, req.text)
+    except approval.ApprovalError as exc:
+        raise HTTPException(400, detail=str(exc))
+
+
+@app.get("/sms")
+def sms_messages(household_id: str | None = None):
+    _require_db()
+    return sms.list_messages(household_id)
 
 
 @app.get("/forum/topics")
@@ -367,7 +582,7 @@ def forum_list(topic: str | None = None):
 def forum_post(req: ForumPost):
     _require_db()
     try:
-        return forum.post(req.author, req.topic, req.body)
+        return forum.post(req.author, req.topic, req.body, req.zone_id, req.household_id)
     except ValueError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -437,6 +652,16 @@ def close_followup(followup_id: int, req: CloseFollowup):
 
 
 # --- Household profile: plot history against the crop calendar -----------------------------------------
+def _calendar(crop: str | None) -> list[dict]:
+    stages, start = [], 0
+    for upper, stage in config.CROP_STAGES.get(crop or "", []):
+        end = min(upper, start + 60) if upper >= 10_000 else upper
+        pests = sorted(p.title() for p, crops in config.PEST_SUSCEPTIBILITY.items() if stage in crops.get(crop, set()))
+        stages.append({"stage": stage, "start_day": start, "end_day": end, "pests_to_watch": pests})
+        start = upper + 1
+    return stages
+
+
 @app.get("/households/{household_id}/profile")
 def household_profile(household_id: str):
     _require_db()
@@ -448,16 +673,17 @@ def household_profile(household_id: str):
         raise HTTPException(404, detail="Household not found")
     plot = sanitizer.scrub_plot(dict(row))
     crop = plot.get("active_crop")
-    stages, start = [], 0
-    for upper, stage in config.CROP_STAGES.get(crop or "", []):
-        end = min(upper, start + 60) if upper >= 10_000 else upper
-        pests = sorted(p.title() for p, crops in config.PEST_SUSCEPTIBILITY.items() if stage in crops.get(crop, set()))
-        stages.append({"stage": stage, "start_day": start, "end_day": end, "pests_to_watch": pests})
-        start = upper + 1
+    stages = _calendar(crop)
+    # Every crop growing on the plot now, each with its own planting date, calendar and stage today.
+    growing = history.crops_growing(plot, plot_actions.list_actions(row["household_id"]))
+    calendars = {g["crop"]: {"stages": _calendar(g["crop"]), "stage_now": g["stage"], "days": g["days"],
+                             "planted": g["planted"], "main": g["main"], "harvested": g.get("harvested")}
+                 for g in growing}
     zone = plot.get("zone_id")
     rain = agronomy.rainfall_outlook(weather[zone]) if zone in weather else None
     advs = [a for a in approval.list_advisories() if a["household_id"].upper() == hid]
-    return {"plot": plot, "rotation": history.rotation(crop, plot.get("crop_history") or []), "calendar": stages,
+    return {"plot": plot, "rotation": history.rotation_for_plot(plot), "calendar": stages,
+            "calendars": calendars, "growing": growing,
             "rain": rain, "pattern": weather_patterns.assess(zone, rain["rain_7d_mm"] if rain else None) if zone else None,
             "advisories": advs[:10],
             "followups": [f for f in desk_followups.list_followups(None) if f["household_id"].upper() == hid]}
@@ -470,6 +696,9 @@ class ForecastUpdate(BaseModel):
     rain_7d_mm: float = Field(..., ge=0, le=1500)
     storm_risk: str = Field(..., pattern="^(LOW|MODERATE|HIGH)$")
     source: str = Field("Forecast update", max_length=80)
+    peak_rain_mm_h: float | None = Field(None, ge=0, le=300)   # heaviest hour of rain (intensity)
+    peak_rain_date: str | None = Field(None, max_length=10)     # past = observed, today or later = forecast
+    dry_hours_ahead: float | None = Field(None, ge=0, le=240)   # hours until the next rain (spray rain-fastness)
 
 
 @app.post("/weather/{zone_id}")
@@ -485,10 +714,51 @@ def update_forecast(zone_id: str, req: ForecastUpdate):
                                                             issued, zone))
         if cur.rowcount == 0:
             raise HTTPException(404, detail=f"Unknown ward {zone_id!r}")
+        if req.dry_hours_ahead is not None:
+            conn.execute("UPDATE weather_cache SET dry_hours_ahead=? WHERE zone_id=?", (req.dry_hours_ahead, zone))
+        if req.peak_rain_mm_h is not None:
+            peak_date = sanitizer.parse_date(req.peak_rain_date) if req.peak_rain_date else config.today()
+            if peak_date is None:
+                raise HTTPException(400, detail="peak_rain_date must be a date like 2026-10-16")
+            conn.execute("UPDATE weather_cache SET peak_rain_mm_h=?, peak_rain_at=? WHERE zone_id=?",
+                         (req.peak_rain_mm_h, peak_date.isoformat(), zone))
     telemetry.record(f"forecast-{zone}", "feed", "update_forecast", {"zone_id": zone, **req.model_dump()},
                      {"issued_at": issued}, latency_ms=0, actor="data feed")
     stale = [a["id"] for a in approval.list_advisories("PENDING_REVIEW") if a.get("forecast_changed")]
     return {"zone_id": zone, "issued_at": issued, "drafts_now_out_of_date": stale}
+
+
+# --- Plot terrain (officer, from a field visit) ----------------------------------------------------------
+class Terrain(BaseModel):
+    slope: str = Field(..., max_length=20)
+    soil: str = Field(..., max_length=20)
+    intercrop: str | None = Field(None, max_length=40)    # companion crop in the same plot; None = grown alone
+    officer_name: str = Field(..., min_length=5, max_length=80)
+
+
+@app.post("/farms/{household_id}/terrain")
+def set_terrain(household_id: str, req: Terrain):
+    """Record a plot's slope, soil and companion crop. Planting advice uses them (how to plant on a slope,
+    waterlogging on clay, intercrop layout)."""
+    _require_db()
+    hid = sanitizer.normalise_text(household_id).upper()[:32]
+    slope, soil = req.slope.strip().lower(), req.soil.strip().lower()
+    if slope not in config.SLOPES or soil not in config.SOILS:
+        raise HTTPException(400, detail=f"Slope must be one of {list(config.SLOPES)}; soil one of {config.SOILS}")
+    intercrop = sanitizer.normalise_crop(req.intercrop) if req.intercrop and req.intercrop.strip() else None
+    if req.intercrop and req.intercrop.strip() and intercrop is None:
+        raise HTTPException(400, detail=f"Companion crop {req.intercrop!r} not recognised")
+    officer = sanitizer.normalise_text(req.officer_name)[:80]
+    if len(officer) < 5:
+        raise HTTPException(400, detail="A named officer must record the terrain")
+    with connect() as conn:
+        cur = conn.execute("UPDATE plots SET slope = ?, soil = ?, intercrop = ? WHERE upper(trim(household_id)) = ?",
+                           (slope, soil, intercrop, hid))
+        if cur.rowcount == 0:
+            raise HTTPException(404, detail="Household not found")
+    telemetry.record(f"terrain-{hid}", "officer", "set_terrain", {"household_id": hid, "slope": slope, "soil": soil,
+                                                             "intercrop": intercrop}, {"ok": True}, latency_ms=0, actor=officer)
+    return {"household_id": hid, "slope": slope, "soil": soil, "intercrop": intercrop}
 
 
 # --- Plot history log ------------------------------------------------------------------------------------
@@ -501,6 +771,9 @@ class PlotAction(BaseModel):
     name: str | None = Field(None, max_length=80)
     chem_group: str | None = Field(None, max_length=60)
     needs_weeding: bool | None = None
+    soil_moist: bool | None = None
+    seed_check: str | None = Field(None, pattern="^(VERIFIED|FAILED|NOT_CHECKED)$")
+    as_intercrop: bool = False          # PLANTING only: planted alongside the main crop
 
 
 @app.get("/farms/{household_id}/actions")
@@ -514,7 +787,8 @@ def log_farm_action(household_id: str, req: PlotAction):
     _require_db()
     try:
         return plot_actions.log_action(household_id, req.action, req.action_date, req.crop, req.details,
-                                       req.role, req.name, req.chem_group, req.needs_weeding)
+                                       req.role, req.name, req.chem_group, req.needs_weeding, req.soil_moist,
+                                       req.seed_check, req.as_intercrop)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -564,8 +838,8 @@ def farms_plan():
         zones = {r["zone_id"]: dict(r) for r in conn.execute("SELECT * FROM weather_cache")}
         alerts = [dict(r) for r in conn.execute("SELECT * FROM pest_alerts")]
         logs: dict[str, list[dict]] = {}
-        for r in conn.execute("SELECT id, household_id, action, action_date, details, chem_group, needs_weeding "
-                              "FROM plot_actions"):
+        for r in conn.execute("SELECT id, household_id, action, action_date, details, chem_group, needs_weeding, "
+                              "soil_moist, seed_check FROM plot_actions"):
             logs.setdefault(r["household_id"], []).append(dict(r))
     advs = approval.list_advisories()
     out = []
@@ -579,7 +853,7 @@ def farms_plan():
                                            plot.get("growth_stage")) if plot.get("found") else None
         pat = weather_patterns.assess(zone["zone_id"], rain["rain_7d_mm"]) if zone and rain else {}
         decision = agronomy.decide(plot, rain, pests, pattern=pat, field_log=logs.get(row["household_id"], []))
-        rot = history.rotation(plot.get("active_crop"), plot.get("crop_history") or [])
+        rot = history.rotation_for_plot(plot)
         plan = decision["verdict"] if decision["status"] == "PENDING_REVIEW" else decision["status"]
         if decision["verdict"] in (None, "HOLD") and plot.get("growth_stage") in HARVEST_STAGES \
                 and decision["status"] == "PENDING_REVIEW":
@@ -589,12 +863,14 @@ def farms_plan():
         notes = [] if decision["status"] != "PENDING_REVIEW" else [n for n in (
             rot.get("sms_tip") if rot.get("risk") in ("ELEVATED", "HIGH") else None,
             "False-start risk: plant in two batches" if pat.get("onset") == "FALSE_START_RISK" and plan == "PLANT"
-            else None) if n]
+            else None,
+            agronomy.intercrop_tip(plot, pat) if plot.get("growth_stage") == "PRE_PLANTING" else None) if n]
         out.append({"household_id": row["household_id"], "farmer_name": row.get("farmer_name"),
                     "zone_id": plot.get("zone_id"), "crop": plot.get("active_crop"),
                     "stage": plot.get("growth_stage"), "days": plot.get("days_since_planting"),
                     "plan": plan, "why": decision["reasons"][0] if decision["reasons"] else "",
-                    "notes": notes, "rule": decision["rule"],
+                    "notes": notes, "rule": decision["rule"], "title": decision.get("title"),
+                    "slope": plot.get("slope"), "soil": plot.get("soil"), "intercrop": plot.get("intercrop"),
                     "draft_status": latest["status"] if latest else None,
                     "advisory_id": latest["id"] if latest else None})
     return out
@@ -624,11 +900,31 @@ def farmer_photos(household_id: str):
     return fieldscan.farmer_view(household_id)
 
 
-@app.get("/farms/{household_id}/notifications")
-def farmer_notifications(household_id: str):
-    """Everything an officer has sent this farmer, newest first: signed advice and photo results.
-    Plus the farmer's own reminders that are due. Never drafts or AI output."""
+class LanguagePref(BaseModel):
+    language: str = Field(..., pattern="^(en|sw|both)$")
+
+
+@app.post("/farms/{household_id}/language")
+def set_language(household_id: str, req: LanguagePref):
+    """The farmer's preferred message language. The officer's send boxes start from it."""
     _require_db()
+    hid = sanitizer.normalise_text(household_id).upper()[:32]
+    with connect() as conn:
+        if conn.execute("UPDATE plots SET language = ? WHERE upper(trim(household_id)) = ?",
+                        (req.language, hid)).rowcount == 0:
+            raise HTTPException(404, detail="Household not found")
+    return {"household_id": hid, "language": req.language}
+
+
+@app.get("/farms/{household_id}/notifications")
+def farmer_notifications(household_id: str, seen: bool = False):
+    """Everything an officer has sent this farmer, newest first: signed advice and photo results.
+    Plus the farmer's own reminders that are due. Never drafts or AI output. `seen` = the farmer opened the app."""
+    _require_db()
+    if seen:
+        with connect() as conn:
+            conn.execute("UPDATE plots SET farmer_last_seen = ? WHERE household_id = ?",
+                         (telemetry.now_iso(), household_id))
     items = []
     advs = {a["id"]: a for a in approval.list_advisories("APPROVED")}
     sent: dict[int, list[dict]] = {}

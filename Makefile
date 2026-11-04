@@ -6,13 +6,18 @@ VISION_MODEL ?= moondream
 VENV := .venv
 PY := $(VENV)/bin/python
 export PYTHONPATH := $(CURDIR)/backend
+# Secrets (DeepLeaf, Africa's Talking) live in .env, which git ignores. Copy .env.example to .env and fill it in.
+-include .env
+export DEEPLEAF_API_KEY DEEPLEAF_BASE_URL DEEPLEAF_ID_SALT AT_USERNAME AT_API_KEY AT_VOICE_NUMBER VOICE_PUBLIC_URL VOICE_WEBHOOK_TOKEN AT_SAY_VOICE VOICE_SIM_DIGIT
+# The demo plays the phone company itself: simulated calls ring, get answered and pressed automatically.
+export VOICE_AUTO_SIMULATE ?= 1
 export OLLAMA_MODEL := $(MODEL)
 # The synthetic dataset is dated around this day; pin it so the demo behaves the same whenever it is run.
 export CROP_PILOT_TODAY ?= 2026-10-15
 UV := $(shell command -v uv 2>/dev/null || echo $(HOME)/Library/Python/3.9/bin/uv)
 OLLAMA := $(shell command -v ollama 2>/dev/null || echo $(HOME)/.local/ollama/ollama)
 
-.PHONY: all setup db model run stop backend frontend test evals evals-quick clean help
+.PHONY: all setup db model run stop backend frontend test evals evals-quick clean help voice voice-hooks
 
 all: setup run                     ## install everything, then start backend + frontend
 
@@ -36,6 +41,12 @@ model:                             ## pull the open-weights models (text + visio
 	  (curl -sf http://127.0.0.1:11434/api/tags >/dev/null || (nohup $(OLLAMA) serve >/tmp/ollama.log 2>&1 &) ); sleep 2; \
 	  $(OLLAMA) pull $(MODEL) && $(OLLAMA) pull $(VISION_MODEL); \
 	else echo "!! Ollama not found: install from https://ollama.com (the agent falls back to deterministic mode without it)"; fi
+
+voice:                             ## optional: speech-to-text for farmer voice notes (local Whisper)
+	$(UV) pip install --python $(PY) -r backend/requirements-voice.txt
+
+voice-hooks:                       ## public Africa's Talking webhooks on :8001 (expose THIS with ngrok, not :8000)
+	$(PY) -m uvicorn crop_pilot.api.voice_hooks:app --host 127.0.0.1 --port 8001
 
 run: stop                          ## start API on :8000 and Control Desk on :8501 (Ctrl-C stops both)
 	@for port in 8000 8501; do \

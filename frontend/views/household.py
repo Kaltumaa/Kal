@@ -1,7 +1,6 @@
 """Household page: one plot's history against its crop calendar, its ward's weather pattern and its advice."""
 from __future__ import annotations
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -37,31 +36,70 @@ m[0].metric("Crop", crop)
 m[1].metric("Ward", (plot.get("zone_id") or "—").title())
 m[2].metric("Days since planting", days if days is not None else "—")
 m[3].metric("Stage", "Not planted" if plot.get("growth_stage") == "PRE_PLANTING" else stage)
+slope, soil, companion = plot.get("slope"), plot.get("soil"), plot.get("intercrop")
+terrain = (f"{slope.capitalize()} slope · {soil}" if slope and soil else
+           "Slope and soil not recorded yet")
+terrain += f" · grown with {companion.lower()}" if companion else ""
+st.caption(f":material/landscape: **Terrain:** {terrain}. Planting advice uses it: how to plant on a slope, "
+           "whether flat clay will waterlog, and a layout tip for intercropped plots.")
+if officer:
+    with st.expander("Record slope, soil and companion crop (from your field visit)",
+                     icon=":material/edit_location_alt:"):
+        opts = api.terrain_options()
+        with st.form(f"terrain-{hid}"):
+            c = st.columns(4, vertical_alignment="bottom")
+            new_slope = c[0].selectbox("Slope", opts["slopes"], format_func=str.capitalize,
+                                       index=opts["slopes"].index(slope) if slope in opts["slopes"] else 0)
+            new_soil = c[1].selectbox("Soil", opts["soils"], format_func=str.capitalize,
+                                      index=opts["soils"].index(soil) if soil in opts["soils"] else 0)
+            companions = ["None"] + [x for x in opts["companions"] if x != plot.get("active_crop")]
+            new_comp = c[2].selectbox("Grown with", companions,
+                                      index=companions.index(companion) if companion in companions else 0)
+            who = c[3].text_input("Your full name")
+            if st.form_submit_button("Save terrain"):
+                try:
+                    api.set_terrain(hid, new_slope, new_soil, who, None if new_comp == "None" else new_comp)
+                    st.toast("Terrain saved. Draft new advice to use it.", icon=":material/check:")
+                    st.rerun()
+                except api.ApiError as exc:
+                    st.error(str(exc.detail))
+if officer:
+    info = st.session_state.get("farm_info", {}).get(hid, {})
+    cell_list = api.cells()
+    cell_name = next((c["name"] for c in cell_list if c["cell_id"] == info.get("cell_id")), None)
+    with st.expander(f"Phone and Nyumba Kumi cell · {(info.get('phone_type') or 'phone type not recorded').replace('feature', 'feature phone')}"
+                     f" · {'number on file' if info.get('has_phone') else 'no number'} · {cell_name or 'no cell'}",
+                     icon=":material/call:"):
+        st.caption("Feature-phone farmers get signed advice and photo results by SMS and, if you choose, a voice call. "
+                   "A cell's lead farmer can send photos for neighbours without a smartphone.")
+        with st.form(f"contact-{hid}"):
+            c = st.columns([1.3, 1, 1.2, 1.3], vertical_alignment="bottom")
+            phone = c[0].text_input("Phone (leave empty to keep)", placeholder="0712 345 678")
+            types = ["feature", "smartphone"]
+            ptype = c[1].selectbox("Phone", types, index=types.index(info["phone_type"])
+                                   if info.get("phone_type") in types else 0,
+                                   format_func=lambda t: "Feature phone" if t == "feature" else "Smartphone")
+            cell_ids = [""] + [c_["cell_id"] for c_ in cell_list]
+            cell_pick = c[2].selectbox("Nyumba Kumi cell", cell_ids,
+                                       index=cell_ids.index(info.get("cell_id") or ""),
+                                       format_func=lambda x: next((c_["name"] for c_ in cell_list if c_["cell_id"] == x),
+                                                                  "No cell"))
+            who_c = c[3].text_input("Your full name", key=f"contact-who-{hid}")
+            if st.form_submit_button("Save contact"):
+                try:
+                    api.set_contact(hid, who_c, phone.strip() or None, ptype, cell_pick)
+                    st.toast("Contact saved.", icon=":material/check:")
+                    st.rerun()
+                except api.ApiError as exc:
+                    st.error(str(exc.detail))
 if plot.get("injection_detected"):
     st.error("This farm's notes contained instruction-like text and were removed. Verify the record in person.",
              icon=":material/gpp_bad:")
 
-st.subheader("Crop calendar")
-if p["calendar"]:
-    cal = pd.DataFrame([{"Stage": s["stage"].replace("_", " ").title(), "start": s["start_day"], "end": s["end_day"],
-                         "Watch for": ", ".join(s["pests_to_watch"]) or "—",
-                         "Pest risk": "Watch for pests" if s["pests_to_watch"] else "Lower risk"} for s in p["calendar"]])
-    bars = alt.Chart(cal).mark_bar(cornerRadius=6, height=26).encode(
-        x=alt.X("start:Q", title="Days after planting"), x2="end:Q", y=alt.Y("Stage:N", sort=None, title=None, axis=alt.Axis(labelOverlap=False, labelLimit=220, labelFontSize=12)),
-        color=alt.Color("Pest risk:N", scale=alt.Scale(domain=["Watch for pests", "Lower risk"],
-                                                       range=["#E9A23B", "#7DBE95"]), legend=alt.Legend(orient="top")),
-        tooltip=["Stage", "start", "end", "Watch for"])
-    layers = [bars]
-    if days is not None:
-        today_rule = alt.Chart(pd.DataFrame({"day": [days]})).mark_rule(color="#D64545", strokeWidth=3).encode(x="day:Q")
-        label = alt.Chart(pd.DataFrame({"day": [days], "t": [f"Today (day {days})"]})).mark_text(
-            align="left", dx=6, dy=-8, color="#D64545", fontWeight="bold").encode(x="day:Q", text="t:N", y=alt.value(0))
-        layers += [today_rule, label]
-    st.altair_chart(alt.layer(*layers).properties(height=46 * len(cal) + 50), width="stretch")
-    st.caption("Calendar for the Nairobi highlands (~1,700 m). Orange stages are when pests listed in the "
-               "pest-action thresholds can damage this crop.")
-else:
-    st.info("No crop recorded, so there is no calendar yet. The agent will ask for a field visit.", icon=":material/help:")
+crops_here = list((p.get("calendars") or {}))
+st.caption(":material/calendar_month: Crop calendar"
+           + (f" for {' and '.join(c.lower() for c in crops_here)}" if crops_here else "")
+           + ": open **Crop calendar** in the menu to see each crop's stages and pest-watch days.")
 
 left, right = st.columns(2, gap="large")
 with left:
@@ -172,10 +210,12 @@ if draft:
             citation = st.text_area("Citation (required: the records this advice rests on)",
                                     ui.suggested_citation(draft, api.farm_actions(hid)), height=70, max_chars=600,
                                     key=f"cite-{draft['id']}")
+            want_en, want_sw, lang_note = ui.language_defaults(plot)
             lc = st.columns(2)
-            send_en = lc[0].checkbox("Send in English", value=True, key=f"en-{draft['id']}")
-            send_sw = lc[1].checkbox("Send in Kiswahili", value=False, key=f"sw-{draft['id']}",
+            send_en = lc[0].checkbox("Send in English", value=want_en, key=f"en-{draft['id']}")
+            send_sw = lc[1].checkbox("Send in Kiswahili", value=want_sw, key=f"sw-{draft['id']}",
                                      help="Both languages are covered by the same signature.")
+            st.caption(lang_note)
             c = st.columns([1.4, 1.6, 1.2])
             name = c[0].text_input("Your full name (signature)", key=f"sig-{draft['id']}",
                                    placeholder="e.g. Wanjiru Kamau")

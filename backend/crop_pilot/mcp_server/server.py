@@ -73,7 +73,8 @@ def get_plot_context(household_id: str) -> dict:
         clean["citation"] = f"plots:{clean['household_id']}"
         # The farm's own field log (latest 20), so the rules can check weeding and past spray groups.
         with connect() as conn:
-            log = conn.execute("SELECT id, action, action_date, crop, details, chem_group, needs_weeding FROM plot_actions "
+            log = conn.execute("SELECT id, action, action_date, crop, details, chem_group, needs_weeding, soil_moist, "
+                               "seed_check FROM plot_actions "
                                "WHERE household_id = ? ORDER BY action_date DESC, id DESC LIMIT 20",
                                (clean["household_id"],)).fetchall()
         clean["field_log"] = [dict(r) | {"details": sanitizer.scrub_free_text(r["details"], 300)[0]} for r in log]

@@ -20,12 +20,18 @@ if not hid:
 
 left, right = st.columns([1, 1.4], gap="large")
 with left:
+    voice = ui.voice_note("rem-voice")
+    if voice:
+        st.session_state["rem-note"] = voice["text"][:200]
+        if voice.get("suggested_action") in LABEL:
+            st.session_state["rem-what"] = voice["suggested_action"]
     with st.form("new-reminder", clear_on_submit=True, border=True):
         st.markdown("**New reminder**")
         due = st.date_input("Select target date for reminder",
                             value=pd.Timestamp(st.session_state.get("demo_today", "2026-10-15")).date())
-        what = st.selectbox("What to do", list(LABEL), format_func=LABEL.get)
-        note = st.text_input("Note (optional)", max_chars=200, placeholder="e.g. second weeding, east side")
+        what = st.selectbox("What to do", list(LABEL), format_func=LABEL.get, key="rem-what")
+        note = st.text_input("Note (optional)", max_chars=200, placeholder="e.g. second weeding, east side",
+                             key="rem-note")
         if st.form_submit_button("Add reminder", type="primary", width="stretch"):
             try:
                 api.create_reminder(hid, due.isoformat(), what, note)
