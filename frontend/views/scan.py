@@ -78,7 +78,7 @@ def deepleaf_box(cloud: dict | None) -> None:
         st.caption(f"DeepLeaf second opinion: not available ({cloud.get('error') or cloud.get('status')}).")
         return
     with ui.section():
-        st.markdown(":violet-badge[DeepLeaf Agronomist · second opinion · not verified]")
+        st.markdown(":gray-badge[DeepLeaf Agronomist · second opinion · not verified]")
         st.markdown(cloud.get("officer_draft") or "—")
         st.caption("From DeepLeaf's cloud model. Compare it with the photo and the local AI; the farmer never sees "
                    "it unless you put it in your message.")
@@ -184,7 +184,7 @@ def officer_page() -> None:
                 st.markdown(f"**Photo #{s['id']}** · {ui.farm_label(s['household_id']) if s['household_id'] else 'no farm'}"
                             f" · {s['crop'] or 'crop unknown'}")
                 if s.get("submitted_by"):
-                    st.markdown(f":blue-badge[Nyumba Kumi] Sent by lead farmer **{ui.farm_label(s['submitted_by'])}** "
+                    st.markdown(f":gray-badge[Nyumba Kumi] Sent by lead farmer **{ui.farm_label(s['submitted_by'])}** "
                                 "for this neighbour, who has no smartphone.")
                 st.caption(f"AI description: {s['description'] or '—'}")
                 deepleaf_box(s.get("cloud"))

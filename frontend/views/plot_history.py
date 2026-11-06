@@ -93,8 +93,6 @@ with left:
     st.subheader("Growing now")
     if growing:
         st.markdown('<div class="cp-crops">' + "".join(crop_card(g) for g in growing) + "</div>", unsafe_allow_html=True)
-        st.caption("Every crop on this plot now, each from its own planting date. Several crops at once? Log each "
-                   "planting (tick \"alongside my main crop\"), and log the harvest when one is done.")
     else:
         st.info("No crop recorded yet. Log a planting to start this plot's history.", icon=":material/potted_plant:")
 
@@ -197,10 +195,4 @@ with right:
                    "`LOG WEEDING ...` (see Notifications).")
     else:
         with ui.section():
-            st.markdown("#### How this page fills up")
-            st.markdown("- **Farmers** log what they did: in the app, by voice note, or by SMS (`LOG WEEDING ...`).\n"
-                        "- Finished **reminders** are added too.\n"
-                        "- Every entry shows who reported it and when.\n"
-                        "- Planting entries update the farm record the agent reads.")
-        st.caption("Read-only for the officer. Logged inputs are history only; the agent never recommends buying "
-                   "inputs.")
+            st.caption("Farmers add to this log from the app, by voice note or by SMS. It is read-only for the officer.")

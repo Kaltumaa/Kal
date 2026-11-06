@@ -177,3 +177,25 @@ def test_rotation_never_tells_a_farmer_to_add_beans_they_already_grow():
     alone = sanitizer.scrub_plot({"household_id": "Y", "zone_id": "MUTUINI", "active_crop": "Maize",
                                   "crop_history": "Maize>Maize"})
     assert "plant beans here next season" in history.rotation_for_plot(alone)["sms_tip"]   # unchanged without intercrop
+
+
+def test_advice_text_stays_readable_once_saved():
+    """Saved text loses symbols such as > and +, so notes spell the sequence out; internal codes become words."""
+    from crop_pilot.core import agronomy, history
+    plot = {"crop_history": ["Maize", "Beans", "Maize"], "seasons": [["Maize"], ["Beans"], ["Maize"]], "active_crop": "Maize",
+            "companions": ["Kale", "Tomato"]}
+    saved, _ = sanitizer.scrub_free_text(history.rotation_for_plot(plot)["note"], 600)
+    assert "Maize, then Beans, then Maize, then Maize and Kale and Tomato (now)" in saved and "MaizeKale" not in saved
+    text = agronomy.plain_terms("Maize at GRAIN_FILL, window OPEN, spray_band UNSAFE. Verdict: HOLD, not SPRAY or PLANT.")
+    assert text == "Maize at grain fill, window open, spray_band unsafe. Verdict: HOLD, not SPRAY or PLANT."
+
+
+def test_model_sms_uses_everyday_words_and_is_signed():
+    from crop_pilot.agent import workflow
+    sms_text = workflow.farmer_sms("The planting window is closed. Wait for the planting window to open. Crop at GRAIN_FILL.")
+    assert sms_text == ("It is not yet time to plant. Wait for the planting rains. Crop at grain fill."
+                        " - Dagoretti South Extension")
+    assert workflow.farmer_sms("Keep scouting. - Dagoretti South Extension").count("Dagoretti South Extension") == 1
+    long = workflow.farmer_sms("Keep scouting your maize today. " * 20)
+    assert len(long) <= 320 and long.endswith("Extension")
+    assert workflow.farmer_sms("") == ""

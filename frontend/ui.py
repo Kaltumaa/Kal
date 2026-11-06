@@ -2,17 +2,18 @@
 from __future__ import annotations
 
 import html
+import re
 
 import streamlit as st
 
 CSS = """
 <style>
 /* zinc scale, as Tailwind names it. --meta is the one place to change if tiny labels need more contrast. */
-:root {--z900: #18181B; --z600: #52525B; --meta: #A1A1AA; --line: #F4F4F5; --wire: #E4E4E7;}
+:root {--forest: #14532D; --gold: #F2B134; --cream: #F7F1E3; --z900: #18181B; --z600: #52525B; --meta: #71717A; --line: #F4F4F5; --wire: #E4E4E7;}
 
 /* Base: white page, nothing boxed */
-.stApp, [data-testid="stHeader"], [data-testid="stSidebar"] {background: #FFFFFF !important;}
-[data-testid="stSidebar"] {border-right: 1px solid var(--line);}
+.stApp, [data-testid="stHeader"] {background: #FFFFFF !important;}
+[data-testid="stSidebar"] {background: var(--forest) !important;}
 [data-testid="stMainBlockContainer"] {padding: 4rem 3rem 6rem !important; max-width: 1120px;}
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {gap: 3rem;}
 /* A heading stays with the text under it */
@@ -30,11 +31,27 @@ hr {border: 0 !important; border-top: 1px solid var(--line) !important; margin: 
 .cp-muted {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
 
 /* Page header */
-.cp-head {padding: 0 0 3rem; border-bottom: 1px solid var(--line);}
-.cp-head .cp-kicker {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
-.stApp .cp-head h1 {font-size: 1.875rem !important; line-height: 1.1; margin: 0.75rem 0 1rem; padding: 0; letter-spacing: -0.025em;}
-.cp-head p {max-width: 44rem; margin: 0; font-size: 1.0625rem;}
-@media (min-width: 768px) {.stApp .cp-head h1 {font-size: 3rem !important;}}
+.cp-head {padding: 0 0 1.5rem; border-bottom: 1px solid var(--line);}
+.cp-head.hero {padding-bottom: 3rem;}
+.cp-head .cp-kicker {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--forest);}
+.stApp .cp-head h1 {font-size: 1.875rem !important; line-height: 1.15; margin: 0.25rem 0 0.25rem; padding: 0; letter-spacing: -0.025em;}
+.cp-head.hero h1::after {content: ""; display: block; width: 72px; height: 4px; background: var(--gold); margin-top: 1.25rem;}
+.cp-head p {max-width: 44rem; margin: 0; font-size: 0.9375rem;}
+.cp-head.hero p {font-size: 1.0625rem;}
+.stApp .cp-head.hero h1 {margin: 0.75rem 0 1rem;}
+@media (min-width: 768px) {.stApp .cp-head.hero h1 {font-size: 3rem !important;}}
+
+/* A farmer's latest advice */
+.cp-now {background: var(--cream); border-top: 3px solid var(--gold); padding: 1.5rem 1.75rem;}
+.cp-now .cp-kicker {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--z600);}
+.cp-now .act {font-weight: 600; font-size: 2rem; line-height: 1.2; letter-spacing: -0.025em; margin: 0.35rem 0 0.5rem;}
+.cp-now .act.t-gray {color: var(--z900);}
+.cp-now p {margin: 0; font-size: 1.125rem; color: var(--z900); max-width: 46rem;}
+
+/* Learn: a plain list of guides */
+[class*="st-key-cp-topic"] {border-top: 1px solid var(--line); padding: 0.5rem 0;}
+.stApp button[data-testid="stBaseButton-tertiary"] {padding: 0; min-height: 0; justify-content: flex-start;}
+.stApp button[data-testid="stBaseButton-tertiary"] p {color: var(--forest); font-weight: 600; font-size: 1rem;}
 
 /* Sections instead of cards: a faint rule and air */
 [class*="st-key-cp-section"] {border-top: 1px solid var(--line); padding-top: 2rem;}
@@ -50,7 +67,10 @@ hr {border: 0 !important; border-top: 1px solid var(--line) !important; margin: 
 [data-testid="stMetricLabel"] p {font-size: 0.75rem !important; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta) !important;}
 [data-testid="stMetricValue"] {font-size: 1.875rem; font-weight: 600; color: var(--z900); letter-spacing: -0.025em;}
 [data-testid="stDataFrameResizable"] {border: 0 !important;}
-[data-testid="stMetricValue"] * {color: var(--z900) !important;}
+[data-testid="stMetricValue"] * {color: var(--forest) !important;}
+[data-testid="stMetricValue"] *, [data-testid="stMetricLabel"] * {white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere;}
+[data-testid="stMetricValue"] {font-size: 1.5rem; line-height: 1.2;}
+[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"] > [data-testid="stMetric"]) {background: var(--cream); border-top: 3px solid var(--gold); padding: 1.5rem;}
 [data-testid="stElementContainer"]:has(.cp-head) + [data-testid="stLayoutWrapper"] > [class*="st-key-cp-section"] {border-top: 0; padding-top: 0;}
 
 /* Forms: wireframe underline only */
@@ -69,18 +89,30 @@ hr {border: 0 !important; border-top: 1px solid var(--line) !important; margin: 
 /* Buttons and links */
 .stApp button[data-testid^="stBaseButton"] {border-radius: 6px !important; box-shadow: none !important; font-weight: 500;}
 .stApp button[data-testid="stBaseButton-secondary"], .stApp button[data-testid="stBaseButton-secondaryFormSubmit"] {background: #FFFFFF; border: 1px solid var(--wire); color: var(--z900);}
-.stApp button[data-testid="stBaseButton-primary"], .stApp button[data-testid="stBaseButton-primaryFormSubmit"] {background: var(--z900); border: 1px solid var(--z900); color: #FFFFFF;}
+.stApp button[data-testid="stBaseButton-primary"], .stApp button[data-testid="stBaseButton-primaryFormSubmit"] {background: var(--forest); border: 1px solid var(--forest); color: #FFFFFF;}
 .stApp button[data-testid="stBaseButton-primary"] p, .stApp button[data-testid="stBaseButton-primaryFormSubmit"] p {color: #FFFFFF;}
 [data-testid="stPageLink"] a {padding-left: 0; background: transparent !important;}
-[data-testid="stPageLink"] p {color: var(--z900); font-weight: 500;}
+[data-testid="stPageLink"] p {color: var(--forest); font-weight: 600;}
+[data-testid="stPageLink"] [data-testid="stIconMaterial"] {color: var(--forest);}
+.stApp [data-testid="stMarkdownContainer"] a {color: var(--forest);}
+[data-testid="stAlertContentInfo"] [data-testid="stAlertDynamicIcon"] {color: var(--forest) !important;}
 
 /* Sidebar navigation: bare text, diagonal arrow on the current or hovered page */
-[data-testid="stSidebarNavLink"] {background: transparent !important; padding-left: 0; border-radius: 0;}
+[data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, [data-testid="stSidebar"] b {color: var(--cream) !important;}
+[data-testid="stSidebar"] svg {color: var(--cream); fill: var(--cream);}
+[data-testid="stSidebarNavLink"] {background: transparent !important; padding-left: 0.5rem; border-radius: 0; border-left: 3px solid transparent;}
 [data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"] {display: none;}
-[data-testid="stSidebarNavLink"] span {color: var(--z600);}
-[data-testid="stSidebarNavLink"][aria-current="page"] span, [data-testid="stSidebarNavLink"]:hover span {color: var(--z900); font-weight: 500;}
-[data-testid="stSidebarNavLink"][aria-current="page"]::after, [data-testid="stSidebarNavLink"]:hover::after {content: "↗"; margin-left: 0.4rem; color: var(--z900);}
-[data-testid="stNavSectionHeader"] span {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+[data-testid="stSidebarNavLink"] span {opacity: 0.85;}
+[data-testid="stSidebarNavLink"][aria-current="page"] {border-left-color: var(--gold);}
+[data-testid="stSidebarNavLink"][aria-current="page"] span, [data-testid="stSidebarNavLink"]:hover span {opacity: 1; font-weight: 600;}
+[data-testid="stSidebarNavLink"][aria-current="page"]::after, [data-testid="stSidebarNavLink"]:hover::after {content: "↗"; margin-left: 0.4rem; color: var(--gold);}
+[data-testid="stNavSectionHeader"] span {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gold) !important;}
+[data-testid="stSidebar"] [data-baseweb="select"] div, [data-testid="stSidebar"] input {color: var(--cream) !important; -webkit-text-fill-color: var(--cream);}
+[data-testid="stSidebar"] [data-baseweb="select"] > div {border-bottom-color: rgba(247, 241, 227, 0.4) !important;}
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {color: var(--cream) !important; opacity: 0.8;}
+[data-testid="stSidebar"] hr {border-top-color: rgba(247, 241, 227, 0.2) !important;}
+[data-testid="stSidebar"] .cp-status, [data-testid="stSidebar"] .cp-status b {color: var(--cream); opacity: 0.85;}
+[data-testid="stSidebar"] .cp-dot.ok {background: var(--cream);} [data-testid="stSidebar"] .cp-dot.warn {background: var(--gold);}
 
 /* Tags: tiny text with a dot. Status colours stay, because they carry safety meaning. */
 .stMarkdownBadge {background: transparent !important; padding: 0 !important; white-space: normal !important; overflow: visible !important; max-width: none !important; font-size: 0.75rem !important; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;}
@@ -98,8 +130,10 @@ hr {border: 0 !important; border-top: 1px solid var(--line) !important; margin: 
 .cp-wards td small {display: block; color: var(--meta); margin-top: 2px;}
 .cp-wgrid {display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 3rem;}
 .cp-ward {display: flex; flex-direction: column; gap: 1rem; border-top: 1px solid var(--line); padding-top: 1.5rem;}
-.cp-ward .wh {display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;}
-.cp-ward .wn {font-weight: 600; font-size: 1.25rem; letter-spacing: -0.025em; color: var(--z900);}
+.cp-ward .wn {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+.cp-ward .act {font-weight: 600; font-size: 1.625rem; line-height: 1.2; letter-spacing: -0.025em; margin-top: -0.5rem;}
+.cp-ward .act.t-gray {color: var(--z900);}
+.cp-ward .cp-row .cp-tag {font-size: 0.9375rem; font-weight: 600; text-transform: none; letter-spacing: 0;}
 .cp-ward .why {color: var(--z600); font-size: 0.9375rem; line-height: 1.625;}
 .cp-stats {display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;}
 .cp-stat {min-width: 0;}
@@ -115,8 +149,8 @@ hr {border: 0 !important; border-top: 1px solid var(--line) !important; margin: 
 .cp-cropcard {display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--line); padding-top: 1.5rem;}
 .cp-cropcard .cn {font-weight: 600; font-size: 1.25rem; letter-spacing: -0.025em; color: var(--z900);}
 .cp-cropcard .meta {font-size: 0.875rem; color: var(--z600);}
-.cp-prog {height: 2px; background: var(--line); overflow: hidden;}
-.cp-prog span {display: block; height: 100%; background: var(--z900);}
+.cp-prog {height: 4px; background: var(--line); overflow: hidden;}
+.cp-prog span {display: block; height: 100%; background: var(--gold);}
 .cp-seasons {display: flex; align-items: baseline; gap: 1.25rem; flex-wrap: wrap;}
 .cp-season small {display: block; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
 .cp-season b {font-size: 0.9375rem; font-weight: 500; color: var(--z600);}
@@ -141,7 +175,7 @@ hr {border: 0 !important; border-top: 1px solid var(--line) !important; margin: 
 </style>
 """
 
-VERDICT_COLOR = {"PLANT": "green", "SPRAY": "orange", "HOLD": "blue"}
+VERDICT_COLOR = {"PLANT": "green", "SPRAY": "orange", "HOLD": "orange"}
 STATUS_TEXT = {"PENDING_REVIEW": "Awaiting signature", "SECURITY_LOCK": "Security lock",
                "NEEDS_DATA": "Needs field data", "APPROVED": "Sent", "REJECTED": "Rejected"}
 STATUS_COLOR = {"PENDING_REVIEW": "orange", "SECURITY_LOCK": "red", "NEEDS_DATA": "gray", "APPROVED": "green",
@@ -166,10 +200,52 @@ def partners() -> None:
                 unsafe_allow_html=True)
 
 
-def header(title: str, subtitle: str) -> None:
-    """Plain page header used on every page."""
-    st.markdown(f'<div class="cp-head"><div class="cp-kicker">Dagoretti South extension desk · '
-                f'Short rains 2026</div><h1>{html.escape(title)}</h1><p>{html.escape(subtitle)}</p></div>',
+def header(title: str, subtitle: str, hero: bool = False) -> None:
+    """Page header. Only landing pages get the large version, so working pages start with the work."""
+    kicker = ("Mkulima Hub" if st.session_state.get("role") == "farmer"
+              else "Dagoretti South extension desk · Short rains 2026")
+    st.markdown(f'<div class="cp-head{" hero" if hero else ""}"><div class="cp-kicker">{kicker}</div>'
+                f'<h1>{html.escape(title)}</h1><p>{html.escape(subtitle)}</p></div>', unsafe_allow_html=True)
+
+
+def show_rationale(text: str | None) -> None:
+    """A draft's reasoning in parts: the decision, why, plot history, the season, and the AI's own words folded away."""
+    parts = re.split(r"\s(?=Plot history |Weather pattern: |Model: |Self-check problems: )", (text or "").strip())
+    head, _, why = parts[0].partition(". ")
+    if why and head.split(":")[0] in ("PLANT", "SPRAY", "HOLD"):
+        st.markdown(f"#### {head}")
+    else:
+        why = parts[0]
+    if why:
+        st.markdown(why)
+    for part in parts[1:]:
+        if part.startswith("Plot history "):
+            st.markdown(f"**Plot history.** {part[len('Plot history '):]}")
+        elif part.startswith("Weather pattern: "):
+            st.markdown(f"**This season.** {part[len('Weather pattern: '):]}")
+        elif part.startswith("Model: "):
+            with st.expander("The AI's explanation (not checked by the rules)"):
+                st.markdown(part[len("Model: "):])
+        else:
+            st.warning(part)
+
+
+def latest_advice(advisories: list[dict]) -> None:
+    """The first thing a farmer sees: their officer's latest signed advice. Never a draft."""
+    sent = [a for a in advisories if a["status"] == "APPROVED"]
+    if not sent:
+        st.markdown('<div class="cp-now"><div class="cp-kicker">This week</div><div class="act">No advice yet</div>'
+                    '<p>When your extension officer signs advice for your farm, it appears here and comes by SMS.</p>'
+                    '</div>', unsafe_allow_html=True)
+        return
+    a = max(sent, key=lambda x: x.get("reviewed_at") or "")
+    word, color = {"PLANT": ("Plant now", "green"), "SPRAY": ("Scout, then spray", "orange"),
+                   "HOLD": ("Wait for now", "orange")}.get(a["verdict"], ("Advice", "gray"))
+    langs = (a.get("sent_languages") or "en").split(",")
+    message = a["farmer_message"] if "en" in langs or not a.get("farmer_message_sw") else a["farmer_message_sw"]
+    st.markdown(f'<div class="cp-now"><div class="cp-kicker">From {html.escape(a["officer_signature"] or "your officer")}'
+                f' · {html.escape((a.get("reviewed_at") or "")[:10])}</div>'
+                f'<div class="act t-{color}">{word}</div><p>{html.escape(message or "")}</p></div>',
                 unsafe_allow_html=True)
 
 
@@ -307,7 +383,7 @@ def farm_label(hid: str | None) -> str:
 # --- Urgency and citations ------------------------------------------------------------------------------------
 HARVEST_STAGES = {"MATURITY", "HARVEST_READY", "HARVEST", "POD_FILL_MATURITY", "TUBER_BULKING"}
 URGENCY = {"PLANT": ("When to plant: plant now", "green"), "SPRAY": ("When to spray: spray now", "orange"),
-           "HOLD": ("When to hold: hold", "blue"), "HARVEST": ("Ready for harvest", "violet")}
+           "HOLD": ("When to hold: hold", "orange"), "HARVEST": ("Ready for harvest", "green")}
 
 
 def urgency(verdict: str | None, stage: str | None) -> tuple[str, str]:

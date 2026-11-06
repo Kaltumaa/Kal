@@ -264,7 +264,7 @@ VERDICT_TEMPLATES = {
     "SPRAY": "{pest} confirmed {distance} km from your farm. Scout your {crop} today; if damage is found, spray "
              "early morning with a PCPB-registered product, wear gloves and mask, and respect the label's harvest "
              "interval. - Dagoretti South Extension",
-    "HOLD": "Hold field operations on your {crop} for now. {reason} We will update you. - Dagoretti South Extension",
+    "HOLD": "Wait before doing field work on your {crop} for now. {reason} We will update you. - Dagoretti South Extension",
 }
 
 
@@ -308,6 +308,23 @@ SW_HOLD_REASONS = {
 }
 
 
+EN_SIGN = " - Dagoretti South Extension"
+
+
+def farmer_sms(text: str | None) -> str:
+    """A model-written SMS in words a farmer uses, always ending with the desk's sign-off. The officer still edits it."""
+    t = agronomy.plain_terms(sanitizer.normalise_text(text))
+    t = re.sub(r"(?i)\bthe planting window is closed\b", "It is not yet time to plant", t)
+    t = re.sub(r"(?i)\bthe planting window is open\b", "It is time to plant", t)
+    t = re.sub(r"(?i)\b(?:the )?planting window to open\b", "the planting rains", t)
+    t = re.sub(r"(?i)\bplanting window\b", "planting time", t)
+    t = re.sub(r"\s*[-\u2013\u2014]?\s*Dagoretti South Extension\.?\s*$", "", t).rstrip()
+    if len(t) > 290:
+        cut = t[:290]
+        t = cut[: cut.rfind(".") + 1] if "." in cut else cut.rstrip()
+    return f"{t}{EN_SIGN}" if t else ""
+
+
 def _template_message(verdict: str | None, plot: dict, rain: dict | None, threat: dict | None,
                       rule: str | None = None) -> str:
     if verdict is None:
@@ -326,13 +343,27 @@ def _template_message(verdict: str | None, plot: dict, rain: dict | None, threat
         pest=(threat or {}).get("pest", "A pest"), distance=(threat or {}).get("distance_km"), reason=reason)
 
 
-# Fixed Swahili wording, used when the local model is off or its translation fails a check. Crop and pest names
-# stay exactly as in the English draft: we do not invent local names that are not in data/reference.
+# Fixed Swahili wording, used when the local model is off or its translation fails a check. Crops use their everyday
+# Kiswahili names (the same words the sanitizer already accepts). A pest keeps its English name so an officer can match
+# it to the report, with the common Kiswahili name in front where there is one.
+CROP_SW = {"Maize": "mahindi", "Beans": "maharagwe", "Kale": "sukuma wiki", "Potato": "viazi", "Irish Potato": "viazi",
+           "Tomato": "nyanya", "Sorghum": "mtama", "Cowpeas": "kunde", "Sweet Potato": "viazi vitamu",
+           "Groundnut": "karanga"}
+PEST_SW = {"fall armyworm": "Viwavijeshi", "aphids": "Vidukari", "late blight": "Ukungu"}
+
+
+def _pest_sw(pest: str | None) -> str:
+    if not pest:
+        return "Mdudu"
+    local = PEST_SW.get(pest.lower())
+    return f"{local} ({pest})" if local else pest
+
+
 SW_SIGN = " - Huduma ya Ugani, Dagoretti South"
 SW_TEMPLATES = {
     "PLANT": "Mvua zinaanza katika eneo lako (mm {rain_7d} zinatarajiwa wiki hii). Panda {crop} sasa kwa mbegu "
              "zilizothibitishwa." + SW_SIGN,
-    "SPRAY": "{pest} imethibitishwa km {distance} kutoka shamba lako. Kagua {crop} leo; ukiona uharibifu, nyunyiza "
+    "SPRAY": "Imethibitishwa: {pest}, km {distance} kutoka shamba lako. Kagua {crop} leo; ukiona uharibifu, nyunyiza "
              "asubuhi na mapema kwa dawa iliyosajiliwa na PCPB, vaa glavu na barakoa, na ufuate muda wa kusubiri "
              "kabla ya kuvuna ulioandikwa kwenye lebo." + SW_SIGN,
     "HOLD": "Subiri kwanza kufanya kazi shambani kwenye {crop}. {reason} Tutakujulisha." + SW_SIGN,
@@ -357,8 +388,9 @@ def _template_message_sw(verdict: str | None, plot: dict, rain: dict | None, thr
     else:
         reason = SW_REASONS["no_threat"]
     return SW_TEMPLATES[verdict].format(
-        rain_7d=(rain or {}).get("rain_7d_mm"), crop=(plot.get("active_crop") or "crop").lower(),
-        pest=(threat or {}).get("pest", "Mdudu"), distance=(threat or {}).get("distance_km"), reason=reason)
+        rain_7d=(rain or {}).get("rain_7d_mm"),
+        crop=CROP_SW.get(plot.get("active_crop") or "", (plot.get("active_crop") or "zao").lower()),
+        pest=_pest_sw((threat or {}).get("pest")), distance=(threat or {}).get("distance_km"), reason=reason)
 
 
 def check_swahili(english: str, swahili: str, keep: list[str]) -> list[str]:
@@ -450,7 +482,9 @@ async def _llm_compose(run_id: str, view: dict) -> dict | None:
               "spray_band is UNSAFE; SPRAY when a verified pest_threat is present and weather allows; PLANT only "
               "for a crop at PRE_PLANTING when planting_window is OPEN; otherwise HOLD. Respond as JSON with keys "
               "verdict, rationale (max 70 words, for the officer, cite the numbers), farmer_message (max 300 "
-              "characters, plain English, for an SMS to the farmer, sign as Dagoretti South Extension).")
+              "characters, plain English, for an SMS to the farmer, in everyday words: write 'it is not yet time "
+              "to plant', never 'planting window', 'spray band' or other technical terms; sign as Dagoretti South "
+              "Extension).")
     try:
         reply = await llm.chat([{"role": "system", "content": system},
                                 {"role": "user", "content": json.dumps(view, default=str)}], json_mode=True)
@@ -554,8 +588,8 @@ async def advisory_compiler_node(state: RunState) -> dict:
         else:
             model_verdict = str(composed.get("verdict", "")).upper().strip() or None
             if model_verdict == decision["verdict"]:
-                rationale = f"{rationale} Model: {sanitizer.normalise_text(composed.get('rationale'))[:600]}"
-                message = sanitizer.normalise_text(composed.get("farmer_message"))[:300] or message
+                rationale = f"{rationale} Model: {agronomy.plain_terms(sanitizer.normalise_text(composed.get('rationale')))[:600]}"
+                message = farmer_sms(composed.get("farmer_message")) or message
             else:
                 flags.append(f"model_disagreement:{model_verdict}->{decision['verdict']}")
     elif decision["status"] != "PENDING_REVIEW":

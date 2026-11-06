@@ -23,7 +23,7 @@ ui.header("Community", "Ask and share what you see in your fields. Pest reports 
 def report_review(r: dict) -> None:
     with ui.section():
         st.markdown(f"**{r['author']}** · {(r.get('zone_id') or 'ward not given').title()}"
-                    f"{' · :blue-badge[via SMS]' if r.get('source') == 'sms' else ''}  \n"
+                    f"{' · :gray-badge[via SMS]' if r.get('source') == 'sms' else ''}  \n"
                     f"<span class='cp-muted'>{r['created_at'][:16].replace('T', ' ')}</span>", unsafe_allow_html=True)
         st.write(r["body"])
         with st.form(f"report-{r['id']}", border=False):
@@ -102,7 +102,7 @@ with left:
         with st.chat_message("assistant" if officer else "user",
                              avatar=":material/verified:" if officer else ":material/person:"):
             st.markdown(f"**{p['author']}**{' · Extension officer' if officer else ''}{badge}"
-                        f"{' · :blue-badge[via SMS]' if p.get('source') == 'sms' else ''}  \n"
+                        f"{' · :gray-badge[via SMS]' if p.get('source') == 'sms' else ''}  \n"
                         f"<span class='cp-muted'>{p['topic']}"
                         f"{' · ' + p['zone_id'].title() if p.get('zone_id') else ''}"
                         f" · {p['created_at'][:16].replace('T', ' ')}</span>", unsafe_allow_html=True)

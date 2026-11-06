@@ -1,6 +1,6 @@
 [theme]
 base = "light"
-primaryColor = "#18181B"
+primaryColor = "#14532D"
 backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#52525B"
@@ -9,7 +9,11 @@ font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;70
 baseRadius = "6px"
 
 [theme.sidebar]
-backgroundColor = "#FFFFFF"
+backgroundColor = "#14532D"
+secondaryBackgroundColor = "#14532D"
+textColor = "#F7F1E3"
+primaryColor = "#F2B134"
+borderColor = "#2F6B47"
 
 [server]
 headless = true

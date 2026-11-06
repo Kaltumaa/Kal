@@ -171,7 +171,7 @@ to it. Wards, households, rainfall and season outlooks are rows of data. To serv
 | Backend API | FastAPI + Uvicorn |
 | Frontend | Streamlit (multi-page) |
 | Database | SQLite (parameterised queries only) |
-| Tests / evals | pytest (126 tests), `evals/run_evals.py` (8 tasks × 5 runs) |
+| Tests / evals | pytest (128 tests), `evals/run_evals.py` (8 tasks × 5 runs) |
 | External APIs | None |
 
 ## Agent architecture

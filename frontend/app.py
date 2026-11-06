@@ -18,7 +18,8 @@ from views import system
 
 st.set_page_config(page_title="Mkulima Hub", page_icon="🌱", layout="wide")
 ui.setup()
-st.logo(str(Path(__file__).parent / "assets" / "logo.svg"), size="large")
+st.logo(str(Path(__file__).parent / "assets" / "logo.svg"), size="large",
+        icon_image=str(Path(__file__).parent / "assets" / "logo_collapsed.svg"))
 
 cloud.ensure_backend()
 try:
@@ -95,4 +96,3 @@ with st.sidebar:
                    "and photos go to the officer without an AI suggestion. The full version runs on a laptop.")
 
 nav.run()
-ui.partners()

@@ -121,7 +121,7 @@ def outbox() -> None:
             st.dataframe(pd.DataFrame(manual), hide_index=True, width="stretch")
 
 
-CALL_BADGE = {"QUEUED": ":gray-badge[Queued]", "SENT": ":blue-badge[Ringing]", "ANSWERED": ":blue-badge[Answered, no key]",
+CALL_BADGE = {"QUEUED": ":gray-badge[Queued]", "SENT": ":gray-badge[Ringing]", "ANSWERED": ":gray-badge[Answered, no key]",
               "ACKNOWLEDGED": ":green-badge[Heard it (1)]",
               "VISIT_REQUESTED": ":orange-badge[Needs help (2)]",
               "NO_ANSWER": ":red-badge[No answer]", "FAILED": ":red-badge[Call failed]"}

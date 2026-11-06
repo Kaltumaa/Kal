@@ -55,7 +55,7 @@ with left:
             if n["visit_requested"]:
                 top[1].markdown(":orange-badge[Needs help]")
             elif n["waiting"]:
-                top[1].markdown(f":blue-badge[{n['waiting']} waiting]")
+                top[1].markdown(f":gray-badge[{n['waiting']} waiting]")
             lines = []
             for p in n["photos"][:3]:
                 when = (p["reviewed_at"] or p["created_at"])[:10]

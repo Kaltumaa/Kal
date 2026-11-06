@@ -21,6 +21,12 @@ CARRYOVER = {
 }
 
 
+def say_sequence(seq: str) -> str:
+    """A crop sequence in words: 'Maize > Beans+Kale (now)' -> 'Maize, then Beans and Kale (now)'.
+    Notes end up in saved drafts, where the text filter removes symbols such as > and +."""
+    return seq.replace(" > ", ", then ").replace("+", " and ")
+
+
 def rotation(active_crop: str | None, history: list[str]) -> dict:
     if not active_crop:
         return {"risk": "UNKNOWN", "note": None, "sms_tip": None, "same_family_run": 0}
@@ -40,19 +46,19 @@ def rotation(active_crop: str | None, history: list[str]) -> dict:
         pests, fix = CARRYOVER[fam]
         risk = "HIGH" if run >= 3 else "ELEVATED"
         return {"risk": risk, "same_family_run": run, "sequence": seq,
-                "note": f"Plot history {seq}: {run} seasons of {fam} crops in a row raises carry-over of {pests}.",
+                "note": f"Plot history {say_sequence(seq)}: {run} seasons of {fam} crops in a row raises carry-over of {pests}.",
                 "sms_tip": f"Same crop {run} seasons running: scout twice a week; {fix}."}
     if fam == "nightshade" and any(FAMILY.get(p) == "nightshade" for p in history[-3:]):
         pests, fix = CARRYOVER[fam]
         return {"risk": "ELEVATED", "same_family_run": run, "sequence": seq,
-                "note": f"Plot history {seq}: a nightshade crop within the last 3 seasons keeps {pests} risk up.",
+                "note": f"Plot history {say_sequence(seq)}: a nightshade crop within the last 3 seasons keeps {pests} risk up.",
                 "sms_tip": "Blight can carry over: no potato or tomato here for 3 seasons."}
     if FAMILY.get(previous) == "legume" and fam == "cereal":
         return {"risk": "LOW", "same_family_run": run, "sequence": seq,
-                "note": f"Plot history {seq}: follows {previous.lower()}, a good rotation with a nitrogen benefit.",
+                "note": f"Plot history {say_sequence(seq)}: follows {previous.lower()}, a good rotation with a nitrogen benefit.",
                 "sms_tip": None}
     return {"risk": "LOW", "same_family_run": run, "sequence": seq,
-            "note": f"Plot history {seq}: rotation is fine.", "sms_tip": None}
+            "note": f"Plot history {say_sequence(seq)}: rotation is fine.", "sms_tip": None}
 
 
 
@@ -67,14 +73,14 @@ def rotation_for_plot(plot: dict) -> dict:
     if not crop or not r.get("sequence") or not any(len(x) > 1 for x in seasons + [[crop, *companions]]):
         return r
     seq = " > ".join(["+".join(x) for x in seasons] + ["+".join([crop, *companions]) + " (now)"])
-    r = r | {"sequence": seq, "note": (r.get("note") or "").replace(r["sequence"], seq)}
+    r = r | {"sequence": seq, "note": (r.get("note") or "").replace(say_sequence(r["sequence"]), say_sequence(seq))}
     fam, run = FAMILY.get(crop), r.get("same_family_run", 0)
     recent = seasons[-(run - 1):] if run > 1 else []
     with_legume = bool(recent) and all(any(FAMILY.get(c) == "legume" for c in x[1:]) for x in recent) \
         and any(FAMILY.get(c) == "legume" for c in companions)
     if fam == "cereal" and run >= 2 and with_legume:
         pests, _ = CARRYOVER["cereal"]
-        r |= {"note": f"Plot history {seq}: {crop.lower()} has been the main crop {run} seasons in a row. The "
+        r |= {"note": f"Plot history {say_sequence(seq)}: {crop.lower()} has been the main crop {run} seasons in a row. The "
                       f"legumes grown with it add nitrogen, but they do not break the cycle of {pests}.",
               "sms_tip": f"{crop} {run} seasons running, even with beans: scout twice a week; next season make "
                          "beans or another non-cereal the main crop."}

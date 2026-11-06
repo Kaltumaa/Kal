@@ -71,12 +71,12 @@ def detail(adv: dict) -> None:
 
         if rain.get("spray_safety_index") is not None and adv["status"] != "NEEDS_DATA":
             m = st.columns(4)
-            m[0].metric("Spraying", ui.spray_status(rain)[0] if rain.get("spray_band") else "—",
+            m[0].metric("Spray weather", ui.spray_status(rain)[0] if rain.get("spray_band") else "—",
                         f'score {rain["spray_safety_index"]:.0f}/100',
                         delta_color="off")
             m[1].metric("Rain, 7 days", f'{rain.get("rain_7d_mm") or 0:.0f} mm')
-            m[2].metric("Planting window", (rain.get("planting_window") or "—").title())
-            m[3].metric("Nearest pest", f'{threat["distance_km"]} km' if threat else "None",
+            m[2].metric("Planting rain", {"OPEN": "Enough", "CLOSED": "Not yet"}.get(rain.get("planting_window"), "—"))
+            m[3].metric("Crop pest risk", f'{threat["distance_km"]} km' if threat else "None",
                         threat["pest"] if threat else None, delta_color="off")
 
         view = st.segmented_control("View", ["Message & send", "Farm & plot history", "Evidence", "Agent steps"],
@@ -100,7 +100,7 @@ def detail(adv: dict) -> None:
             else:
                 st.caption("No field-log entries yet for this farm.")
         if view == "Message & send":
-            st.write(adv["rationale"])
+            ui.show_rationale(adv["rationale"])
             if can_sign:
                 with st.form(f"sign-{adv['id']}", border=False):
                     msg = st.text_area("Message to the farmer", adv["farmer_message"] or "", max_chars=320, height=90)

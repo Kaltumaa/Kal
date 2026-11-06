@@ -57,7 +57,7 @@ def greenhouse_check() -> None:
                 show_assessment(api.greenhouse_assess(latest["temp_c"], latest["rh_pct"]))
                 trend = pd.DataFrame({"VPD (kPa)": [r["vpd_kpa"] for r in sensor[::-1]]},
                                      index=pd.RangeIndex(1, len(sensor) + 1, name="Reading"))
-                st.line_chart(trend, height=170, color="#18181B", x_label="Reading", y_label="VPD (kPa)")
+                st.line_chart(trend, height=170, color="#14532D", x_label="Reading", y_label="VPD (kPa)")
             else:
                 st.caption("No sensor connected yet. Any device on this network can send readings:")
             st.code('curl -X POST http://<this-computer>:8000/greenhouse/readings -H "Content-Type: application/json" '
@@ -74,7 +74,7 @@ def greenhouse_check() -> None:
 
 ui.header("Learn","Guides for officers and farmers. The advisory agent reads the same library.")
 topics = api.knowledge_topics()
-names = ["What can I grow?"] + [t["title"] for t in topics]
+names = ["What can I grow?"] + sorted((t["title"] for t in topics), key=lambda n: n == "Greenhouse growing")
 ICONS = {"What can I grow?": "potted_plant", "Pests & diseases": "bug_report", "Pesticides & safe use": "sanitizer",
          "Weeds": "grass", "Soils": "landscape", "Greenhouse growing": "home_work", "Crop calendar": "calendar_month",
          "Pest action thresholds": "target", "When it is safe to spray": "water_drop"}
@@ -88,7 +88,7 @@ GRID_CSS = """<style>
 .cp-crop .fit, .cp-crop .pill {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #15803D;}
 .cp-crop .fit {white-space: nowrap;} .cp-crop .fit.wait, .cp-crop .pill.wait {color: #B45309;} .cp-crop .fit.bad {color: #B91C1C;}
 .cp-crop .pill::before {content: "•"; margin-right: 0.35rem;}
-.cp-crop .k {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #A1A1AA; margin-right: 0.4rem;}
+.cp-crop .k {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #71717A; margin-right: 0.4rem;}
 .cp-crop .chk.bad {color: #18181B;} .cp-crop .chk.bad .k {color: #B45309;}
 .cp-crop .tip {color: #71717A; padding-top: 0.5rem; border-top: 1px solid #F4F4F5; margin-top: auto;}
 </style>"""
@@ -215,17 +215,16 @@ names = ["What can I grow?"] + [t["title"] for t in topics]
 choice = st.session_state.get("learn_topic", names[0])
 if choice not in names:
     choice = names[0]
-for row in range(0, len(names), 3):
-    cols = st.columns(3)
-    for col, name in zip(cols, names[row:row + 3]):
-        color, blurb = BLURB.get(name, ("green", ""))
-        with ui.section(col):
-            st.markdown(f"**{name}**")
-            st.caption(blurb)
-            if st.button("Viewing" if name == choice else "Open", key=f"topic-{name}", width="stretch",
-                         type="primary" if name == choice else "secondary", disabled=name == choice):
-                st.session_state["learn_topic"] = name
-                st.rerun()
+for i, name in enumerate(names):
+    blurb = BLURB.get(name, ("", ""))[1]
+    with st.container(key=f"cp-topic-{i}"):
+        c = st.columns([1, 2], vertical_alignment="center")
+        if name == choice:
+            c[0].markdown(f"**{name}**  \n<span class='cp-muted'>Viewing</span>", unsafe_allow_html=True)
+        elif c[0].button(f"{name} ↗", key=f"topic-{name}", type="tertiary"):
+            st.session_state["learn_topic"] = name
+            st.rerun()
+        c[1].caption(blurb)
 st.divider()
 st.subheader(choice)
 if choice == names[0]:

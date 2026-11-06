@@ -53,9 +53,9 @@ bars = alt.Chart(cal).mark_bar(height=22).encode(
     tooltip=["Stage", "start", "end", "Watch for"])
 layers = [bars]
 if days is not None:
-    layers.append(alt.Chart(pd.DataFrame({"day": [days]})).mark_rule(color="#18181B", strokeWidth=2).encode(x="day:Q"))
+    layers.append(alt.Chart(pd.DataFrame({"day": [days]})).mark_rule(color="#14532D", strokeWidth=2).encode(x="day:Q"))
     layers.append(alt.Chart(pd.DataFrame({"day": [days], "t": [f"Today (day {days})"]})).mark_text(
-        align="left", dx=6, dy=-8, color="#18181B", fontWeight="bold").encode(x="day:Q", text="t:N", y=alt.value(0)))
+        align="left", dx=6, dy=-8, color="#14532D", fontWeight="bold").encode(x="day:Q", text="t:N", y=alt.value(0)))
 st.altair_chart(alt.layer(*layers).properties(height=46 * len(cal) + 50), width="stretch")
 st.dataframe(cal[["Stage", "start", "end", "Watch for"]].rename(columns={"start": "From day", "end": "To day"}),
              hide_index=True, width="stretch")

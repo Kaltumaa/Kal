@@ -27,6 +27,8 @@ else:
                          "from your extension officer.")
 p = api.household_profile(hid)
 plot, rot, pat = p["plot"], p["rotation"], p.get("pattern") or {}
+if not officer:
+    ui.latest_advice(p["advisories"])
 crop = plot.get("active_crop") or "No crop recorded"
 days = plot.get("days_since_planting")
 stage = ui.stage_label(plot.get("growth_stage"))
@@ -40,8 +42,7 @@ slope, soil, companion = plot.get("slope"), plot.get("soil"), plot.get("intercro
 terrain = (f"{slope.capitalize()} slope · {soil}" if slope and soil else
            "Slope and soil not recorded yet")
 terrain += f" · grown with {companion.lower()}" if companion else ""
-st.caption(f":material/landscape: **Terrain:** {terrain}. Planting advice uses it: how to plant on a slope, "
-           "whether flat clay will waterlog, and a layout tip for intercropped plots.")
+st.caption(f":material/landscape: **Terrain:** {terrain}.")
 if officer:
     with st.expander("Record slope, soil and companion crop (from your field visit)",
                      icon=":material/edit_location_alt:"):
@@ -95,11 +96,6 @@ if officer:
 if plot.get("injection_detected"):
     st.error("This farm's notes contained instruction-like text and were removed. Verify the record in person.",
              icon=":material/gpp_bad:")
-
-crops_here = list((p.get("calendars") or {}))
-st.caption(":material/calendar_month: Crop calendar"
-           + (f" for {' and '.join(c.lower() for c in crops_here)}" if crops_here else "")
-           + ": open **Crop calendar** in the menu to see each crop's stages and pest-watch days.")
 
 left, right = st.columns(2, gap="large")
 with left:
@@ -169,7 +165,7 @@ if not officer:
         st.markdown(f"**Rainfall pattern in {(zone or '').title()}** (10-day periods, this year vs normal)")
         st.bar_chart(pd.DataFrame([{"Period": d["period"], "This year (mm)": d["rain_mm"],
                                     "Normal (mm)": d["normal_mm"]} for d in pat["dekads"]]).set_index("Period"),
-                     stack=False, color=["#18181B", "#E4E4E7"], height=220)
+                     stack=False, color=["#14532D", "#E4E4E7"], height=220)
     st.caption("CHIRPS-style rainfall data (synthetic for this demo).")
 
     sent = [a for a in p["advisories"] if a["status"] == "APPROVED"]
@@ -191,7 +187,7 @@ if draft:
     with ui.section():
         st.markdown("### AI-generated advisory draft (review required)")
         st.markdown(ui.badges(draft["verdict"], draft["status"]) + "  Nothing has been sent to the farmer.")
-        st.write(draft["rationale"])
+        ui.show_rationale(draft["rationale"])
         st.caption("Based on: " + " · ".join(ui.source_label(x, ui.names()) for x in draft["sources"]))
         can_send = draft["status"] == "PENDING_REVIEW" and not draft.get("forecast_changed")
         if draft.get("forecast_changed"):

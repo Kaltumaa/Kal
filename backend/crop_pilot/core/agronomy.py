@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from datetime import date
 from functools import lru_cache
 
@@ -13,6 +14,16 @@ from crop_pilot import config
 
 
 # ---------------------------------------------------------------------------------- rainfall
+_CODE_WORDS = re.compile(r"\b(?:[A-Z]{2,}(?:_[A-Z]+)+|OPEN|CLOSED|UNSAFE|SAFE|CAUTION|EMERGENCE|VEGETATIVE|FLOWERING|"
+                         r"MATURITY|ESTABLISHMENT)\b")
+
+
+def plain_terms(text: str | None) -> str:
+    """Internal codes as words, in any text a person reads: 'GRAIN_FILL' -> 'grain fill', 'OPEN' -> 'open'.
+    The small model copies these from its evidence. PLANT, SPRAY and HOLD are verdicts and stay as they are."""
+    return _CODE_WORDS.sub(lambda m: m.group(0).replace("_", " ").lower(), text or "")
+
+
 def nearest_zone(lat: float, lon: float, zones: list[dict]) -> dict | None:
     if not zones:
         return None
@@ -376,7 +387,7 @@ def _decide(plot: dict, rain: dict | None, pests: dict | None, *, pattern: dict 
 
     if threat:
         reasons.append(f"Verified {threat['pest']} ({threat['severity']}) {threat['distance_km']} km away, "
-                       f"{threat['age_days']} days old; crop stage {stage} is susceptible.")
+                       f"{threat['age_days']} days old; crop stage {plain_terms(stage)} is susceptible.")
         reasons.append(f"Spray-safety index {rain['spray_safety_index']} ({rain['spray_band']}).")
         kind = threat_kind(threat["pest"])
         rot = chemical_rotation(field_log, kind=kind, pest=threat["pest"]) if kind else None
@@ -469,8 +480,8 @@ def _decide(plot: dict, rain: dict | None, pests: dict | None, *, pattern: dict 
     watch = [p for p, crops in config.PEST_SUSCEPTIBILITY.items() if stage in crops.get(plot.get("active_crop"), set())]
     if watch:
         pest = watch[0]
-        reasons.append(f"{plot.get('active_crop')} at {stage} is in the {pest.title()} risk window, but no confirmed "
+        reasons.append(f"{plot.get('active_crop')} at {plain_terms(stage)} is in the {pest.title()} risk window, but no confirmed "
                        f"report is near. Do not spray ahead of the pest: {config.SCOUT_ADVICE.get(pest, 'scout twice a week')}.")
         return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R6c_risk_window", "reasons": reasons}
-    reasons.append(f"No actionable verified pest threat; crop at {stage}. Continue routine scouting.")
+    reasons.append(f"No actionable verified pest threat; crop at {plain_terms(stage)}. Continue routine scouting.")
     return {"status": "PENDING_REVIEW", "verdict": "HOLD", "rule": "R6_monitor", "reasons": reasons}

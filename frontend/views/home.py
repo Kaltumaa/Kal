@@ -14,7 +14,6 @@ import api_client as api
 import ui
 
 MAIN_CROPS = {"Maize", "Beans", "Potato", "Kale"}
-ACCENT = {"green": "#1F7A4D", "orange": "#D98E04", "red": "#C0392B", "gray": "#9AA79F"}
 MONTHS = {"01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr", "05": "May", "06": "Jun", "07": "Jul", "08": "Aug",
           "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dec"}
 
@@ -58,13 +57,13 @@ def ward_card(z: dict, pests: list[dict]) -> str:
     spray_label, spray_color = ui.spray_status(z)
     names = sorted({a["pest"] for a in pests})
     pest_html = chips(names, "red") if names else chips(["No confirmed pests"], "ok")
-    return (f'<div class="cp-ward" style="--accent:{ACCENT[color]}"><div class="wh">'
-            f'<span class="wn">{html.escape(z["zone_id"].title())}</span>{tag(action, color)}</div>'
+    return (f'<div class="cp-ward"><span class="wn">{html.escape(z["zone_id"].title())}</span>'
+            f'<div class="act t-{color}">{html.escape(action)}</div>'
             f'<div class="why">{html.escape(reason)}</div>'
             f'<div class="cp-stats"><div class="cp-stat"><span>This week</span><b>{z["rain_7d_mm"]:.0f} mm</b></div>'
             f'<div class="cp-stat"><span>Next 3 days</span><b>{z["rain_72h_mm"]:.0f} mm</b></div>'
             f'<div class="cp-stat"><span>Season</span><b>{season}</b></div></div>'
-            f'<div class="cp-row"><span class="lbl">Spraying</span>{tag(spray_label, spray_color)}</div>'
+            f'<div class="cp-row"><span class="lbl">Spray weather</span>{tag(spray_label, spray_color)}</div>'
             f'<div class="cp-row"><span class="lbl">Can plant</span>'
             f'{chips(plantable) if plantable else chips(["Nothing this week"], "gray")}</div>'
             f'<div class="cp-row"><span class="lbl">Pests</span>{pest_html}</div>'
@@ -80,7 +79,7 @@ def period_label(period: str) -> str:
         return period
 
 
-ui.header("This week", "What to tell farmers in each ward, where the pests are, and what is waiting for you.")
+ui.header("This week", "What to tell farmers in each ward, where the pests are, and what is waiting for you.", hero=True)
 try:
     ov, advs, scans, fups = api.overview(), api.advisories(), api.scans(), api.followups()
 except api.ApiError as exc:
@@ -159,7 +158,7 @@ with mc:
         pdk.Layer("ScatterplotLayer", reach, get_position="[lon, lat]", get_radius="r", get_fill_color=[192, 57, 43, 10],
                   get_line_color=[192, 57, 43, 110], stroked=True, line_width_min_pixels=1, pickable=False),
         pdk.Layer("ScatterplotLayer", farms, get_position="[lon, lat]", get_radius=55, radius_min_pixels=5,
-                  get_fill_color=[24, 24, 27, 230], get_line_color=[255, 255, 255], stroked=True,
+                  get_fill_color=[20, 83, 45, 230], get_line_color=[255, 255, 255], stroked=True,
                   line_width_min_pixels=1, pickable=True),
         pdk.Layer("ScatterplotLayer", stale, get_position="[lon, lat]", get_radius=90, radius_min_pixels=6,
                   get_fill_color=[240, 180, 170, 200], pickable=True),
@@ -178,7 +177,7 @@ with mc:
                          longitude=sum(w["lon"] for w in wards) / len(wards), zoom=11.8)
     st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view, map_style="light",
                              tooltip={"html": "<b>{title}</b><br/>{detail}"}), height=400)
-    st.markdown('<div class="cp-legend"><span><i style="background:#18181B"></i>Farm</span>'
+    st.markdown('<div class="cp-legend"><span><i style="background:#14532D"></i>Farm</span>'
                 '<span><i style="background:#C0392B"></i>Confirmed pest (ring: action radius)</span>'
                 '<span><i style="background:#fff;border:3px solid #C0392B;width:7px;height:7px"></i>'
                 'Confirmed, location approximate</span>'
@@ -216,7 +215,7 @@ if zp["dekads"]:
         x=alt.X("Period:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12)),
         xOffset=alt.XOffset("Series:N", sort=["This year", "Normal"]),
         y=alt.Y("Rain (mm):Q", title="Rain (mm)"),
-        color=alt.Color("Series:N", scale=alt.Scale(domain=["This year", "Normal"], range=["#18181B", "#E4E4E7"]),
+        color=alt.Color("Series:N", scale=alt.Scale(domain=["This year", "Normal"], range=["#14532D", "#E4E4E7"]),
                         legend=alt.Legend(orient="top", title=None)),
         tooltip=["Period", "Series", "Rain (mm)"])
     st.altair_chart(chart.properties(height=260), width="stretch")
@@ -275,3 +274,5 @@ with st.expander("A new forecast arrived? Record it", icon=":material/edit_note:
                 st.rerun()
             except api.ApiError as exc:
                 st.error(str(exc.detail))
+
+ui.partners()
