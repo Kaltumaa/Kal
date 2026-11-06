@@ -12,8 +12,6 @@ import ui
 
 ACTION_LABEL = {"PLANTING": "Planting", "WEEDING": "Weeding", "SPRAYING": "Spraying", "FERTILISER": "Fertiliser",
                 "IRRIGATION": "Watering", "HARVEST": "Harvest", "OBSERVATION": "Observation", "VARIETY": "Seed / variety"}
-ICON = {"PLANTING": "🌱", "WEEDING": "🌿", "SPRAYING": "🧴", "FERTILISER": "🧪", "IRRIGATION": "💧", "HARVEST": "🧺",
-        "OBSERVATION": "👀", "VARIETY": "🫘"}
 DOT = {"PLANTING": "#1F7A4D", "WEEDING": "#5E9E3A", "SPRAYING": "#C0392B", "FERTILISER": "#7A5AF8",
        "IRRIGATION": "#2E86C1", "HARVEST": "#D98E04", "OBSERVATION": "#66756B", "VARIETY": "#8A5A2B"}
 SEED_LABEL = {"VERIFIED": "Verified with KEPHIS", "FAILED": "Did not verify", "NOT_CHECKED": "Not checked"}
@@ -76,7 +74,7 @@ def entry(a: dict) -> str:
     if extra:
         body += ("<br>" if body else "") + " · ".join(esc(x) for x in extra)
     return (f'<div class="cp-entry" style="--dot:{DOT.get(a["action"], "#66756B")}">'
-            f'<div class="t">{ICON.get(a["action"], "•")} {esc(what)}</div>'
+            f'<div class="t">{esc(what)}</div>'
             f'<div class="d">{esc(a["action_date"])} · {esc(who)}</div>'
             + (f'<div class="x">{body}</div>' if body else "") + "</div>")
 
@@ -135,7 +133,7 @@ with left:
 
 with right:
     if role == "farmer":
-        with st.container(border=True):
+        with ui.section():
             st.markdown("#### Add to my plot history")
             voice = ui.voice_note("log-voice")
             if voice:
@@ -144,7 +142,7 @@ with right:
                     st.session_state["log-act"] = voice["suggested_action"]
             st.session_state.setdefault("log-act", "WEEDING")
             action = st.pills("What did you do?", list(ACTION_LABEL), key="log-act",
-                              format_func=lambda k: f"{ICON[k]} {ACTION_LABEL[k]}") or "WEEDING"
+                              format_func=lambda k: ACTION_LABEL[k]) or "WEEDING"
             with st.form("log-action", clear_on_submit=True, border=False):
                 when = st.date_input("When", value=pd.Timestamp(st.session_state.get("demo_today",
                                                                                     "2026-10-15")).date())
@@ -176,7 +174,7 @@ with right:
                                                 "advice waits until it is moist that deep.")
                 details = st.text_input("Details", max_chars=300, key="log-details",
                                         placeholder="e.g. east side, 50 kg CAN top-dress, 2 h drip irrigation")
-                if st.form_submit_button(f"{ICON[action]} Save {ACTION_LABEL[action].lower()}", type="primary",
+                if st.form_submit_button(f"Save {ACTION_LABEL[action].lower()}", type="primary",
                                          width="stretch"):
                     try:
                         updated = False
@@ -198,7 +196,7 @@ with right:
                    "advice uses it. Ticking a reminder done in **Reminders** adds an entry too. No internet? Text "
                    "`LOG WEEDING ...` (see Notifications).")
     else:
-        with st.container(border=True):
+        with ui.section():
             st.markdown("#### How this page fills up")
             st.markdown("- **Farmers** log what they did: in the app, by voice note, or by SMS (`LOG WEEDING ...`).\n"
                         "- Finished **reminders** are added too.\n"

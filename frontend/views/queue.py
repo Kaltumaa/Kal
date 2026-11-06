@@ -39,7 +39,7 @@ def detail(adv: dict) -> None:
     plot, rain, threat = ev.get("plot") or {}, ev.get("rain") or {}, ev.get("pest_threat")
     can_sign = adv["status"] == "PENDING_REVIEW"
 
-    with st.container(border=True):
+    with ui.section():
         stage = ui.stage_label(plot.get("growth_stage")).lower() if plot.get("growth_stage") else ""
         st.markdown(f"### {ui.names().get(adv['household_id'], adv['household_id'])}")
         urg, urg_color = ui.urgency(adv["verdict"], plot.get("growth_stage"))
@@ -115,7 +115,7 @@ def detail(adv: dict) -> None:
                     send_sw = lc[2].checkbox("Kiswahili", value=want_sw)
                     st.caption(lang_note)
                     farm = st.session_state.get("farm_info", {}).get(adv["household_id"], {})
-                    call = st.checkbox("📞 Also phone the farmer and read this message out"
+                    call = st.checkbox("Also phone the farmer and read this message out"
                                        + (" (feature phone, no data)" if farm.get("phone_type") == "feature" else ""),
                                        value=farm.get("phone_type") == "feature" and farm.get("has_phone", False),
                                        disabled=not farm.get("has_phone"),
@@ -127,7 +127,7 @@ def detail(adv: dict) -> None:
                     name = st.text_input("Your full name", placeholder="e.g. Wanjiru Kamau")
                     ok = st.checkbox("I have checked the evidence and take responsibility for this advice.")
                     b = st.columns([2.2, 1, 1])
-                    sign = b[0].form_submit_button("🚀 Send Local Advisory Notification to Farmer", type="primary",
+                    sign = b[0].form_submit_button("Send advice to farmer", type="primary",
                                                    width="stretch")
                     reject = b[1].form_submit_button("Reject", width="stretch")
                     try:
@@ -203,13 +203,13 @@ drafts = [a for a in advs if a["status"] in ("SECURITY_LOCK", "PENDING_REVIEW", 
 # Drafts waiting for a signature first; locked drafts (can only be rejected) last.
 drafts.sort(key=lambda a: ({"PENDING_REVIEW": 0, "NEEDS_DATA": 1}.get(a["status"], 2), -a["id"]))
 
-PLAN = {"PLANT": "🌱 Plant now", "SPRAY": "🧴 Spray now", "HOLD": "✋ Hold", "HARVEST": "🧺 Ready for harvest",
-        "NEEDS_DATA": "❔ Needs farm data", "SECURITY_LOCK": "⛔ Record locked"}
+PLAN = {"PLANT": "Plant now", "SPRAY": "Spray now", "HOLD": "Hold", "HARVEST": "Ready for harvest",
+        "NEEDS_DATA": "Needs farm data", "SECURITY_LOCK": "Record locked"}
 DRAFT = {None: "—", "PENDING_REVIEW": "Waiting for you", "SECURITY_LOCK": "Locked", "NEEDS_DATA": "Field visit",
          "APPROVED": "Sent", "REJECTED": "Rejected"}
 
 # --- One toolbar to draft advice ---------------------------------------------------------------------------
-with st.container(border=True):
+with ui.section():
     c = st.columns([1.1, 2, 1.2], vertical_alignment="bottom")
     scope = c[0].segmented_control("Draft for", ["One farm", "Whole ward"], default="One farm")
     if scope == "Whole ward":

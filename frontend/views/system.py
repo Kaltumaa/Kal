@@ -85,7 +85,7 @@ def outbox() -> None:
             if not out:
                 st.caption("No messages sent yet.")
             for o in out:
-                with st.container(border=True):
+                with ui.section():
                     lang = {"sw": "Kiswahili"}.get(o.get("language"), "English")
                     st.markdown(f"**{ui.farm_label(o['household_id'])}** <span class='cp-muted'>· signed by {o['officer_signature']}"
                                 f" · {o['queued_at'][:16].replace('T', ' ')} UTC · {lang} · SMS"
@@ -164,7 +164,7 @@ def phone_calls() -> None:
     m[3].metric("No answer", counts["NO_ANSWER"])
     heard = st.session_state.pop("call_heard", None)
     for c in calls:
-        with st.container(border=True):
+        with ui.section():
             top = st.columns([3, 1.2], vertical_alignment="center")
             lang = "Kiswahili" if c["language"] == "sw" else "English"
             what = "Signed advice" if c["kind"] == "advice" else f"Photo #{c['related_id']} result"

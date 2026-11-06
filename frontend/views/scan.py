@@ -77,7 +77,7 @@ def deepleaf_box(cloud: dict | None) -> None:
     if cloud.get("status") != "ok":
         st.caption(f"DeepLeaf second opinion: not available ({cloud.get('error') or cloud.get('status')}).")
         return
-    with st.container(border=True):
+    with ui.section():
         st.markdown(":violet-badge[DeepLeaf Agronomist · second opinion · not verified]")
         st.markdown(cloud.get("officer_draft") or "—")
         st.caption("From DeepLeaf's cloud model. Compare it with the photo and the local AI; the farmer never sees "
@@ -109,7 +109,7 @@ def group_review(g: dict, by_id: dict) -> None:
                                 max_chars=1200)
             f = st.columns([1.6, 1.4])
             name = f[0].text_input("Your full name")
-            if f[1].form_submit_button(f"✅ Verify {len(keep)} ticked & notify farmers", type="primary",
+            if f[1].form_submit_button(f"Verify {len(keep)} ticked and notify farmers", type="primary",
                                        width="stretch"):
                 try:
                     r = api.review_scan_batch(keep, name, pest, sev, note)
@@ -144,7 +144,7 @@ def farmer_page() -> None:
         if not photos:
             st.caption("No photos sent yet.")
         for p in photos:
-            with st.container(border=True):
+            with ui.section():
                 c = st.columns([1, 2.2], gap="small")
                 img = api.scan_image(p["id"])
                 if img:
@@ -175,7 +175,7 @@ def officer_page() -> None:
     for g in api.scan_groups():
         group_review(g, {s["id"]: s for s in pending})
     for s in pending:
-        with st.container(border=True):
+        with ui.section():
             img_col, body = st.columns([1, 2.3], gap="medium")
             img = api.scan_image(s["id"])
             if img:
@@ -218,7 +218,7 @@ def officer_page() -> None:
                 farm = st.session_state.get("farm_info", {}).get(s["household_id"] or "", {})
                 feature = farm.get("phone_type") == "feature"
                 cc = st.columns([1.6, 1])
-                call = cc[0].toggle("📞 Also phone the farmer with the result" + (" (feature phone)" if feature else ""),
+                call = cc[0].toggle("Also phone the farmer with the result" + (" (feature phone)" if feature else ""),
                                     value=feature and farm.get("has_phone", False), key=f"call-{s['id']}",
                                     disabled=not farm.get("has_phone"),
                                     help="An automatic call reads out your message. The farmer presses 1 if they "
@@ -238,7 +238,7 @@ def officer_page() -> None:
                                               key=f"script-{s['id']}-{pest}-{lang}")
                     f = st.columns([1.6, 1.4])
                     name = f[0].text_input("Your full name")
-                    confirm = f[1].form_submit_button("✅ Verify Assessment & notify farmer", type="primary",
+                    confirm = f[1].form_submit_button("Verify and notify farmer", type="primary",
                                                       width="stretch")
                     try:
                         if confirm:

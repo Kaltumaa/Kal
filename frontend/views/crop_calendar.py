@@ -45,17 +45,17 @@ if not stages:
 cal = pd.DataFrame([{"Stage": s["stage"].replace("_", " ").title(), "start": s["start_day"], "end": s["end_day"],
                      "Watch for": ", ".join(s["pests_to_watch"]) or "—",
                      "Pest risk": "Watch for pests" if s["pests_to_watch"] else "Lower risk"} for s in stages])
-bars = alt.Chart(cal).mark_bar(cornerRadius=6, height=26).encode(
+bars = alt.Chart(cal).mark_bar(height=22).encode(
     x=alt.X("start:Q", title="Days after planting"), x2="end:Q",
     y=alt.Y("Stage:N", sort=None, title=None, axis=alt.Axis(labelOverlap=False, labelLimit=220, labelFontSize=12)),
     color=alt.Color("Pest risk:N", scale=alt.Scale(domain=["Watch for pests", "Lower risk"],
-                                                   range=["#E9A23B", "#7DBE95"]), legend=alt.Legend(orient="top")),
+                                                   range=["#B45309", "#E4E4E7"]), legend=alt.Legend(orient="top")),
     tooltip=["Stage", "start", "end", "Watch for"])
 layers = [bars]
 if days is not None:
-    layers.append(alt.Chart(pd.DataFrame({"day": [days]})).mark_rule(color="#D64545", strokeWidth=3).encode(x="day:Q"))
+    layers.append(alt.Chart(pd.DataFrame({"day": [days]})).mark_rule(color="#18181B", strokeWidth=2).encode(x="day:Q"))
     layers.append(alt.Chart(pd.DataFrame({"day": [days], "t": [f"Today (day {days})"]})).mark_text(
-        align="left", dx=6, dy=-8, color="#D64545", fontWeight="bold").encode(x="day:Q", text="t:N", y=alt.value(0)))
+        align="left", dx=6, dy=-8, color="#18181B", fontWeight="bold").encode(x="day:Q", text="t:N", y=alt.value(0)))
 st.altair_chart(alt.layer(*layers).properties(height=46 * len(cal) + 50), width="stretch")
 st.dataframe(cal[["Stage", "start", "end", "Watch for"]].rename(columns={"start": "From day", "end": "To day"}),
              hide_index=True, width="stretch")

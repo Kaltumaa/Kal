@@ -103,7 +103,7 @@ st.caption(":material/calendar_month: Crop calendar"
 
 left, right = st.columns(2, gap="large")
 with left:
-    with st.container(border=True):
+    with ui.section():
         st.markdown("**Plot history**")
         seq = rot.get("sequence") or " > ".join((plot.get("crop_history") or []) + [f"{crop} (now)"])
         st.markdown(f"`{seq}`")
@@ -115,7 +115,7 @@ with left:
             with st.expander(f"Record repairs ({len(plot['data_quality'])})"):
                 st.markdown("\n".join(f"- {q}" for q in plot["data_quality"]))
 with right:
-    with st.container(border=True):
+    with ui.section():
         st.markdown("**Ward weather pattern**")
         if pat.get("season_anomaly_pct") is not None:
             st.markdown(f"Season outlook **{pat['season_expected_mm']:.0f} mm** "
@@ -169,7 +169,7 @@ if not officer:
         st.markdown(f"**Rainfall pattern in {(zone or '').title()}** (10-day periods, this year vs normal)")
         st.bar_chart(pd.DataFrame([{"Period": d["period"], "This year (mm)": d["rain_mm"],
                                     "Normal (mm)": d["normal_mm"]} for d in pat["dekads"]]).set_index("Period"),
-                     stack=False, color=["#1F7A4D", "#C9D6CC"], height=220)
+                     stack=False, color=["#18181B", "#E4E4E7"], height=220)
     st.caption("CHIRPS-style rainfall data (synthetic for this demo).")
 
     sent = [a for a in p["advisories"] if a["status"] == "APPROVED"]
@@ -178,7 +178,7 @@ if not officer:
         st.caption("No advice yet. When your extension officer approves advice for your farm, it appears here and "
                    "is sent to you by SMS.")
     for a in sent:
-        with st.container(border=True):
+        with ui.section():
             st.markdown(ui.badges(a["verdict"], a["status"]) + f"  <span class='cp-muted'>signed by "
                         f"{a['officer_signature']} · {(a['reviewed_at'] or '')[:10]}</span>", unsafe_allow_html=True)
             langs = (a.get("sent_languages") or "en").split(",")
@@ -188,8 +188,8 @@ if not officer:
                 st.markdown(f"**Kiswahili:** {a['farmer_message_sw']}")
     st.stop()
 if draft:
-    with st.container(border=True):
-        st.markdown("### 🤖 AI Generated Advisory Draft (Review Required)")
+    with ui.section():
+        st.markdown("### AI-generated advisory draft (review required)")
         st.markdown(ui.badges(draft["verdict"], draft["status"]) + "  Nothing has been sent to the farmer.")
         st.write(draft["rationale"])
         st.caption("Based on: " + " · ".join(ui.source_label(x, ui.names()) for x in draft["sources"]))
@@ -222,7 +222,7 @@ if draft:
             ok = c[1].checkbox("I have checked the evidence and take responsibility for this advice.",
                                key=f"ok-{draft['id']}")
             b = st.columns([2.2, 1.3, 1])
-            if b[0].button("🚀 Send Local Advisory Notification to Farmer", type="primary", key=f"send-{draft['id']}",
+            if b[0].button("Send advice to farmer", type="primary", key=f"send-{draft['id']}",
                            width="stretch"):
                 if not ok:
                     st.error("Tick the confirmation box first.")
@@ -235,7 +235,7 @@ if draft:
                         st.rerun()
                     except api.ApiError as exc:
                         st.error(str(exc.detail))
-            if b[1].button("✏️ Edit Text Advisory Field" if not editing else "Lock text", key=f"editbtn-{draft['id']}",
+            if b[1].button("Edit text" if not editing else "Lock text", key=f"editbtn-{draft['id']}",
                            width="stretch"):
                 st.session_state[f"edit-{draft['id']}"] = not editing
                 st.rerun()

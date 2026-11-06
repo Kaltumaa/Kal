@@ -7,74 +7,137 @@ import streamlit as st
 
 CSS = """
 <style>
-.block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1200px;}
-[data-testid="stSidebar"] {background: #FFFFFF; border-right: 1px solid #E4E9E2;}
-h1, h2, h3 {letter-spacing: -0.01em;}
-.cp-band {background: linear-gradient(110deg, #134E33 0%, #1F7A4D 60%, #2E8F5C 100%); color: #fff;
-  border-radius: 14px; padding: 18px 24px 16px 24px; margin: 0 0 1.2rem 0;}
-.cp-band h1 {color: #fff; font-size: 1.65rem; margin: 2px 0 2px 0; padding: 0;}
-.cp-band p {color: #DCEFE3; margin: 0; font-size: 0.93rem;}
-.cp-band-kicker {color: #A8D8B9; font-size: 0.72rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 600;}
-.cp-wards table {width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E4E9E2; border-radius: 12px;
-  overflow: hidden; font-size: 0.92rem;}
-.cp-wards th {text-align: left; background: #F1F4EF; color: #4B5B51; font-weight: 600; padding: 10px 14px;
-  font-size: 0.78rem; text-transform: uppercase; letter-spacing: .04em;}
-.cp-wards td {padding: 12px 14px; border-top: 1px solid #EEF1EC; vertical-align: top;}
-.cp-wards td small {display: block; color: #66756B; margin-top: 2px;}
-.cp-tag {display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem;}
-.t-green {background: #DCF5E5; color: #14632F;} .t-orange {background: #FFF1D6; color: #8A5300;}
-.t-red {background: #FDE2E2; color: #A12A2A;} .t-gray {background: #EEF1EC; color: #4B5B51;}
-.cp-muted {color: #66756B; font-size: 0.85rem;}
-.cp-wgrid {display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; margin: 4px 0 8px;}
-.cp-ward {background: #fff; border: 1px solid #E4E9E2; border-top: 4px solid var(--accent, #1F7A4D);
-          border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;}
-.cp-ward .wh {display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;}
-.cp-ward .wn {font-weight: 800; font-size: 1.08rem; color: #1B2A21;}
-.cp-ward .why {color: #4B5B51; font-size: 0.85rem; line-height: 1.45;}
-.cp-stats {display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;}
-.cp-stat {background: #F6F8F5; border-radius: 10px; padding: 7px 10px; min-width: 0;}
-.cp-stat b {display: block; font-size: 1.02rem; color: #1B2A21; white-space: nowrap;}
-.cp-stat span {font-size: 0.68rem; color: #66756B; text-transform: uppercase; letter-spacing: .04em; font-weight: 600;}
-.cp-row {font-size: 0.83rem; color: #33443A; line-height: 1.6;}
-.cp-row .lbl {color: #66756B; font-weight: 600; margin-right: 6px; display: inline-block; min-width: 64px;}
-.cp-chip {display: inline-block; background: #EEF4EF; color: #1F5B3B; border-radius: 999px; padding: 1px 9px;
-          margin: 2px 4px 2px 0; font-size: 0.77rem; font-weight: 600;}
-.cp-chip.red {background: #FDE2E2; color: #A12A2A;} .cp-chip.ok {background: #DCF5E5; color: #14632F;}
-.cp-chip.gray {background: #EEF1EC; color: #66756B;}
-.cp-legend {display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.8rem; color: #4B5B51; margin: 6px 0 2px;}
-.cp-legend i {display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px;}
-.cp-callout {background: #F3F8F4; border-left: 4px solid #1F7A4D; border-radius: 8px; padding: 10px 14px;
-             font-size: 0.86rem; color: #2B3B31; margin: 6px 0;}
-.cp-callout.warn {background: #FFF6E6; border-left-color: #D98E04;}
-.cp-crops {display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 4px 0 8px;}
-.cp-cropcard {background: #fff; border: 1px solid #E4E9E2; border-radius: 14px; padding: 12px 14px;
-              display: flex; flex-direction: column; gap: 6px;}
-.cp-cropcard .cn {font-weight: 800; font-size: 1rem; color: #1B2A21;}
-.cp-cropcard .meta {font-size: 0.8rem; color: #66756B;}
-.cp-prog {height: 7px; background: #EEF1EC; border-radius: 99px; overflow: hidden;}
-.cp-prog span {display: block; height: 100%; background: #1F7A4D; border-radius: 99px;}
-.cp-seasons {display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 6px;}
-.cp-season {background: #fff; border: 1px solid #E4E9E2; border-radius: 12px; padding: 6px 12px; text-align: center;}
-.cp-season.now {border-color: #1F7A4D; background: #EEF6F0;}
-.cp-season small {display: block; font-size: 0.68rem; color: #66756B; text-transform: uppercase; letter-spacing: .04em;}
-.cp-season b {font-size: 0.88rem; color: #1B2A21;}
-.cp-arrow {color: #A3B1A7; font-size: 1.1rem;}
-.cp-log {border-left: 2px solid #DDE6DF; margin-left: 8px; padding-left: 0;}
-.cp-entry {position: relative; padding: 2px 0 12px 22px;}
-.cp-entry::before {content: ""; position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%;
-                   background: var(--dot, #1F7A4D); border: 2px solid #fff; box-shadow: 0 0 0 1px #DDE6DF;}
-.cp-entry .t {font-weight: 700; color: #1B2A21; font-size: 0.9rem;}
-.cp-entry .d {color: #66756B; font-size: 0.78rem;}
-.cp-entry .x {color: #33443A; font-size: 0.85rem; margin-top: 2px;}
-.cp-status {font-size: 0.78rem; color: #66756B; line-height: 1.7;}
-.cp-dot {display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px;}
-.ok {background: #22A06B;} .warn {background: #E2A100;} .bad {background: #D64545;}
-.cp-sms {background: #EEF6F0; border-radius: 14px 14px 14px 4px; padding: 12px 14px; font-size: 0.93rem;}
-.cp-step {display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #EEF1EC; font-size: 0.85rem;}
-.cp-step code {background: none; padding: 0; color: #1B2A21;}
-.cp-step .who {color: #66756B; min-width: 110px;}
-[data-testid="stMetricValue"] {font-size: 1.55rem;}
-[data-testid="stMetric"] {background: #FFFFFF; border: 1px solid #E4E9E2; border-radius: 12px; padding: 12px 16px;}
+/* zinc scale, as Tailwind names it. --meta is the one place to change if tiny labels need more contrast. */
+:root {--z900: #18181B; --z600: #52525B; --meta: #A1A1AA; --line: #F4F4F5; --wire: #E4E4E7;}
+
+/* Base: white page, nothing boxed */
+.stApp, [data-testid="stHeader"], [data-testid="stSidebar"] {background: #FFFFFF !important;}
+[data-testid="stSidebar"] {border-right: 1px solid var(--line);}
+[data-testid="stMainBlockContainer"] {padding: 4rem 3rem 6rem !important; max-width: 1120px;}
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {gap: 3rem;}
+/* A heading stays with the text under it */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(h3, h4, h5) {margin-bottom: -2.25rem;}
+hr {border: 0 !important; border-top: 1px solid var(--line) !important; margin: 1rem 0 !important;}
+
+/* Type */
+.stApp, .stApp p, .stApp li, [data-testid="stMarkdownContainer"] {color: var(--z600); line-height: 1.625;}
+.stApp b, .stApp strong {color: var(--z900); font-weight: 600;}
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5 {color: var(--z900) !important; font-weight: 600 !important; letter-spacing: -0.025em;}
+.stApp h2 {font-size: 1.875rem !important;} .stApp h3 {font-size: 1.5rem !important;}
+.stApp h4 {font-size: 1.25rem !important;} .stApp h5 {font-size: 1.125rem !important;}
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {color: var(--z600) !important; font-size: 0.875rem;}
+[data-testid="stWidgetLabel"] p {color: var(--z600) !important; font-size: 0.875rem;}
+.cp-muted {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+
+/* Page header */
+.cp-head {padding: 0 0 3rem; border-bottom: 1px solid var(--line);}
+.cp-head .cp-kicker {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+.stApp .cp-head h1 {font-size: 1.875rem !important; line-height: 1.1; margin: 0.75rem 0 1rem; padding: 0; letter-spacing: -0.025em;}
+.cp-head p {max-width: 44rem; margin: 0; font-size: 1.0625rem;}
+@media (min-width: 768px) {.stApp .cp-head h1 {font-size: 3rem !important;}}
+
+/* Sections instead of cards: a faint rule and air */
+[class*="st-key-cp-section"] {border-top: 1px solid var(--line); padding-top: 2rem;}
+[data-testid="stForm"] {border: 0 !important; padding: 0 !important; border-radius: 0;}
+[data-testid="stExpander"] details {border: 0 !important; border-top: 1px solid var(--line) !important; border-radius: 0 !important;}
+[data-testid="stExpander"] summary {padding-left: 0; padding-right: 0;}
+[data-testid="stExpanderDetails"] {padding-left: 0; padding-right: 0;}
+[data-testid="stAlertContainer"] {background: transparent !important; border-radius: 0 !important; padding: 0.75rem 0 !important; border-top: 1px solid var(--line);}
+[data-testid="stAlertContainer"] p {color: var(--z600) !important;}
+[data-testid="stAlertContentWarning"] p, [data-testid="stAlertContentError"] p {color: var(--z900) !important; font-weight: 500;}
+[data-testid="stChatMessage"] {background: transparent !important; border-radius: 0; border-top: 1px solid var(--line); padding: 1.25rem 0;}
+[data-testid="stMetric"] {background: transparent; border: 0; padding: 0;}
+[data-testid="stMetricLabel"] p {font-size: 0.75rem !important; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta) !important;}
+[data-testid="stMetricValue"] {font-size: 1.875rem; font-weight: 600; color: var(--z900); letter-spacing: -0.025em;}
+[data-testid="stDataFrameResizable"] {border: 0 !important;}
+[data-testid="stMetricValue"] * {color: var(--z900) !important;}
+[data-testid="stElementContainer"]:has(.cp-head) + [data-testid="stLayoutWrapper"] > [class*="st-key-cp-section"] {border-top: 0; padding-top: 0;}
+
+/* Forms: wireframe underline only */
+[data-testid="stTextInputRootElement"], [data-testid="stTextAreaRootElement"], [data-testid="stNumberInputContainer"],
+[data-testid="stDateInputField"], [data-baseweb="select"] > div, [data-baseweb="base-input"], [data-baseweb="textarea"] {
+  background: transparent !important; border: 0 !important; border-radius: 0 !important;}
+[data-testid="stTextInputRootElement"], [data-testid="stTextAreaRootElement"], [data-testid="stNumberInputContainer"],
+[data-testid="stDateInputField"], [data-baseweb="select"] > div {border-bottom: 1px solid var(--wire) !important; box-shadow: none !important;}
+[data-testid="stTextInputRootElement"]:focus-within, [data-testid="stTextAreaRootElement"]:focus-within,
+[data-baseweb="select"] > div:focus-within {border-bottom-color: var(--z900) !important;}
+.stApp input, .stApp textarea {color: var(--z600) !important; padding-left: 0 !important; background: transparent !important;}
+.stApp input::placeholder, .stApp textarea::placeholder {color: var(--meta) !important;}
+[data-testid="stSelectbox"] [data-baseweb="select"] div {background: transparent !important;}
+[data-testid="stFileUploaderDropzone"], [data-testid="stAudioInput"] {background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--wire) !important; border-radius: 0 !important; padding-left: 0;}
+
+/* Buttons and links */
+.stApp button[data-testid^="stBaseButton"] {border-radius: 6px !important; box-shadow: none !important; font-weight: 500;}
+.stApp button[data-testid="stBaseButton-secondary"], .stApp button[data-testid="stBaseButton-secondaryFormSubmit"] {background: #FFFFFF; border: 1px solid var(--wire); color: var(--z900);}
+.stApp button[data-testid="stBaseButton-primary"], .stApp button[data-testid="stBaseButton-primaryFormSubmit"] {background: var(--z900); border: 1px solid var(--z900); color: #FFFFFF;}
+.stApp button[data-testid="stBaseButton-primary"] p, .stApp button[data-testid="stBaseButton-primaryFormSubmit"] p {color: #FFFFFF;}
+[data-testid="stPageLink"] a {padding-left: 0; background: transparent !important;}
+[data-testid="stPageLink"] p {color: var(--z900); font-weight: 500;}
+
+/* Sidebar navigation: bare text, diagonal arrow on the current or hovered page */
+[data-testid="stSidebarNavLink"] {background: transparent !important; padding-left: 0; border-radius: 0;}
+[data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"] {display: none;}
+[data-testid="stSidebarNavLink"] span {color: var(--z600);}
+[data-testid="stSidebarNavLink"][aria-current="page"] span, [data-testid="stSidebarNavLink"]:hover span {color: var(--z900); font-weight: 500;}
+[data-testid="stSidebarNavLink"][aria-current="page"]::after, [data-testid="stSidebarNavLink"]:hover::after {content: "↗"; margin-left: 0.4rem; color: var(--z900);}
+[data-testid="stNavSectionHeader"] span {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+
+/* Tags: tiny text with a dot. Status colours stay, because they carry safety meaning. */
+.stMarkdownBadge {background: transparent !important; padding: 0 !important; white-space: normal !important; overflow: visible !important; max-width: none !important; font-size: 0.75rem !important; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;}
+.stMarkdownBadge::before {content: "•"; margin-right: 0.35rem;}
+.cp-tag {display: inline-block; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;}
+.cp-tag::before {content: "•"; margin-right: 0.35rem;}
+.t-green {color: #15803D;} .t-orange {color: #B45309;} .t-red {color: #B91C1C;} .t-gray {color: #71717A;}
+.cp-chip {display: inline-block; margin: 0 0.9rem 0 0; font-size: 0.875rem; color: var(--z600);}
+.cp-chip.red {color: #B91C1C;} .cp-chip.ok {color: #15803D;} .cp-chip.gray {color: var(--meta);}
+
+/* Ward-by-ward, crops, seasons, log: bare columns */
+.cp-wards table {width: 100%; border-collapse: collapse; font-size: 0.9375rem;}
+.cp-wards th {text-align: left; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta); padding: 0.75rem 1rem 0.75rem 0;}
+.cp-wards td {padding: 1rem 1rem 1rem 0; border-top: 1px solid var(--line); vertical-align: top;}
+.cp-wards td small {display: block; color: var(--meta); margin-top: 2px;}
+.cp-wgrid {display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 3rem;}
+.cp-ward {display: flex; flex-direction: column; gap: 1rem; border-top: 1px solid var(--line); padding-top: 1.5rem;}
+.cp-ward .wh {display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;}
+.cp-ward .wn {font-weight: 600; font-size: 1.25rem; letter-spacing: -0.025em; color: var(--z900);}
+.cp-ward .why {color: var(--z600); font-size: 0.9375rem; line-height: 1.625;}
+.cp-stats {display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;}
+.cp-stat {min-width: 0;}
+.cp-stat b {display: block; font-size: 1.125rem; font-weight: 600; color: var(--z900); white-space: nowrap;}
+.cp-stat span {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+.cp-row {font-size: 0.875rem; color: var(--z600); line-height: 1.625;}
+.cp-row .lbl {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta); margin-right: 0.75rem; display: inline-block; min-width: 72px;}
+.cp-legend {display: flex; gap: 2rem; flex-wrap: wrap; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta); padding: 1rem 0 0;}
+.cp-legend i {display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.5rem;}
+.cp-callout {padding: 1rem 0; border-top: 1px solid var(--line); font-size: 0.9375rem; color: var(--z600); line-height: 1.625;}
+.cp-callout.warn {color: var(--z900);}
+.cp-crops {display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 3rem;}
+.cp-cropcard {display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--line); padding-top: 1.5rem;}
+.cp-cropcard .cn {font-weight: 600; font-size: 1.25rem; letter-spacing: -0.025em; color: var(--z900);}
+.cp-cropcard .meta {font-size: 0.875rem; color: var(--z600);}
+.cp-prog {height: 2px; background: var(--line); overflow: hidden;}
+.cp-prog span {display: block; height: 100%; background: var(--z900);}
+.cp-seasons {display: flex; align-items: baseline; gap: 1.25rem; flex-wrap: wrap;}
+.cp-season small {display: block; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+.cp-season b {font-size: 0.9375rem; font-weight: 500; color: var(--z600);}
+.cp-season.now b {color: var(--z900); font-weight: 600;}
+.cp-arrow {color: var(--meta);}
+.cp-entry {padding: 1rem 0; border-top: 1px solid var(--line);}
+.cp-entry .t {font-weight: 600; color: var(--z900); font-size: 0.9375rem;}
+.cp-entry .d {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+.cp-entry .x {color: var(--z600); font-size: 0.9375rem; margin-top: 0.25rem;}
+.cp-status {font-size: 0.75rem; color: var(--meta); line-height: 1.9;}
+.cp-status b {font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
+.cp-dot {display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 0.5rem; vertical-align: 1px;}
+.cp-dot.ok {background: #15803D;} .cp-dot.warn {background: #B45309;} .cp-dot.bad {background: #B91C1C;}
+.cp-sms {padding: 1rem 0; border-top: 1px solid var(--line); font-size: 0.9375rem;}
+.cp-step {display: flex; gap: 1rem; padding: 0.75rem 0; border-top: 1px solid var(--line); font-size: 0.875rem;}
+.cp-step code {background: none; padding: 0; color: var(--z900);}
+.cp-step .who {color: var(--meta); min-width: 110px;}
+
+/* Tech row */
+.cp-partners {display: flex; flex-wrap: wrap; gap: 1rem 3rem; padding: 1.5rem 0; border-top: 1px solid var(--line); margin-top: 3rem;
+  font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--meta);}
 </style>
 """
 
@@ -86,12 +149,26 @@ STATUS_COLOR = {"PENDING_REVIEW": "orange", "SECURITY_LOCK": "red", "NEEDS_DATA"
 
 
 def setup() -> None:
+    st.session_state["_cp_sections"] = 0
     st.markdown(CSS, unsafe_allow_html=True)
 
 
+def section(parent=None):
+    """A block of related content: no box, just a faint rule above it (replaces a bordered container)."""
+    st.session_state["_cp_sections"] = st.session_state.get("_cp_sections", 0) + 1
+    return (parent or st).container(key=f"cp-section-{st.session_state['_cp_sections']}")
+
+
+def partners() -> None:
+    """What the system runs on, as one flat row."""
+    items = ["Qwen 2.5", "Moondream 2", "Whisper", "Ollama", "LangGraph", "MCP", "FastAPI", "SQLite", "Streamlit"]
+    st.markdown('<div class="cp-partners">' + "".join(f"<span>{i}</span>" for i in items) + "</div>",
+                unsafe_allow_html=True)
+
+
 def header(title: str, subtitle: str) -> None:
-    """Green header band used on every page."""
-    st.markdown(f'<div class="cp-band"><div class="cp-band-kicker">Mkulima Hub · Dagoretti South extension desk · '
+    """Plain page header used on every page."""
+    st.markdown(f'<div class="cp-head"><div class="cp-kicker">Dagoretti South extension desk · '
                 f'Short rains 2026</div><h1>{html.escape(title)}</h1><p>{html.escape(subtitle)}</p></div>',
                 unsafe_allow_html=True)
 
@@ -145,7 +222,7 @@ def voice_note(key: str) -> dict | None:
     import base64
 
     import api_client as api
-    with st.expander("🎙️ Record a voice note instead of typing", expanded=False):
+    with st.expander("Record a voice note instead of typing", expanded=False):
         try:
             status = api.speech_status()
         except api.ApiError:

@@ -68,7 +68,7 @@ def ward_card(z: dict, pests: list[dict]) -> str:
             f'<div class="cp-row"><span class="lbl">Can plant</span>'
             f'{chips(plantable) if plantable else chips(["Nothing this week"], "gray")}</div>'
             f'<div class="cp-row"><span class="lbl">Pests</span>{pest_html}</div>'
-            f'<div class="cp-row" style="color:#66756B">{html.escape(rains_text(p))}</div></div>')
+            f'<div class="cp-row">{html.escape(rains_text(p))}</div></div>')
 
 
 def period_label(period: str) -> str:
@@ -103,9 +103,9 @@ k[2].metric("Follow-ups due this week", len(due_week), help="Scheduled by the ag
 k[3].metric("Farmer photos to confirm", photos)
 links = st.columns(4)
 if to_sign or locked:
-    links[0].page_link("views/queue.py", label="Open review queue", icon=":material/arrow_forward:")
+    links[0].page_link("views/queue.py", label="Open review queue", icon=":material/north_east:")
 if photos:
-    links[3].page_link("views/scan.py", label="Check photos", icon=":material/arrow_forward:")
+    links[3].page_link("views/scan.py", label="Check photos", icon=":material/north_east:")
 
 # --- Ward by ward -------------------------------------------------------------------------------------------
 st.subheader("Ward by ward")
@@ -130,7 +130,7 @@ with lc:
                         f'{html.escape(a["zone_id"].title())}<br><span class="cp-muted">{a["age_days"]} days ago · '
                         f'{where} · {html.escape(a["source"] or "")}</span></div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div class="cp-callout">✅ <b>No confirmed pest reports in the last 30 days.</b><br>No farm has '
+        st.markdown('<div class="cp-callout"><b>No confirmed pest reports in the last 30 days.</b><br>No farm has '
                     'a reason to spray right now. Keep scouting; a confirmed report will appear here and on the '
                     'map.</div>', unsafe_allow_html=True)
     if unconfirmed:
@@ -159,7 +159,7 @@ with mc:
         pdk.Layer("ScatterplotLayer", reach, get_position="[lon, lat]", get_radius="r", get_fill_color=[192, 57, 43, 10],
                   get_line_color=[192, 57, 43, 110], stroked=True, line_width_min_pixels=1, pickable=False),
         pdk.Layer("ScatterplotLayer", farms, get_position="[lon, lat]", get_radius=55, radius_min_pixels=5,
-                  get_fill_color=[31, 122, 77, 230], get_line_color=[255, 255, 255], stroked=True,
+                  get_fill_color=[24, 24, 27, 230], get_line_color=[255, 255, 255], stroked=True,
                   line_width_min_pixels=1, pickable=True),
         pdk.Layer("ScatterplotLayer", stale, get_position="[lon, lat]", get_radius=90, radius_min_pixels=6,
                   get_fill_color=[240, 180, 170, 200], pickable=True),
@@ -171,14 +171,14 @@ with mc:
         pdk.Layer("ScatterplotLayer", approx, get_position="[lon, lat]", get_radius=110, radius_min_pixels=8,
                   get_fill_color=[255, 255, 255, 255], get_line_color=[192, 57, 43, 255], stroked=True,
                   line_width_min_pixels=3, pickable=True),
-        pdk.Layer("TextLayer", wards, get_position="[lon, lat]", get_text="name", get_size=13, get_color=[27, 42, 33],
+        pdk.Layer("TextLayer", wards, get_position="[lon, lat]", get_text="name", get_size=13, get_color=[24, 24, 27],
                   get_pixel_offset=[0, -18], font_weight=700),
     ]
     view = pdk.ViewState(latitude=sum(w["lat"] for w in wards) / len(wards),
                          longitude=sum(w["lon"] for w in wards) / len(wards), zoom=11.8)
     st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view, map_style="light",
                              tooltip={"html": "<b>{title}</b><br/>{detail}"}), height=400)
-    st.markdown('<div class="cp-legend"><span><i style="background:#1F7A4D"></i>Farm</span>'
+    st.markdown('<div class="cp-legend"><span><i style="background:#18181B"></i>Farm</span>'
                 '<span><i style="background:#C0392B"></i>Confirmed pest (ring: action radius)</span>'
                 '<span><i style="background:#fff;border:3px solid #C0392B;width:7px;height:7px"></i>'
                 'Confirmed, location approximate</span>'
@@ -212,11 +212,11 @@ if zp["dekads"]:
                   "Series": "Normal"}]
     df = pd.DataFrame(rows)
     order = list(dict.fromkeys(df.sort_values("order")["Period"]))
-    chart = alt.Chart(df).mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5).encode(
+    chart = alt.Chart(df).mark_bar().encode(
         x=alt.X("Period:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12)),
         xOffset=alt.XOffset("Series:N", sort=["This year", "Normal"]),
         y=alt.Y("Rain (mm):Q", title="Rain (mm)"),
-        color=alt.Color("Series:N", scale=alt.Scale(domain=["This year", "Normal"], range=["#1F7A4D", "#C9D6CC"]),
+        color=alt.Color("Series:N", scale=alt.Scale(domain=["This year", "Normal"], range=["#18181B", "#E4E4E7"]),
                         legend=alt.Legend(orient="top", title=None)),
         tooltip=["Period", "Series", "Rain (mm)"])
     st.altair_chart(chart.properties(height=260), width="stretch")

@@ -29,7 +29,7 @@ if not items:
     st.info("Nothing yet. When your extension officer sends advice or checks a photo, it appears here.",
             icon=":material/notifications:")
 for n in items:
-    with st.container(border=True):
+    with ui.section():
         st.markdown(f"{ICON.get(n['kind'], '')} **{n['title']}**  <span class='cp-muted'>· "
                     f"{(n['when'] or '')[:16].replace('T', ' ')} · from {n['from']}</span>", unsafe_allow_html=True)
         messages = sorted(n.get("messages") or [{"language": "en", "text": n["body"]}],

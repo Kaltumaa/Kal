@@ -95,3 +95,4 @@ with st.sidebar:
                    "and photos go to the officer without an AI suggestion. The full version runs on a laptop.")
 
 nav.run()
+ui.partners()

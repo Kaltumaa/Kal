@@ -48,7 +48,7 @@ with right:
     if not items:
         st.caption("No reminders yet.")
     for r in items:
-        with st.container(border=True):
+        with ui.section():
             c = st.columns([3, 1.4], vertical_alignment="center")
             c[0].markdown(f"**{LABEL.get(r['action'], r['action'])}** · due {r['due_date']}"
                           + (f"  \n<span class='cp-muted'>{r['note']}</span>" if r["note"] else ""),

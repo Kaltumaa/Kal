@@ -21,7 +21,7 @@ ui.header("Community", "Ask and share what you see in your fields. Pest reports 
 
 
 def report_review(r: dict) -> None:
-    with st.container(border=True):
+    with ui.section():
         st.markdown(f"**{r['author']}** · {(r.get('zone_id') or 'ward not given').title()}"
                     f"{' · :blue-badge[via SMS]' if r.get('source') == 'sms' else ''}  \n"
                     f"<span class='cp-muted'>{r['created_at'][:16].replace('T', ' ')}</span>", unsafe_allow_html=True)
@@ -35,7 +35,7 @@ def report_review(r: dict) -> None:
             note = st.text_input("Note to the farmer (optional)", key=f"rn-{r['id']}", max_chars=400)
             f = st.columns([1.5, 1, 1])
             name = f[0].text_input("Your full name", key=f"rname-{r['id']}")
-            confirm = f[1].form_submit_button("✅ Confirm pest", type="primary", width="stretch")
+            confirm = f[1].form_submit_button("Confirm pest", type="primary", width="stretch")
             reject = f[2].form_submit_button("Not confirmed", width="stretch")
             try:
                 if confirm or reject:

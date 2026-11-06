@@ -32,7 +32,7 @@ def show_assessment(a: dict) -> None:
 
 
 def greenhouse_check() -> None:
-    with st.container(border=True):
+    with ui.section():
         st.markdown("**Check my greenhouse**")
         t_type, t_sensor = st.tabs(["Type readings", "Sensor feed"])
         with t_type:
@@ -57,7 +57,7 @@ def greenhouse_check() -> None:
                 show_assessment(api.greenhouse_assess(latest["temp_c"], latest["rh_pct"]))
                 trend = pd.DataFrame({"VPD (kPa)": [r["vpd_kpa"] for r in sensor[::-1]]},
                                      index=pd.RangeIndex(1, len(sensor) + 1, name="Reading"))
-                st.line_chart(trend, height=170, color="#1F7A4D", x_label="Reading", y_label="VPD (kPa)")
+                st.line_chart(trend, height=170, color="#18181B", x_label="Reading", y_label="VPD (kPa)")
             else:
                 st.caption("No sensor connected yet. Any device on this network can send readings:")
             st.code('curl -X POST http://<this-computer>:8000/greenhouse/readings -H "Content-Type: application/json" '
@@ -81,23 +81,18 @@ ICONS = {"What can I grow?": "potted_plant", "Pests & diseases": "bug_report", "
 
 
 GRID_CSS = """<style>
-.cp-grid {display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 4px 0 18px;}
-.cp-crop {background: #fff; border: 1px solid #E4E9E2; border-radius: 12px; padding: 14px 16px; display: flex;
-          flex-direction: column; gap: 6px; font-size: 0.86rem;}
+.cp-grid {display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 3rem; margin: 0 0 1rem;}
+.cp-crop {border-top: 1px solid #F4F4F5; padding-top: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9375rem; color: #52525B; line-height: 1.625;}
 .cp-crop .top {display: flex; justify-content: space-between; align-items: baseline; gap: 8px;}
-.cp-crop .name {font-weight: 700; font-size: 1.02rem; color: #1B2A21;}
-.cp-crop .fit {font-weight: 700; color: #1F7A4D; white-space: nowrap; font-size: 0.82rem;}
-.cp-crop .fit.wait {color: #8A5A00;} .cp-crop .fit.bad {color: #B42318;}
-.cp-crop .bar {height: 6px; background: #EEF1EC; border-radius: 99px; overflow: hidden;}
-.cp-crop .bar span {display: block; height: 100%; background: #1F7A4D;}
-.cp-crop .pill {align-self: flex-start; padding: 2px 9px; border-radius: 99px; font-weight: 600; font-size: 0.76rem;}
-.cp-crop .go {background: #E3F2E8; color: #1F6B42;} .cp-crop .wait {background: #FDF1DD; color: #8A5A00;}
-.cp-crop .chk {color: #33443A;}
-.cp-crop .chk.bad {color: #7A4B00; background: #FDF1DD; border-radius: 8px; padding: 4px 8px;}
-.cp-crop .meta {color: #4B5B51;} .cp-crop .tip {color: #66756B; border-top: 1px solid #EEF1EC; padding-top: 6px;
-          margin-top: auto;}
+.cp-crop .name {font-weight: 600; font-size: 1.25rem; letter-spacing: -0.025em; color: #18181B;}
+.cp-crop .fit, .cp-crop .pill {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #15803D;}
+.cp-crop .fit {white-space: nowrap;} .cp-crop .fit.wait, .cp-crop .pill.wait {color: #B45309;} .cp-crop .fit.bad {color: #B91C1C;}
+.cp-crop .pill::before {content: "•"; margin-right: 0.35rem;}
+.cp-crop .k {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #A1A1AA; margin-right: 0.4rem;}
+.cp-crop .chk.bad {color: #18181B;} .cp-crop .chk.bad .k {color: #B45309;}
+.cp-crop .tip {color: #71717A; padding-top: 0.5rem; border-top: 1px solid #F4F4F5; margin-top: auto;}
 </style>"""
-CHECK_ICON = {"rain": "💧", "temp": "🌡️", "soil": "🟫"}
+CHECK_LABEL = {"rain": "Rain", "temp": "Temperature", "soil": "Soil"}
 # The fit score in plain words (the number stays in the backend; farmers see what it means).
 FIT_WORDS = [(85, "Very suitable", "go"), (70, "Suitable", "go"), (40, "Possible with care", "wait"),
              (0, "Not suitable this season", "bad")]
@@ -115,9 +110,9 @@ search_markdown = ui.search_markdown
 def crop_card(r: dict) -> str:
     """One crop as an HTML card: name and fit, plant-now pill, three plain checks, harvest month and a tip."""
     esc = html.escape
-    pill = ("<span class='pill go'>✓ Plant now</span>" if r["plant_now"] is True else
-            "<span class='pill wait'>⏳ Wait for planting rain</span>" if r["plant_now"] is False else "")
-    checks = "".join(f"<div class='chk{'' if c['ok'] else ' bad'}'>{'⚠️' if not c['ok'] else CHECK_ICON[c['kind']]} "
+    pill = ("<span class='pill go'>Plant now</span>" if r["plant_now"] is True else
+            "<span class='pill wait'>Wait for planting rain</span>" if r["plant_now"] is False else "")
+    checks = "".join(f"<div class='chk{'' if c['ok'] else ' bad'}'><span class='k'>{'Not ideal' if not c['ok'] else CHECK_LABEL[c['kind']]}</span>"
                      f"{esc(c['text'])}</div>" for c in r.get("checks", []))
     meta = [f"Harvest ≈ <b>{esc(r['harvest_if_planted_now'])}</b>"] if r["harvest_if_planted_now"] else []
     meta.append(f"{r['days_to_maturity']} days")
@@ -126,7 +121,7 @@ def crop_card(r: dict) -> str:
     words, cls = fit_words(r["score"])
     return (f"<div class='cp-crop'><div class='top'><span class='name'>{esc(r['crop'])}</span>"
             f"<span class='fit {cls}'>{words}</span></div>{pill}{checks}"
-            f"<div class='meta'>{' · '.join(meta)}</div><div class='tip'>💡 {esc(r['notes'])}</div></div>")
+            f"<div class='meta'>{' · '.join(meta)}</div><div class='tip'>{esc(r['notes'])}</div></div>")
 
 
 def crop_grid(items: list[dict]) -> None:
@@ -152,7 +147,7 @@ def what_can_i_grow() -> None:
     rain_7d = zone_now["rain_7d_mm"] if zone_now else None
     week = f" · :material/rainy: **{rain_7d:.0f} mm** forecast this week" if rain_7d is not None else ""
     diff = o["rain_vs_normal_pct"] - 100
-    with st.container(border=True):
+    with ui.section():
         st.markdown(f"**{ward.title()} · {o['season']}**  \n"
                     f":material/water_drop: **{rain:.0f} mm** season rain"
                     + ("" if adjust else f" ({diff:+d}% vs normal)")
@@ -179,7 +174,7 @@ def what_can_i_grow() -> None:
     groups = [("Best choices now", "Suits this season and there is enough rain this week to plant.", best),
               ("Good fit, wait for planting rain", "Suits the season, but this week is too dry to plant. "
                "Plant after the next good rain.", later),
-              ("Possible, with care", "Grows here, but one condition is not ideal: see the ⚠️ line on the card.",
+              ("Possible, with care", "Grows here, but one condition is not ideal: see the “Not ideal” line.",
                maybe)]
     for title, sub, items in groups:
         if items:
@@ -197,7 +192,7 @@ def what_can_i_grow() -> None:
             "Greenhouse": GREENHOUSE[r["greenhouse"]], "Drought tolerance": r["drought_tolerance"].title(),
             "Why": " ".join(r["reasons"])} for r in results]),
             hide_index=True, width="stretch")
-    st.caption("💧 rain, 🌡️ temperature and 🟫 soil are this area's conditions against what each crop needs. A ⚠️ "
+    st.caption("Rain, temperature and soil are this area's conditions against what each crop needs. A “Not ideal” "
                "line is a condition that is not ideal here: the crop can still grow, but expect less, or follow the "
                "tip on that line.")
     st.caption("How suitable each crop is comes from a fixed crop table (rainfall, temperature, soil, greenhouse), "
@@ -224,8 +219,8 @@ for row in range(0, len(names), 3):
     cols = st.columns(3)
     for col, name in zip(cols, names[row:row + 3]):
         color, blurb = BLURB.get(name, ("green", ""))
-        with col.container(border=True, height=150):
-            st.markdown(f"**:{color}[:material/{ICONS.get(name, 'article')}:]&nbsp; {name}**")
+        with ui.section(col):
+            st.markdown(f"**{name}**")
             st.caption(blurb)
             if st.button("Viewing" if name == choice else "Open", key=f"topic-{name}", width="stretch",
                          type="primary" if name == choice else "secondary", disabled=name == choice):
@@ -244,7 +239,7 @@ else:
                                                      placeholder="Type a word, e.g. armyworm, gloves, pH",
                                                      label_visibility="collapsed", icon=":material/search:")
     found = search_markdown(md, q) if q else md
-    with st.container(border=True):
+    with ui.section():
         if found is None:
             st.info(f"Nothing in this guide mentions \"{q}\".")
         else:

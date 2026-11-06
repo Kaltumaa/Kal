@@ -47,7 +47,7 @@ left, right = st.columns([1.15, 1], gap="large")
 with left:
     st.markdown("##### My neighbours")
     for n in neighbours:
-        with st.container(border=True):
+        with ui.section():
             phone = "Feature phone" if n.get("phone_type") == "feature" else "Smartphone"
             top = st.columns([2.4, 1], vertical_alignment="center")
             top[0].markdown(f"**{n['farmer_name'] or n['household_id']}** <span class='cp-muted'>· "
@@ -62,7 +62,7 @@ with left:
                 lines.append(f"Photo #{p['id']} · {when} · " + ("⏳ waiting for the officer" if p["waiting"]
                                                                 else f"**{p['officer_finding']}**"))
             if n.get("last_call"):
-                lines.append(f"📞 {CALL_TEXT.get(n['last_call']['status'], n['last_call']['status'])} "
+                lines.append(f"Call: {CALL_TEXT.get(n['last_call']['status'], n['last_call']['status'])} "
                              f"({n['last_call']['updated_at'][:10]})")
             st.markdown("  \n".join(lines) if lines else "<span class='cp-muted'>No photos sent for them yet.</span>",
                         unsafe_allow_html=True)
