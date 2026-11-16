@@ -45,7 +45,7 @@ Measured figures come from the eval logs (`evals/results/2026-11-17T001608.json`
 | sms_kes_per_part | 0.8 | assumption: Africa's Talking Kenya SMS rate per part; confirm in your Africa's Talking dashboard (the live demo records AT's own cost) |
 | sms_parts_per_outcome | 2 | assumption: a signed advisory is up to 320 characters (2 SMS parts), one language |
 | advisories_per_farmer_per_month | 4 | assumption: about one signed advisory a week during a season; confirm with Dennis and Wilson |
-| price_kes_per_farmer_per_month | 50 | TALO's price (what the payment page charges institutions) |
+| price_kes_per_farmer_per_month | 50 | TALO's price. Kept low because Dennis and Wilson (Murang'a officers) said paying is 50/50 and depends on value; payers: their organisation or NGOs such as One Acre Fund |
 | pilot_farmers | 500 | assumption: one officer's active farmers; confirm with Dennis and Wilson |
 | server_usd_per_month | 40 | assumption: one CPU server (e.g. a small VPS or a mini PC) running the local model, the API and the database |
 | server_utilisation | 0.6 | assumption: share of the month the server is busy drafting |

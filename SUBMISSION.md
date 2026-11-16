@@ -36,5 +36,5 @@ signs in, and the API enforces it.
 before), the agent says so and asks the officer. It retries and fails over when tools fail.
 
 **Honesty.** Farm data is synthetic. We spoke with Johnson and two Murang'a extension officers, Dennis and Wilson.
-[TODO: the rest of Dennis and Wilson's points.] `make check-integrations`, `make demo-live` and `make load-test` show what runs
+They liked SMS, WhatsApp, voice and USSD over an app (farmers and officers don't download apps), and the weather checks, because seasons are now unpredictable. They doubted an AI could stay within fixed rules (it doesn't have to: the rules decide and an officer signs). Paying is 50/50, depending on value; they pointed us to NGOs like One Acre Fund, hence KES 50 per farmer a month. `make check-integrations`, `make demo-live` and `make load-test` show what runs
 live; EVALS.md reports 8 tasks × 5 runs, variation, cost and unfixed failures.

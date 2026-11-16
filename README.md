@@ -429,9 +429,52 @@ time to plant or what to do when pests or odd rains arrive. That is why **Murang
 
 (The demo desk's wards are modelled on Dagoretti South, Nairobi; the code is not tied to one office.)
 
-> **TODO before submitting: add the rest of what Dennis and Wilson said** (how they advise today,
-> what they liked or doubted, whether their office would pay). Until then this section only records that the two
-> conversations happened.
+### What Dennis and Wilson told us
+
+**1. No app to download. This is what they liked most.** Most farmers are not people who download apps, and
+most extension officers won't download one either, for any reason. They liked that TALO meets people where they
+already are: **SMS that works on any phone with no data, voice calls, WhatsApp for those who have it, offline
+fallbacks, and a USSD menu** (USSD is designed and costed but not built yet; see the integration report). The
+research agrees. In central Kenya almost every farming household owns a phone (98%), but only about a quarter use
+it for farm information. Nearly 30 million feature phones are still in use in Kenya, and farmers' use of digital
+tools is high but inconsistent. A channel the farmer already uses beats a better app they never open.
+
+**2. The weather no longer behaves the way it used to. They felt this most strongly.** They valued that TALO checks the
+weather for every farm every week, from two providers, and treats a false start as a real risk. Their experience
+matches the record: Kenya had **five failed rainy seasons in a row (2020–22), then well-above-average rain and
+floods in 2023**. Subsistence farmers, with no reserves, were hit hardest. When the season can't be predicted from
+memory, last year's planting date is no longer a safe guide.
+
+**3. Their doubt: can an AI really do all this and stay inside fixed rules?** It is a fair question. They found
+it hard to believe. Our answer is that **the AI is not trusted to decide**:
+- Fixed, written rules decide every Plant / Spray / Hold verdict.
+- The model's job is to gather the evidence and explain it.
+- Where the model disagrees with the rules, the rules win and the disagreement is shown on the draft.
+- Nothing reaches a farmer until a named officer signs it.
+
+EVALS.md shows the evidence: the 3B model proposed the wrong verdict in 8 of 10 hard runs, the rules held every
+time, and no wrong advice reached the queue. Winning that trust is what the pilot is for.
+
+**4. Would their office pay? They said 50/50: it depends on the value.** They didn't promise a budget. If TALO
+proves its value, they said their organisation would pay for it. They also pointed us to **NGOs that already fund
+farmer advice, such as One Acre Fund** (about 979,000 farmers served in Kenya). That is why we priced TALO at
+**KES 50 per farmer per month**: low enough to start as a pilot line item, paid by the institution or an NGO
+partner, and always free for the farmer.
+
+Sources: [Krell et al., Climate and Development 2021](https://experts.arizona.edu/en/publications/smallholder-farmers-use-of-mobile-phone-services-in-central-kenya/)
+(577 households in central Kenya: 98% own a phone, about 25% use it for farm information);
+[Communications Authority data via The Star, Dec 2025](https://www.the-star.co.ke/news/infographics/2026-05-07-kenyas-phone-penetration-as-of-december-2025)
+(48.7 million smartphones and 29.6 million feature phones on Kenyan networks);
+[60 Decibels / Gates Foundation](https://agfundernews.com/smallholder-farmer-adoption-of-agtech-high-but-inconsistent-says-new-study-from-60-decibels-w-gates-foundation)
+(farmers' use of digital tools is "high but inconsistent");
+[UNDRR, Horn of Africa floods and drought 2020–2023](https://www.undrr.org/resource/horn-africa-floods-and-drought/2020-2023)
+(five failed rainy seasons in 2020–22, then well-above-average rain in 2023);
+[REACH, impacts of climatic shocks](https://repository.impact-initiatives.org/document/reach/574d49ab/REACH_KEN2303_Impacts-of-climatic-shocks-on-communities-1.pdf)
+(subsistence farmers hit hardest); [One Acre Fund, Kenya](https://oneacrefund.org/what-we-do/countries-we-serve/kenya)
+(about 979,000 farmers served in Kenya).
+
+Still to ask them: how much one piece of advice costs a farmer today (travel, waiting, a wrong spray), and how many
+advisories a week they could review.
 
 The questions we took to the officers:
 1. Would you trust a drafted SMS enough to sign it after reading the sources, or would you rewrite it?

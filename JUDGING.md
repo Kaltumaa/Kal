@@ -69,10 +69,10 @@ the optimal time: +7–10% yield, up to +20% for late planters; data from Kenya,
 
 | Check | Status |
 |---|---|
-| Evidenced | Johnson, a farmer in Murang'a; two extension officers in Murang'a, Dennis and Wilson (about 1 officer : 13,000 farmers in their area; farmers don't know the best time to plant); published ratios with sources above (**TODO:** the rest of their points) |
+| Evidenced | Johnson, a farmer in Murang'a; two extension officers in Murang'a, Dennis and Wilson (about 1 officer : 13,000 farmers in their area; farmers don't know the best time to plant); published ratios with sources above. Their full feedback (liked SMS / WhatsApp / USSD / offline over an app; weather now unpredictable; doubted an AI could stay within fixed rules; would pay depending on value; pointed us to NGOs such as One Acre Fund): README, "What Dennis and Wilson told us" |
 | Named user | Extension officer at a county agriculture department; the farmer receives the advice |
 | Sized | Farmers per officer: about 13,000 (field), 1 : 6,000 (published, Murang'a), 1 : 1,380 (Kenya). Yield at stake from timing: 7–10%, up to 20%. **TODO:** advisories a week, time per farm by hand |
-| Today's workaround | **TODO with the officers:** how they advise today (visits, WhatsApp groups, barazas) and why it fails |
+| Today's workaround | One officer for about 13,000 farmers, so most never get timely advice; farmers decide from memory and neighbours, which no longer works when seasons fail or flood (five failed rainy seasons 2020–22, then floods in 2023). Farmers won't download apps (98% own a phone, about a quarter use it for farm information), so TALO uses SMS, voice and WhatsApp |
 | Local reality | Kiswahili and English; feature phones (SMS, voice keypad), Nyumba Kumi lead farmers; data cost (SMS needs none); M-Pesa; Kenya Data Protection Act (gaps listed in README) |
 | Why agentic | Each advisory needs several sources checked in order (photo, outbreak cluster, two forecasts, crop stage, rotation, guidance), a judgement on whether it is safe, and asking a human when unsure: a form or chatbot cannot do that |
 
@@ -87,7 +87,10 @@ the optimal time: +7–10% yield, up to +20% for late planters; data from Kenya,
 | Record | Paper or memory | Every step and signature in the audit log |
 
 **What could make an institution refuse:** no budget line, data-protection concerns, officers not trusting drafts.
-Answers: per-farmer price, local model (data stays in the county), the officer signs everything.
+Answers: a low per-farmer price and NGO co-funding; a local model (data stays in the county); fixed rules decide and
+the officer signs everything. Dennis and Wilson's own doubt was trust: they found it hard to believe an AI could stay
+inside fixed rules. The rules-decide design and EVALS.md (wrong model verdicts caught every time) are our answer, and
+the pilot is how we earn it.
 
 ## 3. Feasibility & cost-to-serve (20%)
 
@@ -112,11 +115,11 @@ Answers: per-farmer price, local model (data stays in the county), the officer s
 |---|---|
 | Cost to serve (per outcome) | measured + assumed, see the fact sheet |
 | Price | KES 50 per farmer per month, paid by the institution |
-| Willingness to pay | **TODO:** what Dennis and Wilson said about price and budget |
-| User's cost today | **TODO:** from the officers (travel, waiting, losses) |
+| Willingness to pay | Dennis and Wilson: **50/50, depending on the value it brings**; their organisation would pay if it proves itself; they named NGOs that fund farmer advice (e.g. One Acre Fund). So the price is kept low: KES 50 per farmer per month |
+| User's cost today | Not yet measured (**TODO**: travel, waiting, losses from a wrong spray). At stake from timing alone: 7–10% of yield, up to 20% for late planters |
 
 **Who pays:** the institution (county agriculture department, cooperative or NGO) from its extension budget; farmers
-pay nothing. **TODO:** the budget line the officers named.
+pay nothing. Second payer, named by the officers: NGOs that already fund farmer advice, such as One Acre Fund.
 
 ## 5. Scalability & sustainable impact (15%)
 

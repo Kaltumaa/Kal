@@ -4,7 +4,7 @@
   "sms_kes_per_part": {"value": 0.8, "source": "assumption: Africa's Talking Kenya SMS rate per part; confirm in your Africa's Talking dashboard (the live demo records AT's own cost)"},
   "sms_parts_per_outcome": {"value": 2, "source": "assumption: a signed advisory is up to 320 characters (2 SMS parts), one language"},
   "advisories_per_farmer_per_month": {"value": 4, "source": "assumption: about one signed advisory a week during a season; confirm with Dennis and Wilson"},
-  "price_kes_per_farmer_per_month": {"value": 50, "source": "TALO's price (what the payment page charges institutions)"},
+  "price_kes_per_farmer_per_month": {"value": 50, "source": "TALO's price. Kept low because Dennis and Wilson (Murang'a officers) said paying is 50/50 and depends on value; payers: their organisation or NGOs such as One Acre Fund"},
   "pilot_farmers": {"value": 500, "source": "assumption: one officer's active farmers; confirm with Dennis and Wilson"},
   "server_usd_per_month": {"value": 40, "source": "assumption: one CPU server (e.g. a small VPS or a mini PC) running the local model, the API and the database"},
   "server_utilisation": {"value": 0.6, "source": "assumption: share of the month the server is busy drafting"},
