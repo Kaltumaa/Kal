@@ -627,6 +627,12 @@ tests/         unit, gate and architecture-boundary tests
 * A larger, field-tested vision model for crop photos.
 * More sub-counties: add their wards and households as data (see "Why one office").
 
+## Run it free in GitHub Codespaces (with the AI)
+
+No server needed: **Code → Codespaces → New with options → 4-core** on this repo builds a machine that runs all of
+TALO, including the local models, and gives the Control Desk a shareable HTTPS link. Steps:
+[.devcontainer/README.md](.devcontainer/README.md).
+
 ## Deploy on a server (with the AI)
 
 `deploy/` runs the whole of TALO on one Linux server (4 vCPU, 8 GB RAM) with Docker: the Control Desk, the local
