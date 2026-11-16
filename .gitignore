@@ -13,3 +13,12 @@ data/scans/
 .claude/
 CLAUDE.md
 CLAUDE.local.md
+
+# Plant AI service (backend/plant_ai): its own venv, merged dataset and trained weights
+.venv-plantai/
+data/dataset/
+data/plant_ai.db
+backend/plant_ai/*.pth
+data/demo_accounts.md
+data/PlantVillage-Dataset/
+data/PlantDoc-Dataset/

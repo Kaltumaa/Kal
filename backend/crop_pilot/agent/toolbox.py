@@ -5,6 +5,7 @@ neither server has one, and it filters the filesystem server down to read-only t
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
@@ -18,6 +19,7 @@ from mcp.client.stdio import stdio_client
 
 from crop_pilot import config
 from crop_pilot.core import telemetry
+from crop_pilot.core.resilience import log_recovery
 
 OUR_SERVER = "crop-pilot"
 FS_SERVER = "filesystem"
@@ -29,6 +31,7 @@ class Toolbox:
         self.sessions: dict[str, ClientSession] = {}
         self.tools: dict[str, tuple[str, dict]] = {}   # tool name -> (server, json schema)
         self.degraded: list[str] = []
+        self.recoveries: list[dict] = []
 
     async def _connect(self, stack: AsyncExitStack, name: str, params: StdioServerParameters,
                        allowed: set[str] | None = None) -> None:
@@ -52,12 +55,25 @@ class Toolbox:
             return out
         server, _ = self.tools[tool]
         started = time.perf_counter()
-        try:
-            result = await self.sessions[server].call_tool(tool, arguments)
-            out = _parse_result(result)
-            status = "error" if result.isError or out.get("ok") is False else "ok"
-        except Exception as exc:  # noqa: BLE001 - a broken tool must not crash the run
-            out, status = {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]}, "error"
+        # Retry transport failures and timeouts (every write tool is idempotent per run, so a retry is safe).
+        # A tool that answers ok=false is not retried: that is a real answer, not a fault.
+        attempts, failures = 1 + config.TOOL_RETRIES, []
+        for attempt in range(1, attempts + 1):
+            try:
+                result = await asyncio.wait_for(self.sessions[server].call_tool(tool, arguments),
+                                                timeout=config.TOOL_TIMEOUT_S)
+                out = _parse_result(result)
+                status = "error" if result.isError or out.get("ok") is False else "ok"
+                break
+            except Exception as exc:  # noqa: BLE001 - a broken tool must not crash the run
+                failures.append(f"{type(exc).__name__}: {exc}"[:200])
+                out, status = {"ok": False, "error": failures[-1]}, "error"
+                if attempt < attempts:
+                    await asyncio.sleep(0.3 * attempt)
+        if failures:
+            event = log_recovery(self.run_id, f"mcp:{tool}", "; ".join(failures),
+                                 "retried" if status == "ok" else "gave_up", None, len(failures) + (status == "ok"))
+            self.recoveries.append(event)
         latency = (time.perf_counter() - started) * 1000
         out["_call_id"] = telemetry.record(self.run_id, server, tool, arguments, out,
                                            latency_ms=latency, status=status, actor=actor)

@@ -57,7 +57,7 @@ def greenhouse_check() -> None:
                 show_assessment(api.greenhouse_assess(latest["temp_c"], latest["rh_pct"]))
                 trend = pd.DataFrame({"VPD (kPa)": [r["vpd_kpa"] for r in sensor[::-1]]},
                                      index=pd.RangeIndex(1, len(sensor) + 1, name="Reading"))
-                st.line_chart(trend, height=170, color="#14532D", x_label="Reading", y_label="VPD (kPa)")
+                st.line_chart(trend, height=170, color="#2F6417", x_label="Reading", y_label="VPD (kPa)")
             else:
                 st.caption("No sensor connected yet. Any device on this network can send readings:")
             st.code('curl -X POST http://<this-computer>:8000/greenhouse/readings -H "Content-Type: application/json" '
@@ -81,16 +81,23 @@ ICONS = {"What can I grow?": "potted_plant", "Pests & diseases": "bug_report", "
 
 
 GRID_CSS = """<style>
-.cp-grid {display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 3rem; margin: 0 0 1rem;}
-.cp-crop {border-top: 1px solid #F4F4F5; padding-top: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9375rem; color: #52525B; line-height: 1.625;}
+.cp-grid {display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 12px; margin: 0 0 1rem;}
+.cp-crop {background: #FFFFFF; border: 1px solid #E8E8E2; border-radius: 14px; padding: 16px;
+  display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.8rem; color: #4D4D49; line-height: 1.55;}
 .cp-crop .top {display: flex; justify-content: space-between; align-items: baseline; gap: 8px;}
-.cp-crop .name {font-weight: 600; font-size: 1.25rem; letter-spacing: -0.025em; color: #18181B;}
-.cp-crop .fit, .cp-crop .pill {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #15803D;}
-.cp-crop .fit {white-space: nowrap;} .cp-crop .fit.wait, .cp-crop .pill.wait {color: #B45309;} .cp-crop .fit.bad {color: #B91C1C;}
-.cp-crop .pill::before {content: "•"; margin-right: 0.35rem;}
-.cp-crop .k {font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #71717A; margin-right: 0.4rem;}
-.cp-crop .chk.bad {color: #18181B;} .cp-crop .chk.bad .k {color: #B45309;}
-.cp-crop .tip {color: #71717A; padding-top: 0.5rem; border-top: 1px solid #F4F4F5; margin-top: auto;}
+.cp-crop .name {font-weight: 600; font-size: 1.05rem; letter-spacing: -0.025em; color: #121212;}
+.cp-crop .fit, .cp-crop .pill {font-family: var(--mono); font-size: 0.55rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.06em; color: #2F6417; background: #EEF4E6;
+  border: 1px solid #DBE9D8; border-radius: 999px; padding: 3px 7px; white-space: nowrap;}
+.cp-crop .fit.wait, .cp-crop .pill.wait {color: #96650F; background: #FBF2DF; border-color: #EFE1C2;}
+.cp-crop .fit.bad {color: #A3412C; background: #F9EDE9; border-color: #EDD5CD;}
+.cp-crop .pill {align-self: flex-start;}
+.cp-crop .pill::before {content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+  margin-right: 5px; display: inline-block; vertical-align: 1px;}
+.cp-crop .k {font-family: var(--mono); font-size: 0.54rem; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #7B7B75; margin-right: 0.4rem;}
+.cp-crop .chk.bad {color: #121212;} .cp-crop .chk.bad .k {color: #96650F;}
+.cp-crop .tip {color: #7B7B75; padding-top: 0.5rem; border-top: 1px solid #E8E8E2; margin-top: auto; font-size: 0.75rem;}
 </style>"""
 CHECK_LABEL = {"rain": "Rain", "temp": "Temperature", "soil": "Soil"}
 # The fit score in plain words (the number stays in the backend; farmers see what it means).

@@ -165,7 +165,7 @@ if not officer:
         st.markdown(f"**Rainfall pattern in {(zone or '').title()}** (10-day periods, this year vs normal)")
         st.bar_chart(pd.DataFrame([{"Period": d["period"], "This year (mm)": d["rain_mm"],
                                     "Normal (mm)": d["normal_mm"]} for d in pat["dekads"]]).set_index("Period"),
-                     stack=False, color=["#14532D", "#E4E4E7"], height=220)
+                     stack=False, color=["#2F6417", "#E8E8E2"], height=220)
     st.caption("CHIRPS-style rainfall data (synthetic for this demo).")
 
     sent = [a for a in p["advisories"] if a["status"] == "APPROVED"]

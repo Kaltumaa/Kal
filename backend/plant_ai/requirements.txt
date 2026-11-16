@@ -1,0 +1,13 @@
+# Plant AI service (separate venv: fastmcp 4 needs mcp 2.x, the main backend pins mcp<2).
+#   python3.13 -m venv ~/.venvs/plantai && ~/.venvs/plantai/bin/pip install -r backend/plant_ai/requirements.txt
+torch==2.15.0
+torchvision==0.29.2
+timm==1.0.30
+fastmcp==4.1.4
+mcp==2.3.0
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+pillow==13.0.0
+httpx==0.28.1
+python-multipart==0.0.33
+pytest

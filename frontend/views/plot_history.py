@@ -12,7 +12,7 @@ import ui
 
 ACTION_LABEL = {"PLANTING": "Planting", "WEEDING": "Weeding", "SPRAYING": "Spraying", "FERTILISER": "Fertiliser",
                 "IRRIGATION": "Watering", "HARVEST": "Harvest", "OBSERVATION": "Observation", "VARIETY": "Seed / variety"}
-DOT = {"PLANTING": "#1F7A4D", "WEEDING": "#5E9E3A", "SPRAYING": "#C0392B", "FERTILISER": "#7A5AF8",
+DOT = {"PLANTING": "#2F6417", "WEEDING": "#4E8A2C", "SPRAYING": "#A3412C", "FERTILISER": "#7A5AF8",
        "IRRIGATION": "#2E86C1", "HARVEST": "#D98E04", "OBSERVATION": "#66756B", "VARIETY": "#8A5A2B"}
 SEED_LABEL = {"VERIFIED": "Verified with KEPHIS", "FAILED": "Did not verify", "NOT_CHECKED": "Not checked"}
 CROPS = ["Maize", "Beans", "Kale", "Potato", "Tomato", "Sorghum", "Cowpeas", "Sweet Potato", "Groundnut"]
@@ -57,7 +57,7 @@ def crop_card(g: dict) -> str:
     planted = f"Planted {g['planted']}" if g.get("planted") else "No planting date yet"
     return (f'<div class="cp-cropcard"><div style="display:flex;justify-content:space-between;align-items:center">'
             f'<span class="cn">{esc(g["crop"])}</span>{role_chip}</div>'
-            f'<div class="meta">{esc(planted)}</div><div style="font-weight:600;color:#1B2A21;font-size:.88rem">'
+            f'<div class="meta">{esc(planted)}</div><div style="font-weight:600;color:#121212;font-size:.88rem">'
             f'{esc(status)}</div><div class="cp-prog"><span style="width:{pct}%"></span></div>'
             f'<div class="meta">{esc(nxt)}</div></div>')
 

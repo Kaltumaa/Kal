@@ -125,7 +125,7 @@ def _yes_no(text: str | None) -> bool | None:
 
 def analyse(image_b64: str, household_id: str | None, crop: str | None, submitted_by: str | None = None) -> dict:
     """Local vision model (and DeepLeaf, if configured) -> UNVERIFIED scan for the officer.
-    `submitted_by` = the lead farmer's household when they send a photo for a Nyumba Kumi neighbour."""
+    `submitted_by` = the lead farmer's household when they send a photo for a neighbour in their Lead Farmer cell."""
     try:
         raw = base64.b64decode(image_b64, validate=True)
     except (binascii.Error, ValueError) as exc:
@@ -357,7 +357,7 @@ def review(scan_id: int, officer_name: str, decision: str, pest: str | None = No
     if scan["household_id"]:
         # The officer's answer also goes by SMS, so a farmer without data still gets the advice.
         from crop_pilot.dispatch import sms
-        sms_id = sms.queue_out(scan["household_id"], f"Mkulima Hub, photo #{scan_id}: {finding}. {note_clean}".strip(),
+        sms_id = sms.queue_out(scan["household_id"], f"TALO, photo #{scan_id}: {finding}. {note_clean}".strip(),
                                "photo_result", scan_id, officer)
     call_id = None
     if call and scan["household_id"]:

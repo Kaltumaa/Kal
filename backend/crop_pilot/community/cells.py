@@ -1,4 +1,4 @@
-"""Nyumba Kumi cells: up to ten neighbouring households, one lead farmer with a smartphone.
+"""Lead Farmer cells: up to ten neighbouring households, one lead farmer with a smartphone.
 
 The lead farmer takes photos for neighbours who have no smartphone or data. The photo goes to the officer exactly
 like the neighbour's own would (filed under the neighbour's farm, marked as sent by the lead). The lead sees only
@@ -25,7 +25,7 @@ def _hid(value: str) -> str:
 
 def list_cells() -> list[dict]:
     with connect() as conn:
-        cells = [dict(r) for r in conn.execute("SELECT * FROM nyumba_cells ORDER BY cell_id")]
+        cells = [dict(r) for r in conn.execute("SELECT * FROM lead_farmer_cells ORDER BY cell_id")]
         for c in cells:
             c["members"] = [dict(r) for r in conn.execute(
                 "SELECT household_id, farmer_name, phone_type, active_crop FROM plots WHERE cell_id = ? "
@@ -68,7 +68,7 @@ def submit_for_neighbour(lead_household_id: str, neighbour_household_id: str, im
     lead, nb = _hid(lead_household_id), _hid(neighbour_household_id)
     cell = cell_for(nb)
     if cell is None or cell["lead_household_id"] != lead:
-        raise ApprovalError("You can send photos only for households in the Nyumba Kumi cell you lead.")
+        raise ApprovalError("You can send photos only for households in the Lead Farmer cell you lead.")
     if nb == lead:
         raise ApprovalError("For your own farm, use AI Scan.")
     receipt = fieldscan.submit_for_review(image_b64, nb, submitted_by=lead)
@@ -81,7 +81,7 @@ def submit_for_neighbour(lead_household_id: str, neighbour_household_id: str, im
 
 def set_contact(household_id: str, officer_name: str, phone: str | None, phone_type: str | None,
                 cell_id: str | None) -> dict:
-    """Officer records a farmer's phone and cell (from a visit or the chief's Nyumba Kumi register)."""
+    """Officer records a farmer's phone and cell (from a visit or the Lead Farmer register)."""
     officer = validate_signature(officer_name)
     hid = _hid(household_id)
     phone = re.sub(r"[\s\-()]", "", phone or "")
@@ -95,12 +95,12 @@ def set_contact(household_id: str, officer_name: str, phone: str | None, phone_t
         if conn.execute("SELECT 1 FROM plots WHERE household_id = ?", (hid,)).fetchone() is None:
             raise ApprovalError("Household not found.")
         if cell_id:
-            if conn.execute("SELECT 1 FROM nyumba_cells WHERE cell_id = ?", (cell_id,)).fetchone() is None:
-                raise ApprovalError("Unknown Nyumba Kumi cell.")
+            if conn.execute("SELECT 1 FROM lead_farmer_cells WHERE cell_id = ?", (cell_id,)).fetchone() is None:
+                raise ApprovalError("Unknown Lead Farmer cell.")
             size = conn.execute("SELECT COUNT(*) FROM plots WHERE cell_id = ? AND household_id != ?",
                                 (cell_id, hid)).fetchone()[0]
-            if size >= config.NYUMBA_KUMI_MAX:
-                raise ApprovalError(f"That cell already has {config.NYUMBA_KUMI_MAX} households.")
+            if size >= config.LEAD_FARMER_CELL_MAX:
+                raise ApprovalError(f"That cell already has {config.LEAD_FARMER_CELL_MAX} households.")
         # None = keep what is on file; an empty cell_id takes the farm out of its cell.
         cur = dict(conn.execute("SELECT phone, phone_type, cell_id FROM plots WHERE household_id = ?", (hid,)).fetchone())
         phone = phone or cur["phone"]

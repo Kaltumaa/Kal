@@ -33,18 +33,146 @@ CREATE TABLE IF NOT EXISTS plots (
     intercrop           TEXT,            -- companion crop grown in the same plot (e.g. beans under maize)
     language            TEXT,            -- farmer's message language: en | sw | both (NULL = English)
     farmer_last_seen    TEXT,            -- last time the farmer opened their notifications in the app
-    cell_id             TEXT,            -- Nyumba Kumi cell (nyumba_cells.cell_id)
+    cell_id             TEXT,            -- Lead Farmer cell (lead_farmer_cells.cell_id)
     phone               TEXT,            -- +2547XXXXXXXX; demo numbers are fake (+25470000xxxx)
     phone_type          TEXT             -- smartphone | feature (no data: reached by SMS and voice call)
 );
 
--- Nyumba Kumi cells: up to ten neighbouring households. The lead farmer has a smartphone and sends photos for
+-- Lead Farmer cells: up to ten neighbouring households. The lead farmer has a smartphone and sends photos for
 -- neighbours who do not; the officer still reviews everything.
-CREATE TABLE IF NOT EXISTS nyumba_cells (
+CREATE TABLE IF NOT EXISTS lead_farmer_cells (
     cell_id           TEXT PRIMARY KEY,
     name              TEXT NOT NULL,
     zone_id           TEXT NOT NULL,
-    lead_household_id TEXT NOT NULL
+    lead_household_id TEXT NOT NULL,
+    institution_id    INTEGER,           -- institution that supports this Lead Farmer (NULL = the desk itself)
+    county            TEXT,
+    sub_county        TEXT
+);
+
+-- Institutions that pay for the service: a County Agric Department, a cooperative, an NGO.
+CREATE TABLE IF NOT EXISTS institutions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL UNIQUE,
+    kind          TEXT NOT NULL CHECK (kind IN ('county_agric_department','cooperative','ngo','other')),
+    county        TEXT NOT NULL,
+    contact_email TEXT,
+    contact_phone TEXT,
+    created_at    TEXT NOT NULL
+);
+
+-- Accounts. Officers and Lead Farmers belong to an institution and serve one county + sub-county.
+CREATE TABLE IF NOT EXISTS users (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    email          TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash  TEXT NOT NULL,
+    full_name      TEXT NOT NULL,
+    role           TEXT NOT NULL CHECK (role IN ('farmer','extension_officer','institution')),
+    phone          TEXT,
+    institution_id INTEGER REFERENCES institutions(id),
+    county         TEXT,
+    sub_county     TEXT,
+    wards          TEXT,             -- officers: comma list of wards they cover (NULL = the whole sub-county)
+    household_id   TEXT,             -- farmers: their farm
+    sponsor_institution_id INTEGER REFERENCES institutions(id),   -- farmers: the institution paying their seat
+    is_lead_farmer INTEGER NOT NULL DEFAULT 0 CHECK (is_lead_farmer IN (0,1)),
+    active         INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+    approval_status TEXT NOT NULL DEFAULT 'approved'
+                     CHECK (approval_status IN ('pending','approved','rejected')),  -- officer self sign-up
+    approved_by    TEXT,
+    created_at     TEXT NOT NULL,
+    last_login_at  TEXT,
+    CHECK (role = 'farmer' OR is_lead_farmer = 0),
+    CHECK (role != 'extension_officer' OR (institution_id IS NOT NULL AND county IS NOT NULL
+                                           AND sub_county IS NOT NULL)),
+    CHECK (role != 'institution' OR institution_id IS NOT NULL),
+    CHECK (is_lead_farmer = 0 OR (household_id IS NOT NULL AND institution_id IS NOT NULL
+                                  AND sub_county IS NOT NULL))
+);
+
+-- Service tiers an institution pays for: per-officer seats or whole sub-county seats.
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    institution_id INTEGER NOT NULL REFERENCES institutions(id),
+    tier           TEXT NOT NULL CHECK (tier IN ('per_farmer','per_officer','sub_county')),  -- older plans kept
+    seats          INTEGER NOT NULL CHECK (seats >= 1),   -- per_farmer: farmers paid for (KES 50 each)
+    sub_counties   TEXT,              -- comma list of the sub-counties whose farmers are paid for
+    amount_kes     INTEGER NOT NULL CHECK (amount_kes > 0),
+    status         TEXT NOT NULL DEFAULT 'PENDING_PAYMENT'
+                     CHECK (status IN ('PENDING_PAYMENT','ACTIVE','EXPIRED','CANCELLED')),
+    period_start   TEXT,
+    period_end     TEXT,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL,
+    -- A subscription only becomes ACTIVE with a paid period.
+    CHECK (status != 'ACTIVE' OR (period_start IS NOT NULL AND period_end IS NOT NULL))
+);
+
+-- Every payment attempt (M-Pesa STK Push or card checkout) and its provider result.
+CREATE TABLE IF NOT EXISTS transactions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    institution_id      INTEGER NOT NULL REFERENCES institutions(id),
+    subscription_id     INTEGER NOT NULL REFERENCES subscriptions(id),
+    provider            TEXT NOT NULL CHECK (provider IN ('mpesa','stripe','flutterwave')),
+    reference           TEXT NOT NULL UNIQUE,   -- our id: account reference / tx_ref / client_reference_id
+    provider_ref        TEXT UNIQUE,            -- CheckoutRequestID / Stripe session id / Flutterwave tx id
+    merchant_request_id TEXT,
+    amount              INTEGER NOT NULL CHECK (amount > 0),
+    currency            TEXT NOT NULL DEFAULT 'KES',
+    phone_masked        TEXT,                   -- 2547******78: never the full number
+    status              TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SUCCESS','FAILED','CANCELLED')),
+    result_code         TEXT,
+    result_desc         TEXT,
+    receipt             TEXT,                   -- M-Pesa receipt number / card charge id
+    checkout_url        TEXT,
+    simulated           INTEGER NOT NULL DEFAULT 0 CHECK (simulated IN (0,1)),
+    raw_callback_json   TEXT,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL,
+    CHECK (status != 'SUCCESS' OR receipt IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_transactions_sub ON transactions(subscription_id);
+
+-- Human-in-the-loop escalations: the agent was not sure (blurry photo, low classifier confidence, the two weather
+-- forecasts disagreeing) and asks the sub-county extension officer for a manual diagnosis instead of guessing.
+CREATE TABLE IF NOT EXISTS escalations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id              TEXT NOT NULL UNIQUE,
+    household_id        TEXT NOT NULL,
+    advisory_id         INTEGER,
+    county              TEXT,
+    sub_county          TEXT,
+    assigned_officer_id INTEGER REFERENCES users(id),
+    reasons_json        TEXT NOT NULL,
+    question            TEXT NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','RESOLVED')),
+    created_at          TEXT NOT NULL,
+    resolved_at         TEXT,
+    resolved_by         TEXT,
+    diagnosis           TEXT,
+    CHECK (status = 'OPEN' OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL AND diagnosis IS NOT NULL))
+);
+
+-- Self-check audit log: every tool failure the agent recovered from, how, and which data source it fell back to.
+CREATE TABLE IF NOT EXISTS recovery_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id          TEXT NOT NULL,
+    ts              TEXT NOT NULL,
+    component       TEXT NOT NULL,       -- open_meteo | visual_crossing | vision | database | mcp:<tool>
+    failure         TEXT NOT NULL,
+    recovery_action TEXT NOT NULL,       -- retried | failover:<source> | fallback:<source> | gave_up
+    degraded_source TEXT,                -- the source actually used, when it is not the preferred one
+    attempts        INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_recovery_run ON recovery_log(run_id);
+
+-- Last good live forecast per ward and provider: the first fallback when both providers are unreachable.
+CREATE TABLE IF NOT EXISTS forecast_cache (
+    zone_id    TEXT NOT NULL,
+    provider   TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    forecast   TEXT NOT NULL,
+    PRIMARY KEY (zone_id, provider)
 );
 
 -- Farmer's own reminders. Not logged when created; ticking one done adds a field-log entry (and an audit line).
@@ -292,7 +420,7 @@ TERRAIN = {
     "HH-DS-011": ("steep", "red loam"), "HH-DS-012": ("flat", "red loam"), "HH-DS-013": ("gentle", "red loam"),
     "HH-DS-014": ("gentle", "red loam"), "HH-DS-015": ("gentle", "red loam"),
 }
-# Nyumba Kumi cells (synthetic). Lead farmers have smartphones; most neighbours have feature phones.
+# Lead Farmer cells (synthetic). Lead farmers have smartphones; most neighbours have feature phones.
 CELLS = [("RIR-1", "Riruta cell 1", "RIRUTA", "HH-DS-001"), ("UTH-1", "Uthiru cell 1", "UTHIRU", "HH-DS-015")]
 CELL_MEMBERS = {"HH-DS-001": "RIR-1", "HH-DS-005": "RIR-1", "HH-DS-006": "RIR-1", "HH-DS-009": "RIR-1",
                 "HH-DS-010": "RIR-1", "HH-DS-011": "RIR-1", "HH-DS-015": "UTH-1", "HH-DS-007": "UTH-1",
@@ -304,9 +432,38 @@ PLOT_COLUMNS = ("household_id, zone_id, lat, lon, crop_history, active_crop, pla
                 "growth_stage, field_notes, is_synthetic")
 
 
+def migrate_legacy(conn: sqlite3.Connection) -> None:
+    """Renames from older databases, before the schema is (re)applied. `nyumba_cells` became `lead_farmer_cells`."""
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "nyumba_cells" in tables and "lead_farmer_cells" not in tables:
+        conn.execute("ALTER TABLE nyumba_cells RENAME TO lead_farmer_cells")
+    # subscriptions gained the per_farmer plan: SQLite cannot change a CHECK, so rebuild the table, keeping its rows.
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='subscriptions'").fetchone()
+    if row and "per_farmer" not in row[0]:
+        conn.execute("PRAGMA legacy_alter_table = ON")      # keep transactions' foreign key pointing at the new table
+        conn.execute("ALTER TABLE subscriptions RENAME TO subscriptions_old")
+        conn.execute("PRAGMA legacy_alter_table = OFF")
+        create = SCHEMA[SCHEMA.index("CREATE TABLE IF NOT EXISTS subscriptions"):]
+        conn.executescript(create[: create.index(");") + 2])
+        conn.execute("INSERT INTO subscriptions SELECT * FROM subscriptions_old")
+        conn.execute("DROP TABLE subscriptions_old")
+
+
 def ensure_schema(conn: sqlite3.Connection) -> None:
     """Create missing tables/columns on an existing database (safe to run every start)."""
+    migrate_legacy(conn)
     conn.executescript(SCHEMA)
+    user_cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+    if "approval_status" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'")
+    if "approved_by" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN approved_by TEXT")
+    if "sponsor_institution_id" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN sponsor_institution_id INTEGER")
+    cell_cols = {r[1] for r in conn.execute("PRAGMA table_info(lead_farmer_cells)")}
+    for col, kind in (("institution_id", "INTEGER"), ("county", "TEXT"), ("sub_county", "TEXT")):
+        if col not in cell_cols:
+            conn.execute(f"ALTER TABLE lead_farmer_cells ADD COLUMN {col} {kind}")
     columns = {r[1] for r in conn.execute("PRAGMA table_info(plots)")}
     if "farmer_name" not in columns:
         conn.execute("ALTER TABLE plots ADD COLUMN farmer_name TEXT")
@@ -376,8 +533,12 @@ def seed_missing(conn: sqlite3.Connection) -> None:
         conn.execute("UPDATE plots SET language = ? WHERE household_id = ? AND language IS NULL", (lang, hid))
     for hid, crop in INTERCROP.items():
         conn.execute("UPDATE plots SET intercrop = ? WHERE household_id = ? AND intercrop IS NULL", (crop, hid))
-    conn.executemany("INSERT OR IGNORE INTO nyumba_cells (cell_id, name, zone_id, lead_household_id) VALUES (?,?,?,?)",
+    conn.executemany("INSERT OR IGNORE INTO lead_farmer_cells (cell_id, name, zone_id, lead_household_id) VALUES (?,?,?,?)",
                      CELLS)
+    for cell_id, _, zone, _ in CELLS:
+        county, sub_county = config.ward_location(zone)
+        conn.execute("UPDATE lead_farmer_cells SET county = ?, sub_county = ? WHERE cell_id = ? AND county IS NULL",
+                     (county, sub_county, cell_id))
     for hid, cell in CELL_MEMBERS.items():
         conn.execute("UPDATE plots SET cell_id = ? WHERE household_id = ? AND cell_id IS NULL", (cell, hid))
     for hid, phone in PHONES.items():
@@ -392,6 +553,7 @@ def init_db(path: Path | None = None, reset: bool = False) -> Path:
         path.unlink()
     conn = sqlite3.connect(path)
     try:
+        migrate_legacy(conn)
         conn.executescript(SCHEMA)
         ensure_schema(conn)                      # upgrade older databases before inserting new columns
         conn.executemany(f"INSERT OR REPLACE INTO weather_cache ({WEATHER_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)",

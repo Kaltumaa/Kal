@@ -24,8 +24,8 @@ import httpx
 from crop_pilot import config
 from crop_pilot.core import sanitizer, telemetry
 
-KEYPAD_SW = "Kama umeelewa, bonyeza moja. Kama unahitaji msaada wa kiongozi wako wa Nyumba Kumi, bonyeza mbili."
-KEYPAD_EN = "If you understood, press 1. If you need help from your Nyumba Kumi lead farmer, press 2."
+KEYPAD_SW = "Kama umeelewa, bonyeza moja. Kama unahitaji msaada wa mkulima kiongozi wako, bonyeza mbili."
+KEYPAD_EN = "If you understood, press 1. If you need help from your Lead Farmer, press 2."
 # Common Kiswahili names farmers here use. Anything else stays in English (the officer can change it).
 SW_NAMES = {"fall armyworm": "viwavijeshi", "aphids": "vidukari", "late blight": "ukungu", "bean fly": "inzi wa maharagwe"}
 

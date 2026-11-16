@@ -56,7 +56,7 @@ async def callback(request: Request):
     return _xml(voice_calls.handle_callback(await _form(request)))
 
 
-app = FastAPI(title="Mkulima Hub voice webhooks", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+app = FastAPI(title="TALO voice webhooks", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(router)
 
 
