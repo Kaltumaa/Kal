@@ -47,9 +47,9 @@ WORD_TO_ACTION = {w: a for a, words in ACTION_WORDS.items() for w in words}
 COMMANDS = {"LOG": "LOG", "REKODI": "LOG", "REMIND": "REMIND", "KUMBUSHA": "REMIND", "PROBLEM": "PROBLEM",
             "SHIDA": "PROBLEM", "HELP": "HELP", "MSAADA": "HELP"}
 HELP = {
-    "en": "Mkulima Hub SMS: LOG WEEDING notes | LOG PLANT BEANS | REMIND 2026-10-20 SPRAY notes | "
+    "en": "TALO SMS: LOG WEEDING notes | LOG PLANT BEANS | REMIND 2026-10-20 SPRAY notes | "
           "PROBLEM what you see. Your officer replies by SMS.",
-    "sw": "Mkulima Hub SMS: REKODI PALILIA maelezo | REKODI PANDA MAHARAGWE | KUMBUSHA 2026-10-20 NYUNYIZA | "
+    "sw": "TALO SMS: REKODI PALILIA maelezo | REKODI PANDA MAHARAGWE | KUMBUSHA 2026-10-20 NYUNYIZA | "
           "SHIDA unachoona. Afisa atakujibu kwa SMS.",
 }
 

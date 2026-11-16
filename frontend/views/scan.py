@@ -125,9 +125,10 @@ def farmer_page() -> None:
                                                             "and tell you what it is and how to fix it.")
     left, right = st.columns([1.3, 1], gap="large")
     with left:
-        source = st.segmented_control("Source", ["Camera", "Upload"], default="Camera", label_visibility="collapsed")
-        photo = (st.camera_input("Photo", label_visibility="collapsed") if source == "Camera"
-                 else st.file_uploader("Photo (JPEG or PNG, max 6 MB)", type=["jpg", "jpeg", "png"]))
+        with st.container(key="cp-scan-media"):
+            source = st.segmented_control("Source", ["Camera", "Upload"], default="Camera", label_visibility="collapsed")
+            photo = (st.camera_input("Photo", label_visibility="collapsed") if source == "Camera"
+                     else st.file_uploader("Photo (JPEG or PNG, max 6 MB)", type=["jpg", "jpeg", "png"]))
         if st.button("Send to my extension officer", type="primary", disabled=photo is None, width="stretch"):
             with st.spinner("Sending… (the photo is checked on this computer first, about a minute)"):
                 try:

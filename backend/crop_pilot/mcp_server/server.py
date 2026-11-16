@@ -1,8 +1,10 @@
-"""Mkulima Hub MCP server (id `crop-pilot`, built by us). Six tools; two of them write (draft_advisory, schedule_followup).
+"""TALO MCP server (id `crop-pilot`, built by us). Ten tools; three of them write (draft_advisory,
+schedule_followup, escalate_to_officer), and none of the writes reaches a farmer.
 
 Run standalone:  python -m crop_pilot.mcp_server.server   (stdio transport)
 
 There is deliberately NO tool here that sends, dispatches, approves or contacts anyone.
+`escalate_to_officer` only queues a question for the sub-county extension officer (human-in-the-loop).
 `draft_advisory` can only create rows in the staging queue with a non-final status.
 """
 from __future__ import annotations
@@ -15,7 +17,8 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 from crop_pilot import config
-from crop_pilot.core import agronomy, sanitizer, weather_patterns
+from crop_pilot.core import agronomy, escalation, sanitizer, weather_patterns, weather_sources
+from crop_pilot.core.resilience import log_recovery
 from crop_pilot.core.telemetry import now_iso
 from crop_pilot.database.db import connect
 
@@ -23,7 +26,7 @@ mcp = FastMCP("crop-pilot")
 
 DRAFT_STATUSES = {"PENDING_REVIEW", "SECURITY_LOCK", "NEEDS_DATA"}   # APPROVED is unreachable from here
 VERDICTS = {"PLANT", "SPRAY", "HOLD"}
-SOURCE_RE = re.compile(r"^(plots|plot_actions|weather_cache|pest_alerts|reference):[A-Za-z0-9_\-./#:@ ]{1,120}$")
+SOURCE_RE = re.compile(r"^(plots|plot_actions|weather_cache|pest_alerts|reference|live_weather|field_scans):[A-Za-z0-9_\-./#:@ ]{1,120}$")
 MAX_MESSAGE_CHARS = 320
 
 
@@ -78,6 +81,15 @@ def get_plot_context(household_id: str) -> dict:
                                "WHERE household_id = ? ORDER BY action_date DESC, id DESC LIMIT 20",
                                (clean["household_id"],)).fetchall()
         clean["field_log"] = [dict(r) | {"details": sanitizer.scrub_free_text(r["details"], 300)[0]} for r in log]
+        # The Lead Farmer who relays advice to this farm's cell (feature-phone neighbours), if it is in one.
+        with connect() as conn:
+            lead = conn.execute("SELECT c.cell_id, c.lead_household_id, c.sub_county, p.farmer_name FROM plots f "
+                                "JOIN lead_farmer_cells c ON c.cell_id = f.cell_id "
+                                "LEFT JOIN plots p ON p.household_id = c.lead_household_id "
+                                "WHERE f.household_id = ?", (clean["household_id"],)).fetchone()
+        clean["lead_farmer"] = ({"cell_id": lead["cell_id"], "household_id": lead["lead_household_id"],
+                                 "farmer_name": lead["farmer_name"], "sub_county": lead["sub_county"],
+                                 "is_self": lead["lead_household_id"] == clean["household_id"]} if lead else None)
     return clean
 
 
@@ -110,6 +122,117 @@ def get_weather_pattern(zone_id: str, rain_7d_mm: Optional[float] = None) -> dic
     if not result["ok"]:
         result["error"] = f"no rainfall history or season outlook for zone {zone}"
     return result
+
+
+@mcp.tool()
+def get_dual_forecast(zone_id: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None,
+                      run_id: str = "mcp") -> dict:
+    """Live 7-day forecast for a ward's GPS point from Open-Meteo (primary) AND Visual Crossing (secondary), each
+    retried, then cross-verified: rain over 24 h/72 h/7 days, rain probability, humidity, wind, hours until the next
+    rain (spray window) and severe agricultural alerts. agreement is AGREE, DISAGREE, SINGLE_SOURCE (one provider
+    down: failover) or BASELINE_ONLY (both down: cached sub-county climate baseline). Never advise a spray on DISAGREE."""
+    return weather_sources.dual_forecast(zone_id, lat, lon, run_id=sanitizer.normalise_text(run_id)[:40] or "mcp")
+
+
+def _scan_confidence(candidates: list[dict]) -> float:
+    try:
+        return round(max(float(c.get("score") or 0) for c in candidates), 2) if candidates else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+@mcp.tool()
+def get_leaf_scan(household_id: str, run_id: str = "mcp") -> dict:
+    """The household's latest photo still waiting for officer review (last 14 days): image-quality check (blurry,
+    dark, not a leaf), the leaf classifier's top candidates and its confidence (0-1). Confidence below 0.75 or a bad
+    photo means the agent must not name a treatment. found=false when there is no recent photo."""
+    hid = sanitizer.normalise_text(household_id).upper()[:32]
+    since = (config.today() - timedelta(days=config.LEAF_SCAN_MAX_AGE_DAYS)).isoformat()
+    with connect() as conn:
+        has_table = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='field_scans'").fetchone()
+        row = conn.execute("SELECT * FROM field_scans WHERE upper(household_id) = ? AND status = 'UNVERIFIED' "
+                           "AND substr(created_at, 1, 10) >= ? ORDER BY id DESC LIMIT 1", (hid, since)).fetchone() \
+            if has_table else None
+    if row is None:
+        return {"ok": True, "found": False, "household_id": hid}
+    quality = json.loads(row["image_quality"] or "{}")
+    candidates = [{"pest": sanitizer.scrub_free_text(c.get("pest"), 60)[0], "score": c.get("score"),
+                   "type": c.get("type")} for c in json.loads(row["candidates_json"] or "[]")][:3]
+    issues = [i for i in quality.get("issues", []) if i in ("blurry", "dark", "unreadable")]
+    if quality.get("subject_present") is False:
+        issues.append("not_a_leaf")
+    vision_ok = bool(row["model"])
+    if not vision_ok:
+        # The vision model was down when the photo arrived: fall back to the image-quality check alone.
+        log_recovery(run_id, "vision", f"no vision-model result for scan #{row['id']}",
+                     "fallback:image_quality_only", "image-quality heuristics (no classifier)")
+    confidence = _scan_confidence(candidates) if vision_ok else 0.0
+    return {"ok": True, "found": True, "household_id": hid, "scan_id": row["id"], "created_at": row["created_at"],
+            "vision_model": row["model"], "vision_available": vision_ok, "image_issues": issues,
+            "sharpness": quality.get("sharpness"), "brightness": quality.get("brightness"),
+            "candidates": candidates, "confidence": confidence,
+            "confident": vision_ok and not issues and confidence >= config.LEAF_CONFIDENCE_MIN,
+            "threshold": config.LEAF_CONFIDENCE_MIN, "citation": f"field_scans:#{row['id']}"}
+
+
+@mcp.tool()
+def get_outbreak_cluster(zone_id: str, pest: Optional[str] = None) -> dict:
+    """Pest/disease reports in the ward's whole sub-county over the last 14 days (verified alerts, unverified
+    reports and photos waiting for review), grouped by pest. A pest with 3 or more reports is a cluster."""
+    zone = sanitizer.normalise_zone(zone_id)
+    county, sub_county = config.ward_location(zone)
+    if sub_county is None:
+        return {"ok": False, "error": f"ward {zone_id!r} is not in a known sub-county"}
+    wards = sorted(w for w, (_, sc) in config.WARD_DIRECTORY.items() if sc == sub_county)
+    since = (config.today() - timedelta(days=config.OUTBREAK_CLUSTER_DAYS)).isoformat()
+    marks = ",".join("?" * len(wards))
+    with connect() as conn:
+        alerts = [dict(r) for r in conn.execute(
+            f"SELECT id, zone_id, pest, severity, verified, reported_at FROM pest_alerts WHERE zone_id IN ({marks}) "
+            "AND substr(reported_at, 1, 10) >= ?", (*wards, since))]
+        has_scans = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='field_scans'").fetchone()
+        scans = [dict(r) for r in conn.execute(
+            f"SELECT s.id, s.candidates_json, p.zone_id FROM field_scans s JOIN plots p ON upper(p.household_id) = "
+            f"upper(s.household_id) WHERE s.status = 'UNVERIFIED' AND substr(s.created_at, 1, 10) >= ?",
+            (since,))] if has_scans else []
+    groups: dict[str, dict] = {}
+    for a in alerts:
+        g = groups.setdefault(a["pest"].strip().lower(), {"pest": a["pest"].strip().lower(), "verified": 0,
+                                                          "unverified": 0, "photos": 0, "wards": set(), "ids": []})
+        g["verified" if a["verified"] else "unverified"] += 1
+        g["wards"].add(a["zone_id"])
+        g["ids"].append(a["id"])
+    for sc in scans:
+        if sanitizer.normalise_zone(sc["zone_id"]) not in wards:
+            continue
+        top = (json.loads(sc["candidates_json"] or "[]") or [{}])[0].get("pest")
+        if top:
+            g = groups.setdefault(top.strip().lower(), {"pest": top.strip().lower(), "verified": 0, "unverified": 0,
+                                                        "photos": 0, "wards": set(), "ids": []})
+            g["photos"] += 1
+            g["wards"].add(sanitizer.normalise_zone(sc["zone_id"]))
+    clusters = []
+    for g in groups.values():
+        total = g["verified"] + g["unverified"] + g["photos"]
+        clusters.append({"pest": g["pest"], "reports": total, "verified": g["verified"], "unverified": g["unverified"],
+                         "photos_waiting": g["photos"], "wards": sorted(g["wards"]),
+                         "cluster": total >= config.OUTBREAK_CLUSTER_MIN_REPORTS,
+                         "citations": [f"pest_alerts:#{i}" for i in g["ids"]]})
+    clusters.sort(key=lambda c: -c["reports"])
+    if pest:
+        clusters = [c for c in clusters if c["pest"] == pest.strip().lower()] or clusters
+    return {"ok": True, "zone_id": zone, "county": county, "sub_county": sub_county, "since": since,
+            "clusters": clusters, "active_cluster": any(c["cluster"] for c in clusters)}
+
+
+@mcp.tool()
+def escalate_to_officer(run_id: str, household_id: str, reasons: list[str], question: str,
+                        advisory_id: Optional[int] = None) -> dict:
+    """WRITE: when the agent is NOT sure (blurry or non-leaf photo, leaf classifier confidence below 75 %, Open-Meteo
+    and Visual Crossing disagreeing on rain or the spray window), queue a request for a manual diagnosis by the
+    farm's sub-county extension officer instead of guessing. Contacts nobody. Idempotent per run_id."""
+    return escalation.escalate(sanitizer.normalise_text(run_id)[:40], household_id, list(reasons or []), question,
+                               advisory_id)
 
 
 @mcp.tool()

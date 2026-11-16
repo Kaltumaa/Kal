@@ -177,12 +177,12 @@ with mc:
                          longitude=sum(w["lon"] for w in wards) / len(wards), zoom=11.8)
     st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view, map_style="light",
                              tooltip={"html": "<b>{title}</b><br/>{detail}"}), height=400)
-    st.markdown('<div class="cp-legend"><span><i style="background:#14532D"></i>Farm</span>'
-                '<span><i style="background:#C0392B"></i>Confirmed pest (ring: action radius)</span>'
-                '<span><i style="background:#fff;border:3px solid #C0392B;width:7px;height:7px"></i>'
+    st.markdown('<div class="cp-legend"><span><i style="background:#2F6417"></i>Farm</span>'
+                '<span><i style="background:#A3412C"></i>Confirmed pest (ring: action radius)</span>'
+                '<span><i style="background:#fff;border:3px solid #A3412C;width:7px;height:7px"></i>'
                 'Confirmed, location approximate</span>'
-                '<span><i style="background:#96A09A"></i>Unconfirmed report</span>'
-                '<span><i style="background:#F0B4AA"></i>Confirmed, older than 30 days</span></div>',
+                '<span><i style="background:#A3A39C"></i>Unconfirmed report</span>'
+                '<span><i style="background:#E9C6BE"></i>Confirmed, older than 30 days</span></div>',
                 unsafe_allow_html=True)
 
 # --- Rainfall pattern ---------------------------------------------------------------------------------------
@@ -215,10 +215,11 @@ if zp["dekads"]:
         x=alt.X("Period:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12)),
         xOffset=alt.XOffset("Series:N", sort=["This year", "Normal"]),
         y=alt.Y("Rain (mm):Q", title="Rain (mm)"),
-        color=alt.Color("Series:N", scale=alt.Scale(domain=["This year", "Normal"], range=["#14532D", "#E4E4E7"]),
+        color=alt.Color("Series:N", scale=alt.Scale(domain=["This year", "Normal"], range=["#2F6417", "#E8E8E2"]),
                         legend=alt.Legend(orient="top", title=None)),
         tooltip=["Period", "Series", "Rain (mm)"])
-    st.altair_chart(chart.properties(height=260), width="stretch")
+    with st.container(key="cp-chart-rain"):
+        st.altair_chart(chart.properties(height=260), width="stretch")
     st.caption("Rain in each 10-day period (CHIRPS-style, synthetic) against the long-term average for that period.")
 for line in zp.get("advice", []):
     st.markdown(f'<div class="cp-callout">{html.escape(line)}</div>', unsafe_allow_html=True)

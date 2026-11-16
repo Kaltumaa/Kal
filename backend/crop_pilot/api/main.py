@@ -54,10 +54,13 @@ async def lifespan(app: FastAPI):
         yield
 
 
-app = FastAPI(title="Mkulima Hub Extension Co-Pilot API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="TALO Extension Co-Pilot API", version="1.0.0", lifespan=lifespan)
 # Carrier webhooks (/voice/callback): also served here so the internal telephony simulator can post to them.
 from crop_pilot.api.voice_hooks import router as voice_webhooks  # noqa: E402
 app.include_router(voice_webhooks)
+# Accounts (JWT), institutions, billing (M-Pesa Daraja + card), escalations and live weather under /api.
+from crop_pilot.api.platform_routes import router as platform_routes  # noqa: E402
+app.include_router(platform_routes)
 
 
 class RunRequest(BaseModel):
@@ -463,9 +466,9 @@ def speech_transcribe(req: VoiceNote):
         raise HTTPException(400, detail=f"Could not turn the recording into text ({type(exc).__name__}).")
 
 
-# --- Nyumba Kumi cells and voice calls ------------------------------------------------------------------------
+# --- Lead Farmer cells and voice calls ------------------------------------------------------------------------
 @app.get("/cells")
-def nyumba_cells():
+def lead_farmer_cells():
     _require_db()
     return cells.list_cells()
 
@@ -513,7 +516,10 @@ def set_contact(household_id: str, req: Contact):
 @app.get("/integrations")
 def integrations():
     """Which optional outside services are switched on (keys are never returned)."""
-    return {"deepleaf": deepleaf.status(), "voice": voice_calls.status()}
+    from crop_pilot.core import weather_sources
+    from crop_pilot.payments import card, mpesa
+    return {"deepleaf": deepleaf.status(), "voice": voice_calls.status(), "weather": weather_sources.status(),
+            "mpesa": mpesa.status(), "card": card.status()}
 
 
 @app.get("/voice/calls")

@@ -65,6 +65,6 @@ with st.expander("No internet? Use SMS", icon=":material/sms:", expanded=False):
     thread = api.sms_messages(hid)[:12]
     for m in thread:
         who = "You" if m["direction"] == "IN" else ("Extension officer" if m["sent_by"] not in (None, "system")
-                                                     else "Mkulima Hub")
+                                                     else "TALO")
         st.markdown(f"<span class='cp-muted'>{m['created_at'][:16].replace('T', ' ')} · {who}</span>  \n{m['body']}",
                     unsafe_allow_html=True)

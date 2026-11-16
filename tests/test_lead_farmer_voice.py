@@ -1,4 +1,4 @@
-"""Nyumba Kumi lead farmers, the optional DeepLeaf second opinion, and voice calls to feature phones."""
+"""Lead Farmers, the optional DeepLeaf second opinion, and voice calls to feature phones."""
 import base64
 import io
 
@@ -42,11 +42,11 @@ class FakeDeepLeaf:
         return self.reply
 
 
-# --- Nyumba Kumi ---------------------------------------------------------------------------------------------
+# --- Lead Farmer ---------------------------------------------------------------------------------------------
 def test_seeded_cells_have_a_lead_and_feature_phone_neighbours(temp_db):
     riruta = next(c for c in cells.list_cells() if c["cell_id"] == "RIR-1")
     assert riruta["lead_household_id"] == "HH-DS-001" and riruta["members"][0]["household_id"] == "HH-DS-001"
-    assert 2 <= len(riruta["members"]) <= config.NYUMBA_KUMI_MAX
+    assert 2 <= len(riruta["members"]) <= config.LEAD_FARMER_CELL_MAX
     lead = cells.lead_view("HH-DS-001")
     assert lead["role"] == "lead" and {n["household_id"] for n in lead["neighbours"]} >= {"HH-DS-005", "HH-DS-009"}
     member = cells.lead_view("HH-DS-005")
@@ -338,7 +338,7 @@ def test_carrier_simulator_drives_a_call_over_http(temp_db, tmp_path, monkeypatc
         events = voice_calls.simulate_telephony_carrier_loop(call["phone"], "http://testserver", call["session_id"],
                                                              digit="2", post=c.post, ring_s=0, talk_s=0)
     assert [e["status"] for e in events] == [200, 200, 200]
-    assert "kiongozi wako wa Nyumba Kumi" in events[0]["xml"] and "Tumemwarifu kiongozi" in events[1]["xml"]
+    assert "mkulima kiongozi wako" in events[0]["xml"] and "Tumemwarifu mkulima kiongozi" in events[1]["xml"]
     done = voice_calls.get(r["call_id"])
     assert done["status"] == "VISIT_REQUESTED" and done["digits"] == "2"
     assert done["duration_seconds"] >= 1 and done["amount"] == config.VOICE_SIM_RATE_KES_PER_MIN

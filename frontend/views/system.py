@@ -22,7 +22,7 @@ STEP_TEXT = {
     "agronomist.chat": "DeepLeaf read a photo (second opinion)", "lead_photo_for_neighbour":
     "Lead farmer sent a neighbour's photo", "set_contact": "Phone / cell recorded",
 }
-WHO_TEXT = {"crop-pilot": "Mkulima Hub tools (MCP)", "filesystem": "Guidance library (MCP)", "ollama": "Local AI",
+WHO_TEXT = {"crop-pilot": "TALO tools (MCP)", "filesystem": "Guidance library (MCP)", "ollama": "Local AI",
             "guard": "Safety guard", "graph": "Workflow", "officer": "Officer", "farmer": "Farmer", "feed": "Data feed",
             "none": "Safety guard", "voice": "Phone call (Africa's Talking)", "deepleaf": "DeepLeaf (cloud)"}
 

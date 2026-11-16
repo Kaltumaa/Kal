@@ -8,7 +8,7 @@ Flow
     farmer answers -> AT posts to /voice/callback -> we reply with XML: greeting + message + keypad menu  -> ANSWERED
     farmer presses a key -> AT posts dtmfDigits (to /voice/callback or /voice/dtmf: both work)
         1 = "I understood"                         -> ACKNOWLEDGED
-        2 = "I need help from my Nyumba Kumi lead" -> VISIT_REQUESTED: alert on the lead farmer's page + SMS to the
+        2 = "I need help from my Lead Farmer" -> VISIT_REQUESTED: alert on the lead farmer's page + SMS to the
                                                       lead, and a FIELD_VISIT follow-up for the officer
         0 = hear it again (up to VOICE_MAX_PLAYS)
     call ends (isActive=0) -> duration, cost and hangup cause stored; unanswered -> NO_ANSWER
@@ -64,24 +64,24 @@ CREATE TABLE IF NOT EXISTS voice_calls (
 );
 """
 
-# What the farmer hears around the officer's message. Short sentences. "menu" is for farms in a Nyumba Kumi cell
+# What the farmer hears around the officer's message. Short sentences. "menu" is for farms in a Lead Farmer cell
 # (2 = help from the lead farmer); "menu_officer" for farms in none (2 = help from the officer).
 WORDS = {
-    "sw": {"hello": "Habari. Huu ni ujumbe wa Mkulima Hub, kutoka kwa afisa wako wa kilimo, {officer}.",
+    "sw": {"hello": "Habari. Huu ni ujumbe wa TALO, kutoka kwa afisa wako wa kilimo, {officer}.",
            "menu": KEYPAD_SW + " Kusikiliza tena, bonyeza sifuri.",
            "menu_officer": "Kama umeelewa, bonyeza moja. Kama unahitaji msaada wa afisa wa kilimo, bonyeza mbili. "
                            "Kusikiliza tena, bonyeza sifuri.",
            "ack": "Asante. Tumepokea. Kwa heri.",
-           "visit": "Asante. Tumemwarifu kiongozi wako wa Nyumba Kumi, atakusaidia. Kwa heri.",
+           "visit": "Asante. Tumemwarifu mkulima kiongozi wako, atakusaidia. Kwa heri.",
            "visit_officer": "Asante. Afisa wa kilimo atawasiliana nawe. Kwa heri.",
            "again": "Sikiliza tena.",
            "bye": "Hatukusikia jibu. Ujumbe huu pia umetumwa kwa SMS. Kwa heri."},
-    "en": {"hello": "Hello. This is a Mkulima Hub message from your extension officer, {officer}.",
+    "en": {"hello": "Hello. This is a TALO message from your extension officer, {officer}.",
            "menu": KEYPAD_EN + " To hear it again, press 0.",
            "menu_officer": "If you understood, press 1. If you need help from the extension officer, press 2. "
                            "To hear it again, press 0.",
            "ack": "Thank you. We have noted it. Goodbye.",
-           "visit": "Thank you. We have told your Nyumba Kumi lead farmer; they will help you. Goodbye.",
+           "visit": "Thank you. We have told your Lead Farmer; they will help you. Goodbye.",
            "visit_officer": "Thank you. Your extension officer will contact you. Goodbye.",
            "again": "Listen again.",
            "bye": "We did not hear an answer. This message was also sent by SMS. Goodbye."},
@@ -225,7 +225,7 @@ def _xml(*actions: str) -> str:
 
 
 def _in_cell(conn, household_id: str) -> bool:
-    row = conn.execute("SELECT c.lead_household_id FROM plots p JOIN nyumba_cells c ON c.cell_id = p.cell_id "
+    row = conn.execute("SELECT c.lead_household_id FROM plots p JOIN lead_farmer_cells c ON c.cell_id = p.cell_id "
                        "WHERE p.household_id = ?", (household_id,)).fetchone()
     return bool(row) and row["lead_household_id"] != household_id
 
@@ -333,7 +333,7 @@ def _visit_followup(conn, call: dict, in_cell: bool = True) -> int:
         return row["id"]
     due = (config.today() + timedelta(days=2)).isoformat()
     reason = (f"Farmer pressed 2 on the voice call about {call['kind'].replace('_', ' ')} #{call['related_id']}: "
-              + ("asked for help; their Nyumba Kumi lead farmer was alerted. Check in with the lead."
+              + ("asked for help; their Lead Farmer was alerted. Check in with the lead."
                  if in_cell else "asked for help from the officer."))
     return conn.execute("INSERT INTO followups (run_id, household_id, kind, due_date, reason, created_at) "
                         "VALUES (?,?,?,?,?,?)", (run_id, call["household_id"], "FIELD_VISIT", due, reason,
@@ -341,13 +341,13 @@ def _visit_followup(conn, call: dict, in_cell: bool = True) -> int:
 
 
 def _tell_lead(call: dict) -> None:
-    """Let the Nyumba Kumi lead farmer know a neighbour asked for a visit (they often walk the officer there)."""
+    """Let the Lead Farmer know a neighbour asked for a visit (they often walk the officer there)."""
     from crop_pilot.dispatch import sms
     with connect() as conn:
-        row = conn.execute("SELECT c.lead_household_id, p.farmer_name FROM plots p JOIN nyumba_cells c "
+        row = conn.execute("SELECT c.lead_household_id, p.farmer_name FROM plots p JOIN lead_farmer_cells c "
                            "ON c.cell_id = p.cell_id WHERE p.household_id = ?", (call["household_id"],)).fetchone()
     if row and row["lead_household_id"] != call["household_id"]:
-        sms.queue_out(row["lead_household_id"], f"Mkulima Hub: your neighbour {row['farmer_name'] or call['household_id']}"
+        sms.queue_out(row["lead_household_id"], f"TALO: your neighbour {row['farmer_name'] or call['household_id']}"
                       " pressed 2 on the officer's call: they need your help. Please visit them; the officer is informed.", "cell_visit",
                       call["id"], "system")
 

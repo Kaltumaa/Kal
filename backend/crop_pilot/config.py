@@ -6,6 +6,24 @@ from datetime import date
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_dotenv(path: Path) -> None:
+    """Read KEY=VALUE lines from the repo's .env into os.environ (never overriding what is already set), so the
+    payment and weather keys reach the API however it is started. Tests set CROP_PILOT_NO_DOTENV=1 to stay offline."""
+    if os.environ.get("CROP_PILOT_NO_DOTENV") == "1" or not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.split(" #", 1)[0].strip()
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv(REPO_ROOT / ".env")
 DATA_DIR = REPO_ROOT / "data"
 REFERENCE_DIR = DATA_DIR / "reference"
 
@@ -50,7 +68,7 @@ VOICE_SIM_RING_S = float(os.environ.get("VOICE_SIM_RING_S") or 2)
 VOICE_SIM_TALK_S = float(os.environ.get("VOICE_SIM_TALK_S") or 5)
 VOICE_SIM_RATE_KES_PER_MIN = 3.0   # SIMULATED cost per started minute, for the demo meter; not a real tariff
 VOICE_MAX_PLAYS = 3            # a farmer can press 0 to hear the message again, up to this many plays in all
-NYUMBA_KUMI_MAX = 10           # households in one cell, the lead farmer included
+LEAD_FARMER_CELL_MAX = 10           # households in one cell, the lead farmer included
 
 # Third-party MCP server (official reference filesystem server), pinned to a release > 2 weeks old.
 FS_MCP_PACKAGE = "@modelcontextprotocol/server-filesystem@2026.8.31"
@@ -160,3 +178,79 @@ PEST_SUSCEPTIBILITY: dict[str, dict[str, set[str]]] = {
     "aphids": {"Kale": {"ESTABLISHMENT", "CONTINUOUS_HARVEST"}, "Beans": {"VEGETATIVE", "FLOWERING"}},
     "bean fly": {"Beans": {"EMERGENCE", "VEGETATIVE"}},
 }
+
+
+# --- Where farms sit administratively ------------------------------------------------------------------------------
+# Ward -> (county, sub-county). Institutions, extension officers and Lead Farmers are linked to a county + sub-county.
+WARD_DIRECTORY = {ward: ("Nairobi", "Dagoretti South") for ward in DAGORETTI_SOUTH_WARDS}
+
+
+def ward_location(zone_id: str | None) -> tuple[str | None, str | None]:
+    return WARD_DIRECTORY.get((zone_id or "").upper(), (None, None))
+
+
+# --- Accounts: JWT sessions + password hashing (stdlib scrypt; PyJWT for tokens) ------------------------------------
+JWT_SECRET = os.environ.get("JWT_SECRET") or ""          # set in .env; a random per-process secret is used otherwise
+JWT_ALGORITHM = "HS256"
+JWT_TTL_MINUTES = int(os.environ.get("JWT_TTL_MINUTES") or 12 * 60)
+USER_ROLES = ("farmer", "extension_officer", "institution")
+INSTITUTION_KINDS = ("county_agric_department", "cooperative", "ngo", "other")
+
+# --- Institutional billing: only institutions pay, KES 50 per farmer per 30 days ------------------------------------
+FARMER_PRICE_KES = int(os.environ.get("FARMER_PRICE_KES") or 50)
+SUBSCRIPTION_TIERS = {
+    "per_farmer": {"price_kes": FARMER_PRICE_KES, "seat": "farmer", "label": "Farmer access"},
+}
+SUBSCRIPTION_PERIOD_DAYS = 30
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")   # https URL that reaches this API (callbacks)
+
+# Safaricom M-Pesa Daraja (STK Push / Lipa na M-Pesa Online). Sandbox by default. All four keys set = real calls to
+# Daraja; otherwise the built-in simulator answers (same request/callback shapes) so the demo works offline.
+MPESA_ENV = (os.environ.get("MPESA_ENV") or "sandbox").lower()            # sandbox | production
+MPESA_CONSUMER_KEY = os.environ.get("MPESA_CONSUMER_KEY", "")
+MPESA_CONSUMER_SECRET = os.environ.get("MPESA_CONSUMER_SECRET", "")
+MPESA_SHORTCODE = os.environ.get("MPESA_SHORTCODE", "")                 # sandbox paybill: 174379
+MPESA_PASSKEY = os.environ.get("MPESA_PASSKEY", "")
+MPESA_CALLBACK_URL = os.environ.get("MPESA_CALLBACK_URL", "").rstrip("/")  # defaults to PUBLIC_BASE_URL + path
+# Daraja does not sign callbacks: a shared secret in the callback URL (?t=...) stops strangers marking bills paid.
+MPESA_CALLBACK_TOKEN = os.environ.get("MPESA_CALLBACK_TOKEN", "")
+MPESA_SIMULATE = os.environ.get("MPESA_SIMULATE") == "1"                 # force the simulator even with keys
+MPESA_TIMEOUT_S = 20.0
+
+# Card checkout: Stripe Checkout or Flutterwave Standard, TEST keys only unless PAYMENTS_ALLOW_LIVE=1.
+CARD_PROVIDER = (os.environ.get("CARD_PROVIDER") or "stripe").lower()   # stripe | flutterwave
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+FLW_SECRET_KEY = os.environ.get("FLW_SECRET_KEY", "")
+FLW_WEBHOOK_HASH = os.environ.get("FLW_WEBHOOK_HASH", "")
+CARD_SUCCESS_URL = os.environ.get("CARD_SUCCESS_URL", "")
+CARD_CANCEL_URL = os.environ.get("CARD_CANCEL_URL", "")
+CARD_SIMULATE = os.environ.get("CARD_SIMULATE") == "1"
+PAYMENTS_ALLOW_LIVE = os.environ.get("PAYMENTS_ALLOW_LIVE") == "1"
+CARD_TIMEOUT_S = 20.0
+
+# --- Live weather: Open-Meteo (primary, keyless) + Visual Crossing (secondary, keyed) --------------------------------
+# Off (CROP_PILOT_LIVE_WEATHER=0) = no network: the cached sub-county climate baseline is used and flagged as such.
+LIVE_WEATHER = os.environ.get("CROP_PILOT_LIVE_WEATHER", "1") == "1"
+OPEN_METEO_URL = os.environ.get("OPEN_METEO_URL") or "https://api.open-meteo.com/v1/forecast"
+VISUAL_CROSSING_API_KEY = os.environ.get("VISUAL_CROSSING_API_KEY", "")
+VISUAL_CROSSING_URL = (os.environ.get("VISUAL_CROSSING_URL")
+                       or "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline")
+WEATHER_TIMEOUT_S = float(os.environ.get("CROP_PILOT_WEATHER_TIMEOUT") or 6)
+WEATHER_RETRIES = 2                 # attempts per provider before failing over
+WEATHER_LIVE_CACHE_HOURS = 24       # a stored live forecast younger than this beats the climate baseline
+# Two forecasts "disagree significantly" (agent must not advise a spray on them) when any of these is exceeded.
+WEATHER_DISAGREE_RAIN_72H_MM = 10.0     # absolute gap in 72-hour rain ...
+WEATHER_DISAGREE_RAIN_RATIO = 0.5       # ... that is also more than half the larger forecast
+WEATHER_DISAGREE_PROB_PTS = 30.0        # gap in 24-hour max rain probability (percentage points)
+WEATHER_DISAGREE_DRY_HOURS = 6.0        # gap in hours until the next rain (the spray window)
+SEVERE_WIND_KMH = 40.0
+SEVERE_RAIN_24H_MM = 40.0
+
+# --- Agent: Plan -> Execute -> Self-Verify -> Recover -----------------------------------------------------------------
+LEAF_CONFIDENCE_MIN = 0.75          # below this the agent refuses to name a treatment and escalates to an officer
+LEAF_SCAN_MAX_AGE_DAYS = 14         # an unreviewed photo older than this no longer describes the crop
+OUTBREAK_CLUSTER_DAYS = 14
+OUTBREAK_CLUSTER_MIN_REPORTS = 3    # this many reports of one pest in a sub-county in the window = cluster
+TOOL_RETRIES = 2                    # extra attempts for an MCP tool call that raised or timed out
+TOOL_TIMEOUT_S = float(os.environ.get("CROP_PILOT_TOOL_TIMEOUT") or 45)

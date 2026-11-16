@@ -1,7 +1,8 @@
-"""Mkulima Hub (Streamlit, multi-page). Talks to the backend ONLY over HTTP via api_client.
+"""TALO (Streamlit, multi-page). Talks to the backend ONLY over HTTP via api_client.
 
-Two views: the extension officer (all farms; the only one who can approve advice) and a farmer (their own farm).
-The view switch is a demo convenience, not authentication.
+Everyone signs in first (JWT kept in st.session_state). The account decides the view: farmers see their own farm
+(while an institution pays for their access), extension officers the desk, institutions the officers they manage and
+the payment page.
 
 Run:  streamlit run frontend/app.py
 """
@@ -12,14 +13,16 @@ from pathlib import Path
 import streamlit as st
 
 import api_client as api
+import auth
 import cloud
 import ui
 from views import system
 
-st.set_page_config(page_title="Mkulima Hub", page_icon="🌱", layout="wide")
+ASSETS = Path(__file__).parent / "assets"
+st.set_page_config(page_title="TALO · Good advice, good yield", page_icon=str(ASSETS / "talo-wordmark.png"),
+                   layout="wide")
 ui.setup()
-st.logo(str(Path(__file__).parent / "assets" / "logo.svg"), size="large",
-        icon_image=str(Path(__file__).parent / "assets" / "logo_collapsed.svg"))
+st.logo(str(ASSETS / "talo-wordmark.png"), size="large", icon_image=str(ASSETS / "talo-wordmark.png"))
 
 cloud.ensure_backend()
 try:
@@ -31,15 +34,57 @@ except api.ApiError as exc:
 st.session_state["farm_names"] = {f["household_id"]: f["farmer_name"] for f in farms}
 st.session_state["farm_info"] = {f["household_id"]: f for f in farms}
 
-with st.sidebar:
-    options = ["officer"] + [f["household_id"] for f in farms]
-    role = st.selectbox("I am", options, key="role_pick",
-                        format_func=lambda o: "Extension officer" if o == "officer"
-                        else f"Farmer: {ui.farm_label(o)}")
-st.session_state["role"] = "officer" if role == "officer" else "farmer"
-st.session_state["my_farm"] = None if role == "officer" else role
+auth.refresh()
+account = auth.user()
+account_page = st.Page("views/account.py", title="My account" if account else "Sign in",
+                       icon=":material/account_circle:", url_path="account", default=account is None)
 
-if st.session_state["role"] == "officer":
+# --- Signed out: the sign-in / sign-up page is the only way in -------------------------------------------------------
+if account is None:
+    st.session_state["role"] = None
+    st.session_state["my_farm"] = None
+    st.navigation([account_page], position="hidden").run()
+    st.stop()
+
+# --- A farmer whose access no institution has paid for sees only their account --------------------------------------
+if account["role"] == "farmer" and not (account.get("access") or {}).get("active"):
+    st.session_state["role"], st.session_state["my_farm"] = "farmer", None
+    with st.sidebar:
+        st.markdown(f"**{account['full_name']}**")
+        if st.button("Sign out", icon=":material/logout:", width="stretch"):
+            auth.sign_out()
+            st.rerun()
+    st.navigation([account_page], position="hidden").run()
+    st.stop()
+
+with st.sidebar:
+    if account:
+        st.markdown(f"**{account['full_name']}**  \n<span class='cp-muted'>{auth.ROLE_LABEL[account['role']]}"
+                    f"{' · Lead Farmer' if account.get('is_lead_farmer') else ''}"
+                    f"{' · ' + account['sub_county'] if account.get('sub_county') else ''}</span>",
+                    unsafe_allow_html=True)
+        if st.button("Sign out", icon=":material/logout:", width="stretch"):
+            auth.sign_out()
+            st.rerun()
+        role = {"extension_officer": "officer", "institution": "institution"}.get(
+            account["role"], account.get("household_id") or "no_farm")
+st.session_state["role"] = role if role in ("officer", "institution") else "farmer"
+st.session_state["my_farm"] = None if role in ("officer", "institution", "no_farm") else role
+
+if st.session_state["role"] == "institution":
+    pages = {
+        "Institution": [
+            st.Page("views/institution.py", title="My officers", icon=":material/badge:", default=True),
+            st.Page("views/escalations.py", title="Escalations", icon=":material/priority_high:"),
+        ],
+        "Account": [account_page],
+    }
+elif st.session_state["role"] == "farmer" and st.session_state["my_farm"] is None:
+    pages = {"Farmer hub": [
+        st.Page("views/learn.py", title="Learn", icon=":material/menu_book:", default=True),
+        st.Page("views/community.py", title="Community", icon=":material/forum:")], "Account": [account_page]}
+    st.sidebar.info("Your account is not linked to a farm yet. Ask your extension officer to register your farm.")
+elif st.session_state["role"] == "officer":
     pages = {
         "Advisory": [
             st.Page("views/home.py", title="Dashboard", icon=":material/dashboard:", default=True),
@@ -58,7 +103,9 @@ if st.session_state["role"] == "officer":
             st.Page(system.outbox, title="Sent messages", icon=":material/outbox:", url_path="sent"),
             st.Page(system.phone_calls, title="Phone calls", icon=":material/call:", url_path="calls"),
         ],
+        "Account": [account_page],
     }
+    pages["Advisory"].append(st.Page("views/escalations.py", title="Escalations", icon=":material/priority_high:"))
 else:
     try:
         count = len(api.notifications(st.session_state["my_farm"]))
@@ -79,6 +126,7 @@ else:
             st.Page("views/learn.py", title="Learn", icon=":material/menu_book:"),
             st.Page("views/community.py", title="Community", icon=":material/forum:"),
         ],
+        "Account": [account_page],
     }
 nav = st.navigation(pages)
 
@@ -86,6 +134,8 @@ with st.sidebar:
     if st.session_state["role"] == "farmer":
         st.caption("Farmers see their own farm and advice an officer has signed. Only the extension officer can "
                    "approve advice.")
+    if st.session_state["role"] == "institution":
+        st.caption("Institutions see their officers' performance and pay for the service. Officers approve advice.")
     rows = [("Database", health["database"]["ok"]), (f"Local AI · {health['llm_model']}", health["llm_available"]),
             ("Guidance library (MCP)", health["npx_available"])]
     st.markdown('<div class="cp-status"><b>System status</b>' + "".join(

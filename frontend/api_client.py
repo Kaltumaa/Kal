@@ -316,3 +316,90 @@ def retry_call(call_id: int):
 
 def simulate_call(call_id: int, answer: bool, digit: str | None):
     return _req("POST", f"/voice/calls/{call_id}/simulate", json={"answer": answer, "digit": digit})
+
+
+# --- Accounts, institutions and billing (/api, Bearer token) --------------------------------------------------------
+def _bearer(token: str | None) -> dict:
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def register(payload: dict):
+    return _req("POST", "/api/auth/register", json=payload)
+
+
+def login(email: str, password: str):
+    return _req("POST", "/api/auth/login", json={"email": email, "password": password})
+
+
+def me(token: str):
+    return _req("GET", "/api/auth/me", headers=_bearer(token))
+
+
+def institutions_public():
+    return _req("GET", "/api/institutions")
+
+
+def institution_officers(token: str):
+    return _req("GET", "/api/institution/officers", headers=_bearer(token))
+
+
+def pending_officers(token: str):
+    return _req("GET", "/api/institution/officers/pending", headers=_bearer(token))
+
+
+def decide_officer(token: str, officer_id: int, approve: bool):
+    action = "approve" if approve else "reject"
+    return _req("POST", f"/api/institution/officers/{officer_id}/{action}", headers=_bearer(token))
+
+
+def add_officer(token: str, payload: dict):
+    return _req("POST", "/api/institution/officers", headers=_bearer(token), json=payload)
+
+
+def designate_lead_farmer(token: str, household_id: str):
+    return _req("POST", "/api/institution/lead-farmers", headers=_bearer(token), json={"household_id": household_id})
+
+
+def bulk_alert(token: str, sub_county: str, message: str, wards: list[str] | None = None):
+    return _req("POST", "/api/institution/alerts/bulk", headers=_bearer(token),
+                json={"sub_county": sub_county, "message": message, "wards": wards})
+
+
+def escalations(token: str, status: str = "OPEN"):
+    return _req("GET", "/api/escalations", headers=_bearer(token), params={"status": status})
+
+
+def resolve_escalation(token: str, escalation_id: int, diagnosis: str):
+    return _req("POST", f"/api/escalations/{escalation_id}/resolve", headers=_bearer(token),
+                json={"diagnosis": diagnosis})
+
+
+def subscription_overview(token: str):
+    return _req("GET", "/api/institution/subscription", headers=_bearer(token))
+
+
+def create_subscription(token: str, tier: str, seats: int, sub_counties: list[str] | None = None):
+    return _req("POST", "/api/institution/subscriptions", headers=_bearer(token),
+                json={"tier": tier, "seats": seats, "sub_counties": sub_counties})
+
+
+def payments_status():
+    return _req("GET", "/api/payments/status", timeout=10)
+
+
+def mpesa_stkpush(token: str, subscription_id: int, phone: str, simulate_result: str = "success"):
+    return _req("POST", "/api/payments/mpesa/stkpush", headers=_bearer(token), timeout=60,
+                json={"subscription_id": subscription_id, "phone": phone, "simulate_result": simulate_result})
+
+
+def card_checkout(token: str, subscription_id: int, simulate_result: str = "success"):
+    return _req("POST", "/api/payments/card/checkout", headers=_bearer(token), timeout=60,
+                json={"subscription_id": subscription_id, "simulate_result": simulate_result})
+
+
+def transaction(token: str, transaction_id: int):
+    return _req("GET", f"/api/payments/transactions/{transaction_id}", headers=_bearer(token))
+
+
+def institution_farmers(token: str):
+    return _req("GET", "/api/institution/farmers", headers=_bearer(token))
