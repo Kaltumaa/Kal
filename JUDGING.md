@@ -71,7 +71,7 @@ the optimal time: +7–10% yield, up to +20% for late planters; data from Kenya,
 |---|---|
 | Evidenced | Johnson, a farmer in Murang'a; two extension officers in Murang'a, Dennis and Wilson (about 1 officer : 13,000 farmers in their area; farmers don't know the best time to plant); published ratios with sources above. Their full feedback (liked SMS / WhatsApp / USSD / offline over an app; weather now unpredictable; doubted an AI could stay within fixed rules; would pay depending on value; pointed us to NGOs such as One Acre Fund): README, "What Dennis and Wilson told us" |
 | Named user | Extension officer at a county agriculture department; the farmer receives the advice |
-| Sized | Farmers per officer: about 13,000 (field), 1 : 6,000 (published, Murang'a), 1 : 1,380 (Kenya). Yield at stake from timing: 7–10%, up to 20%. **TODO:** advisories a week, time per farm by hand |
+| Sized | Farmers per officer: about 13,000 (field), 1 : 6,000 (published, Murang'a), 1 : 1,380 (Kenya). Per acre of maize (KES 45,000 harvest, conservative): a washed-out spray KES 1,785, wrong planting time KES 3,150–9,000, an unwarned Fall Armyworm attack up to KES 14,850 (Kenya loses about a third of its maize to FAW). One officer can review about 160 drafts a week on one desk day (3 min each); 13,000 farmers weekly would take 650 h. Working in `FACT_SHEET.md` |
 | Today's workaround | One officer for about 13,000 farmers, so most never get timely advice; farmers decide from memory and neighbours, which no longer works when seasons fail or flood (five failed rainy seasons 2020–22, then floods in 2023). Farmers won't download apps (98% own a phone, about a quarter use it for farm information), so TALO uses SMS, voice and WhatsApp |
 | Local reality | Kiswahili and English; feature phones (SMS, voice keypad), Nyumba Kumi lead farmers; data cost (SMS needs none); M-Pesa; Kenya Data Protection Act (gaps listed in README) |
 | Why agentic | Each advisory needs several sources checked in order (photo, outbreak cluster, two forecasts, crop stage, rotation, guidance), a judgement on whether it is safe, and asking a human when unsure: a form or chatbot cannot do that |
@@ -116,7 +116,7 @@ the pilot is how we earn it.
 | Cost to serve (per outcome) | measured + assumed, see the fact sheet |
 | Price | KES 50 per farmer per month, paid by the institution |
 | Willingness to pay | Dennis and Wilson: **50/50, depending on the value it brings**; their organisation would pay if it proves itself; they named NGOs that fund farmer advice (e.g. One Acre Fund). So the price is kept low: KES 50 per farmer per month |
-| User's cost today | Not yet measured (**TODO**: travel, waiting, losses from a wrong spray). At stake from timing alone: 7–10% of yield, up to 20% for late planters |
+| User's cost today | **KES 385 to 14,850 per acre** for one missing or wrong piece of advice: a lost day travelling to ask (KES 385 + fare), a spray washed off by rain (KES 1,785), a late planting (KES 9,000), an unwarned FAW attack (KES 14,850). TALO: KES 12.50 per signed advisory, so one avoided washed-out spray pays for 143 advisories. Sourced estimates, not yet measured on Murang'a farms |
 
 **Who pays:** the institution (county agriculture department, cooperative or NGO) from its extension budget; farmers
 pay nothing. Second payer, named by the officers: NGOs that already fund farmer advice, such as One Acre Fund.

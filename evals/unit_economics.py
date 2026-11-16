@@ -68,6 +68,11 @@ def main() -> None:
     def src(k: str) -> str:
         return a[k]["source"]
     today = v["user_cost_today_kes"]
+    acre = v["maize_bags_per_acre"] * v["maize_kes_per_bag"]
+    spray = v["pesticide_kes_per_acre"] + v["labour_kes_per_day"]
+    early, late = acre * v["planting_gain_low"], acre * v["planting_gain_late"]
+    faw = acre * v["faw_loss_share"]
+    weekly = v["officer_review_hours_per_week"] * 60 / v["officer_review_minutes"]
     when = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     md = [f"# TALO team fact sheet ({when})", "",
           "Measured figures come from the eval logs "
@@ -90,9 +95,10 @@ def main() -> None:
           "MCP, model: $0 | Partly: live SMS cost appears in the demo once Africa's Talking keys are set |",
           f"| Cost per completed outcome (USD) | **${p['cost']:.4f}** ≈ KES {p['cost'] * fx:.2f} at pilot | "
           "Partly (assumed SMS and hosting prices) |",
-          "| User's cost today for the same outcome | " + (f"KES {today}" if today is not None else
-                                                          "**TODO** from Dennis and Wilson: travel to the officer or a "
-                                                          "farm visit, waiting time, losses from a wrong spray") + " | No |",
+          "| User's cost today for the same outcome | " + (
+              f"From **KES {today:,}** (one spray washed off by rain) to **KES {faw:,.0f}** (a Fall Armyworm attack "
+              f"nobody warned about) per acre of maize; a late planting costs **KES {late:,.0f}**; see the table below"
+              if today is not None else "**TODO**") + " | Sourced estimates, not measured on Murang'a farms |",
           f"| Price, and who pays | **KES {v['price_kes_per_farmer_per_month']} per farmer per month** ≈ KES "
           f"{price_kes:.2f} (${p['price']:.3f}) per outcome at {v['advisories_per_farmer_per_month']} advisories a "
           "month (*assumption*); paid by the institution (county agriculture department, cooperative or NGO) by "
@@ -122,6 +128,37 @@ def main() -> None:
           "- **Other levers:** cache the guidance reads (the same files every run), skip the model for drafts the rules "
           "already settle (the verdict never comes from the model), and use a GPU or a smaller quantised model to "
           "cut seconds per outcome.", "",
+          "## What advice is worth to a farmer (one acre of maize)", "",
+          f"A conservative acre: {v['maize_bags_per_acre']} bags × KES {v['maize_kes_per_bag']:,} = **KES {acre:,.0f}** "
+          "of harvest. What wrong, missing or late advice costs, against TALO's price per advisory:", "",
+          "| What goes wrong | What it costs the farmer | Working |", "|---|---|---|",
+          f"| Sprays, then it rains: the spray washes off and must be redone | **KES {spray:,.0f}** | pesticide KES "
+          f"{v['pesticide_kes_per_acre']:,} + a day of labour KES {v['labour_kes_per_day']} |",
+          f"| Travels to the ward office to ask | **at least KES {v['labour_kes_per_day']}** | a lost working day; "
+          "the fare comes on top (farms average 6.5-8.3 km from the nearest extension provider, Tegemeo 2015) |",
+          f"| Plants at the wrong time | **KES {early:,.0f}-{late:,.0f}** | {v['planting_gain_low']:.0%} of the harvest, "
+          f"{v['planting_gain_late']:.0%} for late planters |",
+          f"| Fall Armyworm arrives and nobody warns them | **up to KES {faw:,.0f}** | about {v['faw_loss_share']:.0%} "
+          "of the harvest, Kenya's average FAW loss |",
+          f"| **TALO, per signed advisory** | **KES {price_kes:.2f}**, paid by the institution, free to the farmer | "
+          f"KES {v['price_kes_per_farmer_per_month']} a month ÷ {v['advisories_per_farmer_per_month']} advisories |", "",
+          f"One avoided washed-out spray pays for **{spray / price_kes:,.0f} advisories**; one avoided late planting "
+          f"for **{late / price_kes:,.0f}**. And it is not only money: a lost third of the maize is school fees, food "
+          "until the next season, and a family's trust in the next piece of advice.", "",
+          "## How many advisories one officer can review", "",
+          f"- **Per draft:** about {v['officer_review_minutes']} minutes (a {v['draft_words_measured']}-word draft with "
+          f"5 sources). So **{60 / v['officer_review_minutes']:.0f} an hour**, and **{weekly:,.0f} a week** if one day "
+          f"({v['officer_review_hours_per_week']} h) goes to the desk.",
+          f"- **The gap:** at one advisory a week, an officer serving 13,000 farmers would need "
+          f"**{13000 * v['officer_review_minutes'] / 60:,.0f} hours a week**. One person can't do that, with or without AI.",
+          f"- **Even the pilot doesn't fit one desk day:** {v['pilot_farmers']} farmers with weekly advice is "
+          f"{v['pilot_farmers'] * v['officer_review_minutes'] / 60:,.0f} h a week. So the pilot is shaped to fit: send "
+          "only when something changes (a real rain onset, a verified pest nearby, a stage that needs action) rather "
+          f"than every week (every two weeks halves it to {v['pilot_farmers'] * v['officer_review_minutes'] / 120:,.1f} "
+          "h); sign groups of identical drafts (same ward, crop, stage and verdict) in one review, which is the next "
+          "feature to build; and let lead farmers (Nyumba Kumi) pass signed advice on to their cells.",
+          "- **Not measured yet:** no published time-use study of Kenyan extension officers was found. Timing "
+          "Dennis and Wilson on real drafts is the first pilot measurement.", "",
           "## Assumptions used", "", "| Input | Value | Source |", "|---|---|---|"]
     md += [f"| {k} | {v[k]} | {src(k)} |" for k in a]
     text = "\n".join(md) + "\n"

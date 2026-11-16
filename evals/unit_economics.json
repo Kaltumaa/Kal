@@ -1,13 +1,79 @@
 {
   "_read_me": "Inputs for evals/unit_economics.py. 'measured' numbers come from the eval logs, not from here. Every value below is an ASSUMPTION until confirmed: replace it with your own figure and keep the source.",
-  "kes_per_usd": {"value": 129, "source": "assumption: approximate KES/USD rate; update on the day"},
-  "sms_kes_per_part": {"value": 0.8, "source": "assumption: Africa's Talking Kenya SMS rate per part; confirm in your Africa's Talking dashboard (the live demo records AT's own cost)"},
-  "sms_parts_per_outcome": {"value": 2, "source": "assumption: a signed advisory is up to 320 characters (2 SMS parts), one language"},
-  "advisories_per_farmer_per_month": {"value": 4, "source": "assumption: about one signed advisory a week during a season; confirm with Dennis and Wilson"},
-  "price_kes_per_farmer_per_month": {"value": 50, "source": "TALO's price. Kept low because Dennis and Wilson (Murang'a officers) said paying is 50/50 and depends on value; payers: their organisation or NGOs such as One Acre Fund"},
-  "pilot_farmers": {"value": 500, "source": "assumption: one officer's active farmers; confirm with Dennis and Wilson"},
-  "server_usd_per_month": {"value": 40, "source": "assumption: one CPU server (e.g. a small VPS or a mini PC) running the local model, the API and the database"},
-  "server_utilisation": {"value": 0.6, "source": "assumption: share of the month the server is busy drafting"},
-  "officer_review_minutes": {"value": 3, "source": "assumption: reading the draft and its sources, then signing; measure with Dennis and Wilson"},
-  "user_cost_today_kes": {"value": null, "source": "TODO: what one advice costs a farmer today (travel to the officer, waiting, a wrong spray). Ask Dennis and Wilson"}
+  "kes_per_usd": {
+    "value": 129,
+    "source": "assumption: approximate KES/USD rate; update on the day"
+  },
+  "sms_kes_per_part": {
+    "value": 0.8,
+    "source": "assumption: Africa's Talking Kenya SMS rate per part; confirm in your Africa's Talking dashboard (the live demo records AT's own cost)"
+  },
+  "sms_parts_per_outcome": {
+    "value": 2,
+    "source": "assumption: a signed advisory is up to 320 characters (2 SMS parts), one language"
+  },
+  "advisories_per_farmer_per_month": {
+    "value": 4,
+    "source": "assumption: about one signed advisory a week during a season"
+  },
+  "price_kes_per_farmer_per_month": {
+    "value": 50,
+    "source": "TALO's price. Kept low because Dennis and Wilson (Murang'a officers) said paying is 50/50 and depends on value; payers: their organisation or NGOs such as One Acre Fund"
+  },
+  "pilot_farmers": {
+    "value": 500,
+    "source": "assumption: a first pilot group of 500 farmers in one Murang'a ward (officers there serve about 13,000)"
+  },
+  "server_usd_per_month": {
+    "value": 40,
+    "source": "assumption: one CPU server (e.g. a small VPS or a mini PC) running the local model, the API and the database"
+  },
+  "server_utilisation": {
+    "value": 0.6,
+    "source": "assumption: share of the month the server is busy drafting"
+  },
+  "officer_review_minutes": {
+    "value": 3,
+    "source": "estimate from the measured draft: ~129 words read at ~200 words a minute (about 40 s) plus checking 5 cited sources (about 2 min). For comparison, careful review of a short AI-drafted email is put at 45-90 s (firstsales.io, unmeasured). Measure it with Dennis and Wilson in the pilot"
+  },
+  "user_cost_today_kes": {
+    "value": 1785,
+    "source": "computed below as the cheapest single loss: one spray washed off by rain (pesticide + a day of labour). See 'What advice is worth to a farmer' in FACT_SHEET.md for the others"
+  },
+  "maize_bags_per_acre": {
+    "value": 15,
+    "source": "conservative low end: national average 22 bags (90 kg) per acre (KALRO/MoA survey, Dec 2025); a Murang'a (Kiharu) farmer reports 17-24 (The Star, Apr 2026)"
+  },
+  "maize_kes_per_bag": {
+    "value": 3000,
+    "source": "farm-gate price per 90 kg bag, KES 2,800-3,250 in Nov 2025 (Nation / Milling MEA reports); NCPB buys at 3,500"
+  },
+  "pesticide_kes_per_acre": {
+    "value": 1400,
+    "source": "FAW insecticide for one acre: KES 350 per 50 ml bottle, about 20 knapsack pumps per acre (Standard, Machakos farmer); Egerton estimate KES 1,500 per acre"
+  },
+  "labour_kes_per_day": {
+    "value": 385,
+    "source": "agricultural minimum wage, unskilled, KES 385.24 a day (Regulation of Wages (Agricultural Industry) (Amendment) Order 2026, Grant Thornton wages guide 2026)"
+  },
+  "faw_loss_share": {
+    "value": 0.33,
+    "source": "Fall Armyworm cost Kenya about a third of its maize: 37% (2017), 33% (2018), De Groote et al. 2020, 1,439 farmers in 121 communities"
+  },
+  "planting_gain_low": {
+    "value": 0.07,
+    "source": "optimal planting time: +7-10% yield overall (Black et al., Frontiers in Climate 2023; Kenya, Rwanda, Uganda, Zambia, Malawi)"
+  },
+  "planting_gain_late": {
+    "value": 0.2,
+    "source": "optimal planting time: up to +20% for farmers who plant late (same study)"
+  },
+  "draft_words_measured": {
+    "value": 129,
+    "source": "measured: farmer message + rationale of a TALO draft in data/database.db (1 draft; re-measure on the pilot), with 5 cited sources"
+  },
+  "officer_review_hours_per_week": {
+    "value": 8,
+    "source": "assumption: one working day a week at the desk; the rest stays field work. No published time-use study of Kenyan extension officers was found"
+  }
 }

@@ -473,8 +473,23 @@ Sources: [Krell et al., Climate and Development 2021](https://experts.arizona.ed
 (subsistence farmers hit hardest); [One Acre Fund, Kenya](https://oneacrefund.org/what-we-do/countries-we-serve/kenya)
 (about 979,000 farmers served in Kenya).
 
-Still to ask them: how much one piece of advice costs a farmer today (travel, waiting, a wrong spray), and how many
-advisories a week they could review.
+### What missing or wrong advice costs a farmer
+
+Farmers are easy to misunderstand from an office. Their losses rarely show up anywhere, but they are real. For one
+acre of maize, worth about KES 45,000 at harvest (a conservative 15 bags × KES 3,000):
+
+| What goes wrong | Cost to the farmer |
+|---|---|
+| A day spent travelling to the ward office to ask | at least KES 385 (a day's agricultural wage) plus the fare |
+| Sprays, then the rain washes it off | KES 1,785 (pesticide + labour), and the pest is still there |
+| Plants at the wrong time | KES 3,150–9,000 (7–20% of the harvest) |
+| Fall Armyworm arrives and nobody warns them | up to KES 14,850 (Kenya's average FAW loss is about a third of the maize) |
+| **TALO, one signed advisory** | **KES 12.50, paid by the institution; free to the farmer** |
+
+Behind each row there is a family: a third of the maize is school fees and food until the next season. The working,
+sources and the officer review capacity (about 160 drafts a week on one desk day; 13,000 farmers weekly would take
+650 hours, which is why we pilot with one ward and sign identical drafts together) are in
+[FACT_SHEET.md](FACT_SHEET.md). Still to measure in the pilot: how long Dennis and Wilson actually take per draft.
 
 The questions we took to the officers:
 1. Would you trust a drafted SMS enough to sign it after reading the sources, or would you rewrite it?
