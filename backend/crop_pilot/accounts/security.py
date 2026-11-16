@@ -57,6 +57,7 @@ def _secret() -> str:
 def create_token(user: dict) -> str:
     now = datetime.now(timezone.utc)
     claims = {"sub": str(user["id"]), "role": user["role"], "institution_id": user.get("institution_id"),
+              "name": user.get("full_name"),
               "iat": now, "exp": now + timedelta(minutes=config.JWT_TTL_MINUTES), "iss": "mkulima-hub"}
     return jwt.encode(claims, _secret(), algorithm=config.JWT_ALGORITHM)
 

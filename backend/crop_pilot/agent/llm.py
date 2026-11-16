@@ -30,7 +30,8 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, json_mode:
     if config.DISABLE_LLM:
         raise LLMUnavailable("LLM disabled by CROP_PILOT_DISABLE_LLM")
     payload: dict = {"model": config.OLLAMA_MODEL, "messages": messages, "stream": False,
-                     "options": {"temperature": temperature, "num_ctx": 8192}}
+                     "keep_alive": config.LLM_KEEP_ALIVE,
+                     "options": {"temperature": temperature, "num_ctx": config.LLM_NUM_CTX}}
     if tools:
         payload["tools"] = tools
     if json_mode:

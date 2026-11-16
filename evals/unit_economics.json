@@ -1,0 +1,13 @@
+{
+  "_read_me": "Inputs for evals/unit_economics.py. 'measured' numbers come from the eval logs, not from here. Every value below is an ASSUMPTION until confirmed: replace it with your own figure and keep the source.",
+  "kes_per_usd": {"value": 129, "source": "assumption: approximate KES/USD rate; update on the day"},
+  "sms_kes_per_part": {"value": 0.8, "source": "assumption: Africa's Talking Kenya SMS rate per part; confirm in your Africa's Talking dashboard (the live demo records AT's own cost)"},
+  "sms_parts_per_outcome": {"value": 2, "source": "assumption: a signed advisory is up to 320 characters (2 SMS parts), one language"},
+  "advisories_per_farmer_per_month": {"value": 4, "source": "assumption: about one signed advisory a week during a season; confirm with Dennis and Wilson"},
+  "price_kes_per_farmer_per_month": {"value": 50, "source": "TALO's price (what the payment page charges institutions)"},
+  "pilot_farmers": {"value": 500, "source": "assumption: one officer's active farmers; confirm with Dennis and Wilson"},
+  "server_usd_per_month": {"value": 40, "source": "assumption: one CPU server (e.g. a small VPS or a mini PC) running the local model, the API and the database"},
+  "server_utilisation": {"value": 0.6, "source": "assumption: share of the month the server is busy drafting"},
+  "officer_review_minutes": {"value": 3, "source": "assumption: reading the draft and its sources, then signing; measure with Dennis and Wilson"},
+  "user_cost_today_kes": {"value": null, "source": "TODO: what one advice costs a farmer today (travel to the officer, waiting, a wrong spray). Ask Dennis and Wilson"}
+}

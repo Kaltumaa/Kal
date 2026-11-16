@@ -274,13 +274,13 @@ def test_demo_farms_end_to_end_and_api(temp_db, tmp_path, monkeypatch):
         assert any("between the maize rows" in n for n in plan["HH-DS-013"]["notes"])  # John: dry season intercrop
         assert plan["HH-DS-001"]["plan"] == "PLANT"                                  # Peter unchanged
         assert c.get("/knowledge/terrain").json()["slopes"] == config.SLOPES
-        bad = c.post("/farms/HH-DS-011/terrain", json={"slope": "cliff", "soil": "red loam", "officer_name": "Jane Officer"})
+        bad = c.post("/farms/HH-DS-011/terrain", json={"slope": "cliff", "soil": "red loam", "officer_name": "Wanjiru Kamau"})
         rocks = c.post("/farms/HH-DS-013/terrain", json={"slope": "flat", "soil": "red loam", "intercrop": "Rocks",
-                                                         "officer_name": "Jane Officer"})
+                                                         "officer_name": "Wanjiru Kamau"})
         anon = c.post("/farms/HH-DS-011/terrain", json={"slope": "flat", "soil": "red loam", "officer_name": "   "})
         assert bad.status_code == 400 and rocks.status_code == 400 and anon.status_code in (400, 422)
         ok = c.post("/farms/HH-DS-013/terrain", json={"slope": "flat", "soil": "red loam", "intercrop": None,
-                                                      "officer_name": "Jane Officer"})
+                                                      "officer_name": "Wanjiru Kamau"})
         assert ok.status_code == 200 and ok.json()["intercrop"] is None
         moist = c.post("/farms/HH-DS-001/actions", json={"action": "OBSERVATION", "action_date": "2026-10-15",
                                                          "details": "", "role": "farmer", "soil_moist": False})

@@ -96,7 +96,8 @@ def _ask(prompt: str) -> str:
     with httpx.Client(timeout=config.LLM_TIMEOUT_S) as client:
         r = client.post(f"{config.OLLAMA_HOST}/api/generate", json={
             "model": config.OLLAMA_MODEL, "prompt": prompt, "format": "json", "stream": False,
-            "options": {"temperature": 0.2, "num_predict": 450}})
+            "keep_alive": config.LLM_KEEP_ALIVE,
+            "options": {"temperature": 0.2, "num_predict": 450, "num_ctx": config.LLM_NUM_CTX}})
         r.raise_for_status()
         return r.json().get("response", "")
 

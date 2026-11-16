@@ -104,11 +104,11 @@ def test_api_routes_for_reports_and_sms(client):
     sent = client.post("/sms/inbound", json={"household_id": "HH-DS-001", "text": "PROBLEM yellow leaves"}).json()
     reports = client.get("/community/reports").json()
     assert any(p["id"] == sent["post_id"] for p in reports)
-    bad = client.post(f"/community/reports/{sent['post_id']}/review", json={"officer_name": "Jane Officer",
+    bad = client.post(f"/community/reports/{sent['post_id']}/review", json={"officer_name": "Wanjiru Kamau",
                                                                             "decision": "MAYBE"})
     assert bad.status_code == 422
     ok = client.post(f"/community/reports/{sent['post_id']}/review",
-                     json={"officer_name": "Jane Officer", "decision": "NOT_CONFIRMED", "note": "Nitrogen shortage."})
+                     json={"officer_name": "Wanjiru Kamau", "decision": "NOT_CONFIRMED", "note": "Nitrogen shortage."})
     assert ok.status_code == 200
     assert any(m["kind"] == "community_result" for m in client.get("/sms", params={"household_id": "HH-DS-001"}).json())
 

@@ -13,7 +13,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import date
 
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel, Field
 
@@ -71,7 +71,10 @@ async def lifespan(app: FastAPI):
         yield
 
 
-app = FastAPI(title="TALO Extension Co-Pilot API", version="1.0.0", lifespan=lifespan)
+from crop_pilot.api import access  # noqa: E402
+
+app = FastAPI(title="TALO Extension Co-Pilot API", version="1.0.0", lifespan=lifespan,
+              dependencies=[Depends(access.guard)])   # sign-in and role rules for every route (api/access.py)
 # Carrier webhooks (/voice/callback): also served here so the internal telephony simulator can post to them.
 from crop_pilot.api.voice_hooks import router as voice_webhooks  # noqa: E402
 app.include_router(voice_webhooks)
@@ -129,8 +132,8 @@ def households():
 
 
 @app.get("/farms")
-def farms():
-    """Farms with their (invented) farmer names, for pickers and labels."""
+def farms(request: Request):
+    """Farms with their (invented) farmer names, for pickers and labels. Without a sign-in only IDs and wards."""
     _require_db()
     with connect() as conn:
         rows = [dict(r) for r in conn.execute("SELECT * FROM plots ORDER BY household_id")]
@@ -140,6 +143,9 @@ def farms():
         out.append({"household_id": r["household_id"], "farmer_name": r.get("farmer_name") or r["household_id"],
                     "zone_id": c.get("zone_id"), "crop": c.get("active_crop"), "cell_id": r.get("cell_id"),
                     "phone_type": r.get("phone_type"), "has_phone": bool(r.get("phone"))})
+    if access.current(request) is None:                       # sign-up page: no names before a sign-in
+        return [{"household_id": f["household_id"], "farmer_name": f["household_id"], "zone_id": f["zone_id"],
+                 "crop": None, "cell_id": None, "phone_type": None, "has_phone": False} for f in out]
     return out
 
 
@@ -184,10 +190,11 @@ def advisories(status: str | None = Query(None, pattern="^(PENDING_REVIEW|SECURI
 
 
 @app.post("/advisories/{advisory_id}/approve")
-async def approve(advisory_id: int, req: ApproveRequest):
+async def approve(advisory_id: int, req: ApproveRequest, request: Request):
     _require_db()
+    signer = access.sign(request, req.officer_name)
     try:
-        result = approval.approve(advisory_id, req.officer_name, req.final_message, req.citation,
+        result = approval.approve(advisory_id, signer, req.final_message, req.citation,
                                   req.final_message_sw, req.languages, req.call)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
@@ -196,10 +203,11 @@ async def approve(advisory_id: int, req: ApproveRequest):
 
 
 @app.post("/advisories/{advisory_id}/reject")
-async def reject(advisory_id: int, req: RejectRequest):
+async def reject(advisory_id: int, req: RejectRequest, request: Request):
     _require_db()
+    signer = access.sign(request, req.officer_name)
     try:
-        result = approval.reject(advisory_id, req.officer_name, req.reason)
+        result = approval.reject(advisory_id, signer, req.reason)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
     result["graph"] = await resume_run(app.state.graph, result["run_id"], "REJECTED", result["officer"])
@@ -223,9 +231,10 @@ def outbox():
 
 # --- Task 8: recovery loop. Works even when the database is corrupt. ------------------------------
 @app.post("/fallback/manual")
-def manual_fallback(entry: ManualEntry):
+def manual_fallback(entry: ManualEntry, request: Request):
+    signer = access.sign(request, entry.officer_name)
     try:
-        officer = approval.validate_signature(entry.officer_name)
+        officer = approval.validate_signature(signer)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
     note, hits = sanitizer.scrub_free_text(entry.note, 500)
@@ -381,10 +390,11 @@ def scan_groups():
 
 
 @app.post("/scans/review-batch")
-def review_scan_batch(req: ScanBatchReview):
+def review_scan_batch(req: ScanBatchReview, request: Request):
     _require_db()
+    signer = access.sign(request, req.officer_name)
     try:
-        return fieldscan.review_batch(req.scan_ids, req.officer_name, req.pest, req.severity, req.note)
+        return fieldscan.review_batch(req.scan_ids, signer, req.pest, req.severity, req.note)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -413,10 +423,11 @@ def scan_image(scan_id: int):
 
 
 @app.post("/scans/{scan_id}/review")
-def review_scan(scan_id: int, req: ScanReview):
+def review_scan(scan_id: int, req: ScanReview, request: Request):
     _require_db()
+    signer = access.sign(request, req.officer_name)
     try:
-        return fieldscan.review(scan_id, req.officer_name, req.decision, req.pest, req.severity, req.note,
+        return fieldscan.review(scan_id, signer, req.decision, req.pest, req.severity, req.note,
                                 req.finding, req.call, req.call_script, req.call_language)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
@@ -447,10 +458,11 @@ def community_reports():
 
 
 @app.post("/community/reports/{post_id}/review")
-def review_community_report(post_id: int, req: ReportReview):
+def review_community_report(post_id: int, req: ReportReview, request: Request):
     _require_db()
+    signer = access.sign(request, req.officer_name)
     try:
-        return forum.review_report(post_id, req.officer_name, req.decision, req.pest, req.severity, req.zone_id,
+        return forum.review_report(post_id, signer, req.decision, req.pest, req.severity, req.zone_id,
                                    req.note)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
@@ -522,10 +534,11 @@ class Contact(BaseModel):
 
 
 @app.post("/farms/{household_id}/contact")
-def set_contact(household_id: str, req: Contact):
+def set_contact(household_id: str, req: Contact, request: Request):
     _require_db()
+    signer = access.sign(request, req.officer_name)
     try:
-        return cells.set_contact(household_id, req.officer_name, req.phone, req.phone_type, req.cell_id)
+        return cells.set_contact(household_id, signer, req.phone, req.phone_type, req.cell_id)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -537,7 +550,7 @@ def integrations():
     from crop_pilot.payments import card, mpesa
     from crop_pilot.dispatch import whatsapp
     return {"deepleaf": deepleaf.status(), "voice": voice_calls.status(), "weather": weather_sources.status(),
-            "whatsapp": whatsapp.status(),
+            "whatsapp": whatsapp.status(), "sms": sms.gateway_status(),
             "mpesa": mpesa.status(), "card": card.status()}
 
 
@@ -577,9 +590,10 @@ class InboundSms(BaseModel):
 
 
 @app.post("/sms/inbound")
-def sms_inbound(req: InboundSms):
+def sms_inbound(req: InboundSms, request: Request):
     """A farmer's SMS command (simulated gateway): log field work, set a reminder or report a problem offline."""
     _require_db()
+    access.own_household(request, req.household_id)
     try:
         return sms.receive(req.household_id, req.text)
     except approval.ApprovalError as exc:
@@ -597,6 +611,20 @@ def whatsapp_simulate(req: WhatsAppInbound):
     _require_db()
     from crop_pilot.dispatch import whatsapp
     return whatsapp.receive(req.phone, req.text)
+
+
+@app.get("/assurance")
+def ai_assurance():
+    """Live evidence that the agent is supervised, honest about uncertainty, self-checking and recovering."""
+    _require_db()
+    from crop_pilot.core import assurance
+    return assurance.summary()
+
+
+@app.get("/sms/deliveries")
+def sms_deliveries():
+    _require_db()
+    return {"status": sms.gateway_status(), "deliveries": sms.deliveries()}
 
 
 @app.get("/whatsapp")
@@ -624,8 +652,10 @@ def forum_list(topic: str | None = None):
 
 
 @app.post("/forum")
-def forum_post(req: ForumPost):
+def forum_post(req: ForumPost, request: Request):
     _require_db()
+    if req.household_id:
+        access.own_household(request, req.household_id)
     try:
         return forum.post(req.author, req.topic, req.body, req.zone_id, req.household_id)
     except ValueError as exc:
@@ -688,10 +718,11 @@ def followups(status: str | None = Query("OPEN", pattern="^(OPEN|DONE)$")):
 
 
 @app.post("/followups/{followup_id}/done")
-def close_followup(followup_id: int, req: CloseFollowup):
+def close_followup(followup_id: int, req: CloseFollowup, request: Request):
     _require_db()
+    signer = access.sign(request, req.officer_name)
     try:
-        return desk_followups.close(followup_id, req.officer_name)
+        return desk_followups.close(followup_id, signer)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
 
@@ -793,7 +824,7 @@ class Terrain(BaseModel):
 
 
 @app.post("/farms/{household_id}/terrain")
-def set_terrain(household_id: str, req: Terrain):
+def set_terrain(household_id: str, req: Terrain, request: Request):
     """Record a plot's slope, soil and companion crop. Planting advice uses them (how to plant on a slope,
     waterlogging on clay, intercrop layout)."""
     _require_db()
@@ -804,9 +835,7 @@ def set_terrain(household_id: str, req: Terrain):
     intercrop = sanitizer.normalise_crop(req.intercrop) if req.intercrop and req.intercrop.strip() else None
     if req.intercrop and req.intercrop.strip() and intercrop is None:
         raise HTTPException(400, detail=f"Companion crop {req.intercrop!r} not recognised")
-    officer = sanitizer.normalise_text(req.officer_name)[:80]
-    if len(officer) < 5:
-        raise HTTPException(400, detail="A named officer must record the terrain")
+    officer = access.sign(request, req.officer_name)
     with connect() as conn:
         cur = conn.execute("UPDATE plots SET slope = ?, soil = ?, intercrop = ? WHERE upper(trim(household_id)) = ?",
                            (slope, soil, intercrop, hid))

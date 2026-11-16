@@ -27,6 +27,24 @@ and `evals/results/run.log` (console). Nothing here is hand-edited or curated to
 Each run passes only if **all** of its checks pass, including "frozen at the human gate", "nothing in the outbox" and
 "no runtime errors" (see `evals/run_evals.py`).
 
+## Re-measure with `qwen2.5:7b` (2026-11-17): 7 / 8 pass, 1 run per task
+
+Raw: `evals/results/2026-11-17T001608.json`, `evals/results/runs-20261116T235637.jsonl`, summary in
+`evals/results/latest.md`. Same tasks, same pinned date, Apple-silicon laptop, CPU-only; one run per task because a 7B
+run takes about 4–6 minutes here (the 5-run 3B table above remains the variance evidence).
+
+- **Model agreed with the rules in tasks 1, 2 and 3 (3 / 3).** Task 3 is the case the 3B got wrong in 8 of 10 runs
+  (PLANT instead of SPRAY next to a verified outbreak); the 7B said SPRAY. One run is not proof; it is the next thing to
+  re-measure at 5 runs.
+- **Task 4 failed one check: "no runtime errors".** A model call did not answer within the 120 s limit on this CPU
+  (`llm_error_during_gathering`). The agent recovered as designed: the harness auto-filled the missed guidance read,
+  the message fell back to the template, the crop was repaired to Maize and the draft still froze at the human gate
+  with the correct SPRAY verdict. We count it as a failure because the check is strict, not because the advice was
+  wrong. *Next:* raise `CROP_PILOT_LLM_TIMEOUT` for 7B on CPU, or keep 3B for gathering and 7B for the compiler.
+- **Cost:** about 3,000 tokens per model call and 28,700 per completed outcome (3B: about 1,500 and 9,700); about
+  290 s per outcome (3B: about 80 s). Model tokens still cost $0 (local); the fact sheet uses these 7B numbers.
+- `qwen2.5:3b` and `moondream` could not be re-downloaded for this run (the connection kept resetting).
+
 ## Run-to-run variation (measured, not hidden)
 
 - **Verdicts: 0 % variation.** All 35 agent runs gave the same verdict for the same household. This is by design:

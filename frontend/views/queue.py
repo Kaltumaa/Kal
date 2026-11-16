@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 import api_client as api
+import auth
 import ui
 
 SERVER_LABEL = {"crop-pilot": "TALO MCP", "filesystem": "Filesystem MCP", "ollama": "Local model",
@@ -124,7 +125,7 @@ def detail(adv: dict) -> None:
                     citation = st.text_area("Citation (required: the records this advice rests on)",
                                             ui.suggested_citation(adv, api.farm_actions(adv["household_id"])),
                                             height=80, max_chars=600)
-                    name = st.text_input("Your full name", placeholder="e.g. Wanjiru Kamau")
+                    name = st.text_input("Your full name", value=auth.signer_name(), placeholder="e.g. Wanjiru Kamau")
                     ok = st.checkbox("I have checked the evidence and take responsibility for this advice.")
                     b = st.columns([2.2, 1, 1])
                     sign = b[0].form_submit_button("Send advice to farmer", type="primary",
@@ -150,7 +151,7 @@ def detail(adv: dict) -> None:
             else:
                 with st.form(f"reject-{adv['id']}", border=False):
                     c = st.columns([2, 2, 1], vertical_alignment="bottom")
-                    name = c[0].text_input("Your full name")
+                    name = c[0].text_input("Your full name", value=auth.signer_name())
                     reason = c[1].text_input("Reason")
                     if c[2].form_submit_button("Reject", width="stretch"):
                         try:

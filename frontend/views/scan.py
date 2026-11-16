@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 import api_client as api
+import auth
 import ui
 
 role, mine = st.session_state.get("role", "officer"), st.session_state.get("my_farm")
@@ -108,7 +109,7 @@ def group_review(g: dict, by_id: dict) -> None:
             note = st.text_area("Message to each farmer", api.problem(g["pest"])["farmer_message"], height=110,
                                 max_chars=1200)
             f = st.columns([1.6, 1.4])
-            name = f[0].text_input("Your full name")
+            name = f[0].text_input("Your full name", value=auth.signer_name())
             if f[1].form_submit_button(f"Verify {len(keep)} ticked and notify farmers", type="primary",
                                        width="stretch"):
                 try:
@@ -238,7 +239,7 @@ def officer_page() -> None:
                                               height=110, max_chars=600,
                                               key=f"script-{s['id']}-{pest}-{lang}")
                     f = st.columns([1.6, 1.4])
-                    name = f[0].text_input("Your full name")
+                    name = f[0].text_input("Your full name", value=auth.signer_name())
                     confirm = f[1].form_submit_button("Verify and notify farmer", type="primary",
                                                       width="stretch")
                     try:

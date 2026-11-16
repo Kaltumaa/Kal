@@ -76,6 +76,7 @@ if st.session_state["role"] == "institution":
         "Institution": [
             st.Page("views/institution.py", title="My officers", icon=":material/badge:", default=True),
             st.Page("views/escalations.py", title="Escalations", icon=":material/priority_high:"),
+            st.Page("views/assurance.py", title="AI assurance", icon=":material/verified_user:"),
         ],
         "Account": [account_page],
     }
@@ -102,6 +103,7 @@ elif st.session_state["role"] == "officer":
             st.Page(system.activity_log, title="Activity log", icon=":material/receipt_long:", url_path="activity"),
             st.Page(system.outbox, title="Sent messages", icon=":material/outbox:", url_path="sent"),
             st.Page(system.phone_calls, title="Phone calls", icon=":material/call:", url_path="calls"),
+            st.Page("views/assurance.py", title="AI assurance", icon=":material/verified_user:"),
         ],
         "Account": [account_page],
     }
@@ -138,6 +140,19 @@ with st.sidebar:
         st.caption("Institutions see their officers' performance and pay for the service. Officers approve advice.")
     rows = [("Database", health["database"]["ok"]), (f"Local AI · {health['llm_model']}", health["llm_available"]),
             ("Guidance library (MCP)", health["npx_available"])]
+    try:       # each outside service: green = live, amber = simulated (no keys yet)
+        ig = api.integrations()
+        w = ig.get("weather") or {}
+        rows += [("SMS · " + ("live" if ig["sms"]["live"] else "simulated"), ig["sms"]["live"]),
+                 ("WhatsApp · " + ("live" if ig["whatsapp"]["live"] else "simulated"), ig["whatsapp"]["live"]),
+                 ("M-Pesa · " + ig["mpesa"]["mode"], ig["mpesa"]["mode"] != "simulator"),
+                 ("DeepLeaf · " + ("on" if ig["deepleaf"]["enabled"] else "off (no key)"), ig["deepleaf"]["enabled"]),
+                 ("Voice calls · " + ("live" if ig["voice"]["channel"] != "SIMULATED" else "simulated"),
+                  ig["voice"]["channel"] != "SIMULATED"),
+                 ("Weather · Open-Meteo" + (" + Visual Crossing" if "no key" not in w.get("secondary", "") else ""),
+                  bool(w.get("live")))]
+    except (api.ApiError, KeyError):
+        pass
     st.markdown('<div class="cp-status"><b>System status</b>' + "".join(
         f'<div><span class="cp-dot {"ok" if ok else "warn"}"></span>{name}</div>' for name, ok in rows)
         + f'<div style="margin-top:6px">Demo date: {health["today"]}</div></div>', unsafe_allow_html=True)

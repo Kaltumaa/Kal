@@ -10,7 +10,8 @@ os.environ["CROP_PILOT_NO_DOTENV"] = "1"     # never load the developer's real k
 os.environ["CROP_PILOT_LIVE_WEATHER"] = "0"  # no network: weather tests inject fake providers
 for _key in ("VISUAL_CROSSING_API_KEY", "MPESA_CONSUMER_KEY", "MPESA_CONSUMER_SECRET", "MPESA_SHORTCODE",
              "MPESA_PASSKEY", "STRIPE_SECRET_KEY", "FLW_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "FLW_WEBHOOK_HASH",
-             "MPESA_CALLBACK_TOKEN", "JWT_SECRET"):
+             "MPESA_CALLBACK_TOKEN", "JWT_SECRET", "AT_USERNAME", "AT_API_KEY", "WHATSAPP_TOKEN",
+             "DEEPLEAF_API_KEY"):
     os.environ.pop(_key, None)               # payments run on their simulators in tests
 
 import pytest  # noqa: E402
@@ -35,3 +36,25 @@ def _offline_voice_draft(monkeypatch):
     def offline(prompt):
         raise httpx.ConnectError("tests run offline")
     monkeypatch.setattr(voice_draft, "_ask", offline)
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "real_auth: run against the real sign-in rules (no signed-in officer stub)")
+
+
+@pytest.fixture(autouse=True)
+def _signed_in_officer(request):
+    """Most API tests act as a signed-in extension officer (Wanjiru Kamau). Tests marked real_auth use real tokens."""
+    if request.node.get_closest_marker("real_auth"):
+        yield
+        return
+    from fastapi import Request
+
+    from crop_pilot.api import access, main
+
+    def stub(req: Request) -> None:
+        req.state.user = {"id": 0, "role": "extension_officer", "full_name": "Wanjiru Kamau", "household_id": None,
+                          "active": 1}
+    main.app.dependency_overrides[access.guard] = stub
+    yield
+    main.app.dependency_overrides.pop(access.guard, None)

@@ -14,7 +14,26 @@ class ApiError(RuntimeError):
         self.status, self.detail = status, detail
 
 
+def _session_token() -> str | None:
+    """The signed-in user's token for this browser session (set by auth.sign_in), if any."""
+    try:
+        import streamlit as st
+        a = st.session_state.get("auth")
+    except Exception:  # noqa: BLE001 - outside a Streamlit session (scripts, tests)
+        return None
+    return a.get("access_token") if a else None
+
+
+def _auth_headers(extra: dict | None = None) -> dict:
+    headers = dict(extra or {})
+    token = _session_token()
+    if token and "Authorization" not in headers:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def _req(method: str, path: str, timeout: float = 30, **kwargs):
+    kwargs["headers"] = _auth_headers(kwargs.get("headers"))
     try:
         r = requests.request(method, f"{API_URL}{path}", timeout=timeout, **kwargs)
     except requests.RequestException as exc:
@@ -119,7 +138,7 @@ def scans():
 
 def scan_image(scan_id: int) -> bytes | None:
     try:
-        r = requests.get(f"{API_URL}/scans/{scan_id}/image", timeout=15)
+        r = requests.get(f"{API_URL}/scans/{scan_id}/image", timeout=15, headers=_auth_headers())
         return r.content if r.status_code == 200 else None
     except requests.RequestException:
         return None
@@ -273,6 +292,14 @@ def review_report(post_id: int, officer_name: str, decision: str, pest: str | No
 
 def sms_inbound(household_id: str, text: str):
     return _req("POST", "/sms/inbound", json={"household_id": household_id, "text": text})
+
+
+def assurance():
+    return _req("GET", "/assurance")
+
+
+def sms_deliveries():
+    return _req("GET", "/sms/deliveries")
 
 
 def whatsapp_messages():

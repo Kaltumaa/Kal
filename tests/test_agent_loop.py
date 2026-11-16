@@ -259,3 +259,15 @@ def test_agent_learns_from_an_officer_rejection(temp_db):
     row = sqlite3.connect(temp_db).execute(
         "SELECT verdict, rationale FROM pending_advisories ORDER BY id DESC LIMIT 1").fetchone()
     assert row[0] is None and f"rejected the same {verdict} advice" in row[1] and "maize streak" in row[1]
+
+
+def test_ai_assurance_counts_what_happened(temp_db):
+    from langgraph.checkpoint.memory import InMemorySaver
+    from crop_pilot.agent import workflow
+    from crop_pilot.core import assurance
+    _scan(temp_db, "HH-DS-003", {"issues": ["blurry"]}, [{"pest": "fall armyworm", "score": 0.55}])
+    asyncio.run(workflow.start_run(workflow.build_graph(InMemorySaver()), "HH-DS-003"))
+    a = assurance.summary()
+    assert a["drafts"] == 1 and a["honesty"]["admitted_uncertainty"] == 1 and a["honesty"]["escalations_open"] == 1
+    assert a["human_gate"]["sent"] == 0 and a["self_check"].get("escalate") == 1
+    assert a["recent_uncertain"][0]["why"].startswith("UNCERTAIN")

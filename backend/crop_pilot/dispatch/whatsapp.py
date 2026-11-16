@@ -157,7 +157,7 @@ def receive(phone: str, text: str, provider_id: str | None = None) -> dict:
         result = {"command": None, "error": "unknown sender"}
     else:
         result = sms.receive(hid, body, channel="whatsapp")
-        reply = result["reply"]
+        reply = result["reply"].replace("SMS", "WhatsApp")      # the shared replies say "reply by SMS"
     out = send(phone, reply, household_id=hid, kind="reply", related_id=in_id)
     return {k: v for k, v in result.items() if k not in ("in_id", "reply_id")} | {
         "household_id": hid, "in_id": in_id, "reply": reply, "reply_status": out["status"]}

@@ -208,6 +208,7 @@ def test_africas_talking_request_and_webhooks(temp_db, monkeypatch):
     monkeypatch.setattr(config, "AT_VOICE_NUMBER", "+254711000000")
     monkeypatch.setattr(config, "VOICE_WEBHOOK_TOKEN", "s3cret")
     monkeypatch.setattr(config, "VOICE_PUBLIC_URL", "https://abcd.ngrok-free.app")
+    monkeypatch.setattr(config, "SMS_SIMULATE", True)          # this test is about the call request only
     seen = {}
 
     def fake_post(url, headers, data, timeout):

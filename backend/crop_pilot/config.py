@@ -35,6 +35,10 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
 VISION_MODEL = os.environ.get("CROP_PILOT_VISION_MODEL", "moondream")
 LLM_TIMEOUT_S = float(os.environ.get("CROP_PILOT_LLM_TIMEOUT", "120"))
+# Memory use on small laptops (8 GB): the context window sets how much RAM the model reserves (measured calls use about
+# 1,500 tokens, so 4096 leaves room), and keep-alive unloads the model this long after its last call to free that RAM.
+LLM_NUM_CTX = int(os.environ.get("CROP_PILOT_LLM_NUM_CTX", "4096"))
+LLM_KEEP_ALIVE = os.environ.get("CROP_PILOT_LLM_KEEP_ALIVE", "1m")
 DISABLE_LLM = os.environ.get("CROP_PILOT_DISABLE_LLM") == "1"
 # Swahili farmer messages come from fixed templates unless this is on. Off by default: in our tests qwen2.5:3b wrote
 # Swahili that kept the numbers and names but was meaningless (and once vulgar). Turn on for a stronger local model.
@@ -61,6 +65,8 @@ WHATSAPP_TEMPLATE_LANG = os.environ.get("WHATSAPP_TEMPLATE_LANG", "en")
 WHATSAPP_API_VERSION = os.environ.get("WHATSAPP_API_VERSION", "v21.0")
 AT_USERNAME = os.environ.get("AT_USERNAME", "")
 AT_API_KEY = os.environ.get("AT_API_KEY", "")
+AT_SMS_SENDER = os.environ.get("AT_SMS_SENDER", "")              # optional sender ID / shortcode for SMS
+SMS_SIMULATE = os.environ.get("SMS_SIMULATE") == "1"              # force simulated SMS even with AT keys
 AT_VOICE_NUMBER = os.environ.get("AT_VOICE_NUMBER", "")          # your Africa's Talking voice number, +254...
 VOICE_PUBLIC_URL = os.environ.get("VOICE_PUBLIC_URL", "").rstrip("/")   # e.g. https://abcd.ngrok-free.app
 # Shared secret in the webhook URLs (?t=...). Africa's Talking does not sign callbacks, so without it anyone who

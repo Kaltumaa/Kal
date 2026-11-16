@@ -1,4 +1,6 @@
-"""Simulated two-way SMS for farmers without data.
+"""Two-way SMS for farmers without data. Sent for real through Africa's Talking when AT_USERNAME and AT_API_KEY are
+set (AT_USERNAME=sandbox sends to the Africa's Talking sandbox simulator), otherwise simulated. Every attempt is
+recorded in sms_deliveries with its status, provider id, cost and error.
 
 Out: officer-made content only (photo results, confirmed community reports, replies to the farmer's own SMS
 commands). The advisory agent has no route here; signed Plant/Spray/Hold advice goes through approval.py.
@@ -13,6 +15,8 @@ from __future__ import annotations
 
 import re
 from datetime import timedelta
+
+import httpx
 
 from crop_pilot import config
 from crop_pilot.core import sanitizer, telemetry
@@ -54,8 +58,81 @@ HELP = {
 }
 
 
+DELIVERY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS sms_deliveries (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    source       TEXT NOT NULL,            -- advice (dispatch_outbox) | message (sms_messages)
+    source_id    INTEGER,
+    household_id TEXT,
+    phone        TEXT,
+    status       TEXT NOT NULL,            -- SENT | SIMULATED | FAILED
+    provider_id  TEXT,
+    cost         TEXT,
+    error        TEXT,
+    created_at   TEXT NOT NULL
+);
+"""
+AT_SMS_URL = "https://api.africastalking.com/version1/messaging"
+AT_SMS_SANDBOX_URL = "https://api.sandbox.africastalking.com/version1/messaging"
+
+
 def _ensure(conn) -> None:
-    conn.executescript(SCHEMA)
+    conn.executescript(SCHEMA + DELIVERY_SCHEMA)
+
+
+def gateway_live() -> bool:
+    return bool(config.AT_USERNAME and config.AT_API_KEY) and not config.SMS_SIMULATE
+
+
+def gateway_status() -> dict:
+    sandbox = config.AT_USERNAME == "sandbox"
+    return {"live": gateway_live(), "sandbox": gateway_live() and sandbox,
+            "channel": ("Africa's Talking sandbox" if sandbox else "Africa's Talking") if gateway_live()
+            else "SMS (simulated: no AT_USERNAME / AT_API_KEY)"}
+
+
+def _at_send(phone: str, text: str) -> tuple[str, str | None]:
+    url = AT_SMS_SANDBOX_URL if config.AT_USERNAME == "sandbox" else AT_SMS_URL
+    data = {"username": config.AT_USERNAME, "to": phone, "message": text}
+    if config.AT_SMS_SENDER:
+        data["from"] = config.AT_SMS_SENDER
+    r = httpx.post(url, data=data, timeout=15,
+                   headers={"apiKey": config.AT_API_KEY, "Accept": "application/json"})
+    if r.status_code >= 400:
+        raise ApprovalError(f"Africa's Talking HTTP {r.status_code}: {r.text[:120]}")
+    rec = ((r.json().get("SMSMessageData") or {}).get("Recipients") or [{}])[0]
+    if rec.get("statusCode") not in (100, 101, 102):
+        raise ApprovalError(f"Africa's Talking: {rec.get('status') or r.json()}"[:200])
+    return rec.get("messageId") or "", rec.get("cost")
+
+
+def deliver(household_id: str, text: str, source: str, source_id: int | None) -> dict:
+    """Send one queued SMS to the farm's phone (or simulate it) and record the result. Never raises."""
+    with connect() as conn:
+        row = conn.execute("SELECT phone FROM plots WHERE household_id = ?", (household_id,)).fetchone()
+    phone = (row["phone"] if row else None) or None
+    status, provider_id, cost, error = "SIMULATED", None, None, None
+    if not phone:
+        status, error = "FAILED", "no phone number on this farm"
+    elif gateway_live():
+        try:
+            provider_id, cost = _at_send(phone, text)
+            status = "SENT"
+        except Exception as exc:  # noqa: BLE001 - the message stays in the outbox; report, do not crash
+            status, error = "FAILED", str(exc)[:300]
+    with connect() as conn:
+        _ensure(conn)
+        did = conn.execute("INSERT INTO sms_deliveries (source, source_id, household_id, phone, status, provider_id, "
+                           "cost, error, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                           (source, source_id, household_id, phone, status, provider_id, cost, error,
+                            telemetry.now_iso())).lastrowid
+    return {"delivery_id": did, "status": status, "error": error, "cost": cost}
+
+
+def deliveries(limit: int = 100) -> list[dict]:
+    with connect() as conn:
+        _ensure(conn)
+        return [dict(r) for r in conn.execute("SELECT * FROM sms_deliveries ORDER BY id DESC LIMIT ?", (int(limit),))]
 
 
 def queue_out(household_id: str, text: str, kind: str, related_id: int | None = None, sent_by: str = "system") -> int:
@@ -65,7 +142,9 @@ def queue_out(household_id: str, text: str, kind: str, related_id: int | None = 
         cur = conn.execute("INSERT INTO sms_messages (household_id, direction, body, kind, related_id, sent_by, "
                            "created_at, sms_parts) VALUES (?,?,?,?,?,?,?,?)",
                            (household_id, "OUT", body, kind, related_id, sent_by, telemetry.now_iso(), sms_parts(body)))
-        return cur.lastrowid
+        msg_id = cur.lastrowid
+    deliver(household_id, body, "message", msg_id)
+    return msg_id
 
 
 def list_messages(household_id: str | None = None) -> list[dict]:

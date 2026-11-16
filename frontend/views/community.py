@@ -9,6 +9,7 @@ from __future__ import annotations
 import streamlit as st
 
 import api_client as api
+import auth
 import ui
 
 WARDS = ["RIRUTA", "WAITHAKA", "MUTUINI", "NGANDO", "UTHIRU"]
@@ -34,7 +35,7 @@ def report_review(r: dict) -> None:
                                   index=WARDS.index(r["zone_id"]) if r.get("zone_id") in WARDS else 0)
             note = st.text_input("Note to the farmer (optional)", key=f"rn-{r['id']}", max_chars=400)
             f = st.columns([1.5, 1, 1])
-            name = f[0].text_input("Your full name", key=f"rname-{r['id']}")
+            name = f[0].text_input("Your full name", value=auth.signer_name(), key=f"rname-{r['id']}")
             confirm = f[1].form_submit_button("Confirm pest", type="primary", width="stretch")
             reject = f[2].form_submit_button("Not confirmed", width="stretch")
             try:

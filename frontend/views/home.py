@@ -11,6 +11,7 @@ import pydeck as pdk
 import streamlit as st
 
 import api_client as api
+import auth
 import ui
 
 MAIN_CROPS = {"Maize", "Beans", "Potato", "Kale"}
@@ -237,7 +238,7 @@ else:
     with fr.form("close-followup"):
         pick = st.selectbox("Mark as done", fups, format_func=lambda f: f"{f['due_date']} · {ui.farm_label(f['household_id'])} · "
                                                                         f"{f['kind'].replace('_', ' ').title()}")
-        who = st.text_input("Your full name")
+        who = st.text_input("Your full name", value=auth.signer_name())
         if st.form_submit_button("Done", type="primary", width="stretch"):
             try:
                 api.close_followup(pick["id"], who)

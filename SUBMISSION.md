@@ -26,10 +26,13 @@ constraints block unsigned approvals, and a draft built on an outdated forecast 
 with its inputs, outputs, tokens and the approving officer, and every recommendation cites its rainfall, plot and
 pest-alert records.
 
-**Around the advisory:** farmer photos checked by a local vision model and verified by an officer; a crop-calendar view
-per household; a learning hub and a moderated community board.
+**Around the advisory:** officer-verified photo checks; live weather (Open-Meteo, cross-checked with Visual
+Crossing); SMS, WhatsApp and voice delivery; institutions pay KES 50 per farmer a month by M-Pesa or card. Every role
+signs in, and the API enforces it.
 
-**Honesty.** All data is synthetic and documented as such. We spoke with one smallholder farmer, who said farmers
-still rely on traditional methods, know of no website that helps with this, and see real demand for it. We have not
-yet validated the workflow with an extension officer. EVALS.md reports 8 tasks × 5 runs (35/36 pass), run-to-run variation, cost per run, and the failures
-we did not fix.
+**Honest AI.** Unsure (bad photo, low confidence, forecasts disagreeing, missing data, advice an officer rejected
+before), the agent says so and asks the officer. It retries and fails over when tools fail.
+
+**Honesty.** Farm data is synthetic. We spoke with one farmer and two Kiambu County extension officers, Dennis and
+Wilson. [TODO: their key points.] `make check-integrations`, `make demo-live` and `make load-test` show what runs
+live; EVALS.md reports 8 tasks × 5 runs, variation, cost and unfixed failures.

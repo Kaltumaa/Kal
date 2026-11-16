@@ -12,6 +12,11 @@ until a **named extension officer** types their full name and signs it. Only the
 
 ## Contents
 
+**For judges:** [JUDGING.md](JUDGING.md) (each criterion → evidence) · [FACT_SHEET.md](FACT_SHEET.md) (tokens, cost
+per outcome, margin at pilot / 10× / 100×) · [EVALS.md](EVALS.md) · `make check-integrations` · `make demo-live` ·
+`make load-test`
+
+
 [Problem statement](#problem-statement) · [Solution overview](#solution-overview) · [Target users](#target-users) ·
 [Architecture](#architecture) · [Setup / installation instructions](#setup--installation-instructions) ·
 [Usage instructions](#usage-instructions) · [Technology stack](#technology-stack) ·
@@ -214,16 +219,18 @@ timing. If the filesystem server is unavailable, the run continues and is flagge
 5. Farmers' photos follow the same rule: the AI's suggestion goes to the officer only, and the farmer sees the
    officer's verified answer.
 
-### Two views: extension officer and farmer
+### Three accounts: extension officer, farmer and institution
 
-The sidebar's **"I am"** switch picks the view:
+Everyone signs in; the account decides the view (and the API enforces it, not just the screens):
 - **Extension officer** sees every farm, runs the agent, and is the **only one who can approve** advice.
 - **Farmer** (e.g. Grace Wanjiku, Mutu-ini) sees only their own farm: crop calendar, alerts, the rainfall numbers
   and rainfall pattern for their area, plot history (read-only), and **advice an officer has already signed**. They
   can set **Reminders** (ticking one done adds it to the field log and the activity log) and send photos to identify
   a plant, weed or pest (an officer verifies). They never see or approve drafts.
 
-This switch is a demo convenience, **not authentication**; real logins are a next step. Farmer names are invented for
+- **Institution** sees the officers who work with it, pays for farmers' access, and can view but not change advice.
+
+Farmer names are invented for
 the synthetic households, and the codes (e.g. `HH-DS-003`) appear only as references.
 
 ## Nyumba Kumi cells, DeepLeaf and voice calls (farmers without a smartphone)
@@ -273,7 +280,8 @@ Many farmers here, especially older ones, have a feature phone (kabambe) and no 
 ### Real calls: Africa's Talking + ngrok
 
 Only the small webhook app (`crop_pilot.api.voice_hooks`, port 8001) goes on the internet. The main API (8000)
-holds the officer's approve buttons and has no login, so **never run `ngrok http 8000`**.
+holds the officer's approve buttons; every route needs a sign-in (`crop_pilot/api/access.py`), but it is still not
+meant for the internet, so **never run `ngrok http 8000`**.
 
 1. In Africa's Talking, get a **voice number** (voice does not work in the sandbox; calls cost airtime) and an API key.
 2. Start the app as usual: `make run`.
@@ -303,7 +311,16 @@ how it pronounces Kiswahili. If it sounds wrong, the next step is a recorded mes
 A farmer's **Notifications** page lists advice their extension officer signed and sent, results for photos the
 officer reviewed, and their own reminders that are due. Drafts and AI output never appear there.
 
-## Security: SQL injection and prompt injection
+## Security: sign-in, roles, injection
+
+- **Sign-in on every route:** the main API refuses anonymous calls (`crop_pilot/api/access.py`). Officers can do
+  everything; institutions can view but not change; farmers reach only their own farm (the farm id in the URL or body
+  must be theirs) plus the shared learning hub and community. Webhooks stay public but check their own tokens or
+  signatures (Africa's Talking token, Meta's `X-Hub-Signature-256`, M-Pesa callback token, Stripe/Flutterwave).
+- **Real signatures:** an officer signs by typing their name, and it must match the signed-in account.
+- **Privacy:** passwords are hashed with scrypt; the AI runs on this computer; photos sent to DeepLeaf lose their
+  GPS data and the farmer is a salted hash; card numbers never reach the app (the processor's own page takes them).
+
 
 - **SQL injection:** every query uses parameter placeholders (`?`); user input is never pasted into SQL text.
   Inputs are also validated first (lengths, allowed values, patterns). `tests/test_sql_injection.py` attacks the API
@@ -311,6 +328,22 @@ officer reviewed, and their own reminders that are due. Drafts and AI output nev
   and integrity is intact.
 - **Prompt injection:** free text from records, forum posts, notes and model output is scrubbed. Instruction-like
   text is redacted or held, and the draft is locked (eval task 6).
+
+## Live integrations, end-to-end demo and load test
+
+| Command | What it proves | Output |
+|---|---|---|
+| `make check-integrations` | One harmless real call to every outside system (no SMS sent, no money moved): LIVE, SIMULATED (no keys) or FAILED | `evals/results/integrations-*.md` |
+| `make demo-live ARGS="--farmer-phone +2547…"` | One complete outcome through the real systems: live weather → agent draft (MCP tools, local model, self-check) → officer signs → SMS + WhatsApp → farmer replies on WhatsApp → institution pays by M-Pesa → cost of that outcome | `evals/results/e2e-*.md` |
+| `make load-test` | The weekly plan at 100 / 1,000 / 5,000 farms, and 25 officers using the API at once (on a temporary copy of the database) | `evals/results/load-*.md` |
+
+Free sandbox keys for every service, all in `.env` (see `.env.example`): Africa's Talking (`AT_USERNAME=sandbox`),
+Safaricom Daraja (shortcode 174379), Meta WhatsApp test number, Visual Crossing, Stripe test key, DeepLeaf. Without a
+key each service runs on its built-in simulator, and the sidebar shows which are live.
+
+The **AI assurance** page (officers and institutions) counts, from the audit tables, how often the agent was signed
+off by a named officer, said it was unsure, self-corrected, overruled the model with the rules, and recovered from
+failures.
 
 ## Activity log (readable audit trail)
 
@@ -367,10 +400,16 @@ Bring your own data by pointing `CROP_PILOT_DB` at a database with the same sche
 - They **don't know of any website or app** that gives this kind of help for their own farm.
 - They said there is **real demand** for a tool like this.
 
-This is one conversation, not a study, and it did not test the app itself. We have **not yet** spoken with an
-extension officer. Everything about the Dagoretti South desk (caseload, the Plant/Spray/Hold decision, SMS as the
-channel) is our assumption from public descriptions of Kenyan extension work. The questions we would take to an
-officer first:
+This is one conversation, not a study, and it did not test the app itself.
+
+**We also spoke with two extension officers, Dennis and Wilson, from Kiambu County** (the county next to Nairobi;
+our desk is modelled on Dagoretti South).
+
+> **TODO before submitting: add what Dennis and Wilson said** (how many farmers each covers, how they advise today,
+> what they liked or doubted, whether their office would pay). Until then this section only records that the two
+> conversations happened.
+
+The questions we took to the officers:
 1. Would you trust a drafted SMS enough to sign it after reading the sources, or would you rewrite it?
 2. Which signal arrives first in practice: rainfall forecasts, WhatsApp pest reports, or farmer visits?
 3. Is a typed name an acceptable signature, or does the office need an officer ID?
@@ -478,16 +517,17 @@ tests/         unit, gate and architecture-boundary tests
   If the description names an insect (e.g. "likely aphids"), the photo is treated as a pest photo: your real
   aphid photo is now "Aphids" and your weed photo is "Weed (species unclear)".
   It is still a triage aid for the officer, not a diagnosis.
-* The community board has no login; display names are not verified.
-* The officer/farmer switch is not authentication; anyone with the app can pick either view.
+* Community board posts need a sign-in, but the display name a poster types is not checked against the account.
 * Greenhouse: **no physical sensor is connected** in this demo. The "Simulate a sensor reading" button posts a random
   reading through the same endpoint a device (e.g. ESP32 + DHT22) would use. The endpoint has no device authentication
   yet, so expose it only on the office's local network.
-* Single-officer desk; there is no role-based authentication on the Control Desk. The signature is a typed name, as the
-  brief requires, but it is not identity-verified.
+* Sign-in and roles: every API route needs a signed-in account (`crop_pilot/api/access.py`). Officers can do
+  everything; institutions can view but not act; farmers reach only their own farm plus the shared hub. An officer
+  signs advice by typing their name, which must match their account. Any officer can still act on any farm (not yet
+  limited to their own sub-county).
 * On CPU-only machines the local model is slow (see EVALS.md for timings).
-* `POST /weather/{zone}` (record a newer forecast) has no login yet; in production it would accept only the
-  forecast feed or a signed-in officer.
+* `POST /weather/{zone}` (record a newer forecast) needs a signed-in officer; a separate key for an automated
+  forecast feed does not exist yet.
 * The full 5-run model evaluation ran just before weather patterns, follow-ups, crop-specific planting and the
   forecast-change guard were added. These do not change the verdict for the eight test households, and the
   deterministic evals pass 8/8 on the final code, but the model-run numbers in EVALS.md describe the earlier build.

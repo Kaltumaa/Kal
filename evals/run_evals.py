@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 os.environ.setdefault("CROP_PILOT_TODAY", "2026-10-15")
 
+from fastapi import Request  # noqa: E402
 from langgraph.checkpoint.memory import InMemorySaver  # noqa: E402
 
 from crop_pilot import config  # noqa: E402
@@ -130,6 +131,12 @@ def task8(workdir: Path) -> tuple[list[tuple[str, bool]], dict]:
     with db.open("r+b") as fh:          # smash the SQLite header and first page
         fh.write(b"\x00CORRUPTED-BY-EVAL\x00" * 200)
     config.FALLBACK_QUEUE_PATH = workdir / "fallback.jsonl"
+    from crop_pilot.api import access
+
+    def officer(req: Request) -> None:            # the eval acts as a signed-in officer; sign-in itself is covered by the tests
+        req.state.user = {"id": 0, "role": "extension_officer", "full_name": "Wanjiru Kamau", "household_id": None,
+                          "active": 1}
+    api_main.app.dependency_overrides[access.guard] = officer
     with TestClient(api_main.app) as client:
         health = client.get("/health").json()
         run = client.post("/runs", json={"household_id": "HH-DS-008"})

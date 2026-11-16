@@ -17,6 +17,12 @@ def user() -> dict | None:
     return a["user"] if a else None
 
 
+def signer_name() -> str:
+    """Pre-fills signature boxes: an officer can only sign with their own account name (the API checks it)."""
+    u = user()
+    return u["full_name"] if u else ""
+
+
 def token() -> str | None:
     a = current()
     return a["access_token"] if a else None

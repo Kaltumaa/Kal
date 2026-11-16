@@ -744,11 +744,46 @@ def section(parent=None):
     return (parent or st).container(key=f"cp-section-{st.session_state['_cp_sections']}")
 
 
+# Systems TALO talks to, drawn as simple marks in each one's colour (not the companies' artwork).
+# (name, what it does here, colour, short mark)
+PARTNERS = [
+    ("Open-Meteo", "Live weather", "#FF8C00", "☀"), ("Visual Crossing", "Weather cross-check", "#2D7DD2", "VC"),
+    ("Africa's Talking", "SMS & voice calls", "#F26722", "AT"), ("WhatsApp", "Farmer chat", "#25D366", "✆"),
+    ("M-Pesa", "Daraja payments", "#4CA30D", "M"), ("Visa", "Card payments", "#1A1F71", "V"),
+    ("Mastercard", "Card payments", "#EB001B", "●●"), ("Stripe · Flutterwave", "Card checkout", "#635BFF", "$"),
+    ("DeepLeaf", "Plant second opinion", "#2F855A", "🌿"), ("Ollama · Qwen 2.5", "Local AI model", "#18181B", "Q"),
+    ("Moondream", "Local photo model", "#6B46C1", "◐"), ("Whisper", "Voice notes", "#0F766E", "≋"),
+    ("MCP", "Agent tools + filesystem server", "#334155", "⇄"), ("LangGraph", "Agent loop", "#1C3C3C", "◇"),
+]
+
+
 def partners() -> None:
-    """What the system runs on, as one flat row."""
-    items = ["Qwen 2.5", "Moondream 2", "Whisper", "Ollama", "LangGraph", "MCP", "FastAPI", "SQLite", "Streamlit"]
-    st.markdown('<div class="cp-partners">' + "".join(f"<span>{i}</span>" for i in items) + "</div>",
-                unsafe_allow_html=True)
+    """A slowly moving bar of every system TALO works with. Pauses on hover; still for reduced-motion users."""
+    def chip(name: str, role: str, colour: str, mark: str) -> str:
+        return (f'<span class="pt-chip"><span class="pt-mark" style="background:{colour}">{html.escape(mark)}</span>'
+                f'<span><b>{html.escape(name)}</b><small>{html.escape(role)}</small></span></span>')
+    row = "".join(chip(*p) for p in PARTNERS)
+    st.markdown(
+        "<style>"
+        ".pt-wrap{overflow:hidden;position:relative;margin:28px 0 6px;padding:10px 0;"
+        "-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);"
+        "mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}"
+        ".pt-track{display:flex;gap:14px;width:max-content;animation:pt-move 45s linear infinite}"
+        ".pt-wrap:hover .pt-track{animation-play-state:paused}"
+        "@keyframes pt-move{from{transform:translateX(0)}to{transform:translateX(-50%)}}"
+        "@media (prefers-reduced-motion:reduce){.pt-track{animation:none;flex-wrap:wrap;width:auto}}"
+        ".pt-chip{display:inline-flex;align-items:center;gap:9px;padding:7px 14px 7px 7px;border:1px solid #E7E7E2;"
+        "border-radius:999px;background:#fff;white-space:nowrap}"
+        ".pt-mark{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;"
+        "justify-content:center;color:#fff;font-weight:800;font-size:.78rem;letter-spacing:-.5px}"
+        ".pt-chip b{display:block;font-size:.8rem;line-height:1.1;color:#18181B}"
+        ".pt-chip small{display:block;font-size:.66rem;color:#71717A}"
+        ".pt-title{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:#71717A;margin-top:24px}"
+        "</style>"
+        '<div class="pt-title">Works with</div>'
+        f'<div class="pt-wrap" aria-label="Systems TALO works with"><div class="pt-track">{row}'
+        f'<span aria-hidden="true" style="display:contents">{row}</span></div></div>',
+        unsafe_allow_html=True)
 
 
 def header(title: str, subtitle: str, hero: bool = False) -> None:

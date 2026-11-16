@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 import api_client as api
+import auth
 import ui
 
 role, mine = st.session_state.get("role", "officer"), st.session_state.get("my_farm")
@@ -56,7 +57,7 @@ if officer:
             companions = ["None"] + [x for x in opts["companions"] if x != plot.get("active_crop")]
             new_comp = c[2].selectbox("Grown with", companions,
                                       index=companions.index(companion) if companion in companions else 0)
-            who = c[3].text_input("Your full name")
+            who = c[3].text_input("Your full name", value=auth.signer_name())
             if st.form_submit_button("Save terrain"):
                 try:
                     api.set_terrain(hid, new_slope, new_soil, who, None if new_comp == "None" else new_comp)
@@ -85,7 +86,7 @@ if officer:
                                        index=cell_ids.index(info.get("cell_id") or ""),
                                        format_func=lambda x: next((c_["name"] for c_ in cell_list if c_["cell_id"] == x),
                                                                   "No cell"))
-            who_c = c[3].text_input("Your full name", key=f"contact-who-{hid}")
+            who_c = c[3].text_input("Your full name", value=auth.signer_name(), key=f"contact-who-{hid}")
             if st.form_submit_button("Save contact"):
                 try:
                     api.set_contact(hid, who_c, phone.strip() or None, ptype, cell_pick)
@@ -214,7 +215,7 @@ if draft:
                                      help="Both languages are covered by the same signature.")
             st.caption(lang_note)
             c = st.columns([1.4, 1.6, 1.2])
-            name = c[0].text_input("Your full name (signature)", key=f"sig-{draft['id']}",
+            name = c[0].text_input("Your full name (signature)", value=auth.signer_name(), key=f"sig-{draft['id']}",
                                    placeholder="e.g. Wanjiru Kamau")
             ok = c[1].checkbox("I have checked the evidence and take responsibility for this advice.",
                                key=f"ok-{draft['id']}")

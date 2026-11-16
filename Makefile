@@ -17,7 +17,7 @@ export CROP_PILOT_TODAY ?= 2026-10-15
 UV := $(shell command -v uv 2>/dev/null || echo $(HOME)/Library/Python/3.9/bin/uv)
 OLLAMA := $(shell command -v ollama 2>/dev/null || echo $(HOME)/.local/ollama/ollama)
 
-.PHONY: all setup db model run stop backend frontend test evals evals-quick clean help voice voice-hooks
+.PHONY: all setup db model run stop backend frontend test evals evals-quick clean help voice voice-hooks check-integrations demo-live load-test
 
 all: setup run                     ## install everything, then start backend + frontend
 
@@ -79,6 +79,15 @@ evals:                             ## 8 tasks x 5 runs on the local model -> eva
 
 evals-quick:                       ## 8 tasks x 1 run, deterministic (no LLM)
 	$(PY) evals/run_evals.py --runs 1 --no-llm
+
+check-integrations:                ## one harmless real call to every outside system -> evals/results/
+	$(PY) -m crop_pilot.integrations_check
+
+demo-live:                         ## one complete outcome through the real systems (ARGS="--farmer-phone +2547...")
+	$(PY) -m crop_pilot.demo_e2e $(ARGS)
+
+load-test:                         ## rule engine at 1,000s of farms + API under concurrent officers -> evals/results/
+	$(PY) evals/load_test.py $(ARGS)
 
 clean:                             ## wipe local database, checkpoints and fallback queue
 	rm -f data/database.db data/checkpoints.db data/manual_fallback.jsonl

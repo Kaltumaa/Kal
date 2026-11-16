@@ -93,7 +93,8 @@ def _ask(image_b64: str, prompt: str, max_tokens: int) -> tuple[str, dict]:
     with httpx.Client(timeout=config.LLM_TIMEOUT_S * 2) as client:
         r = client.post(f"{config.OLLAMA_HOST}/api/generate", json={
             "model": VISION_MODEL, "prompt": prompt, "images": [image_b64], "stream": False,
-            "options": {"temperature": 0, "num_predict": max_tokens}})
+            "keep_alive": config.LLM_KEEP_ALIVE,
+            "options": {"temperature": 0, "num_predict": max_tokens, "num_ctx": config.LLM_NUM_CTX}})
         r.raise_for_status()
         data = r.json()
     return data.get("response", "").strip(), {"latency_ms": (time.perf_counter() - started) * 1000,

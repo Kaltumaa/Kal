@@ -1,6 +1,7 @@
 """Public webhooks for Africa's Talking Voice and WhatsApp. The ONLY app to expose to the internet (ngrok http 8001).
 
-The main API (:8000) has the officer's approve buttons and no login, so it must stay on 127.0.0.1. This app has two
+The main API (:8000) has the officer's approve buttons (sign-in required, api/access.py) and must stay on
+127.0.0.1. This app has two
 routes and nothing else:
 
     POST /voice/callback?t=TOKEN   the one carrier webhook: pick-up, keypresses (dtmfDigits) and hang-up. Set it as the

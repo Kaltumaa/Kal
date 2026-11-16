@@ -10,6 +10,24 @@ import auth
 import ui
 
 
+# Simple payment-method marks drawn inline (no external files): M-Pesa green, Visa blue, Mastercard circles.
+_BADGE = ('<span style="display:inline-flex;align-items:center;justify-content:center;height:30px;min-width:58px;'
+          'padding:0 10px;border:1px solid #E4E4E0;border-radius:6px;background:#fff;margin-right:8px">{}</span>')
+MPESA = _BADGE.format('<svg width="62" height="16" viewBox="0 0 62 16" role="img" aria-label="M-Pesa">'
+                      '<text x="0" y="13" font-family="Arial, sans-serif" font-weight="800" font-size="14" '
+                      'fill="#4CA30D">M-PESA</text></svg>')
+VISA = _BADGE.format('<svg width="40" height="16" viewBox="0 0 40 16" role="img" aria-label="Visa">'
+                     '<text x="0" y="14" font-family="Arial, sans-serif" font-style="italic" font-weight="900" '
+                     'font-size="16" fill="#1A1F71">VISA</text></svg>')
+MASTERCARD = _BADGE.format('<svg width="34" height="20" viewBox="0 0 34 20" role="img" aria-label="Mastercard">'
+                           '<circle cx="12" cy="10" r="9" fill="#EB001B"/><circle cx="22" cy="10" r="9" '
+                           'fill="#F79E1B" fill-opacity="0.9"/></svg>')
+
+
+def _marks(*badges: str) -> None:
+    st.markdown("".join(badges), unsafe_allow_html=True)
+
+
 def _status(tx: dict) -> None:
     label = {"SUCCESS": ("Paid", "success"), "PENDING": ("Waiting for confirmation", "info"),
              "FAILED": ("Failed", "error"), "CANCELLED": ("Cancelled", "warning")}[tx["status"]]
@@ -39,6 +57,7 @@ def render(sub_counties: list[str], waiting_farmers: int) -> None:
 
     with ui.section():
         st.subheader(f"Pay for farmer access · KES {price} per farmer per month")
+        _marks(MPESA, VISA, MASTERCARD)
         c = st.columns([2, 1])
         areas = c[0].multiselect("Sub-counties", sorted(set(sub_counties) | set(ent["sub_counties"]))
                                  or ["Dagoretti South"], default=ent["sub_counties"] or sub_counties[:1]
@@ -64,6 +83,7 @@ def render(sub_counties: list[str], waiting_farmers: int) -> None:
                        f"· 30 days")
             mpesa_tab, card_tab = st.tabs(["M-Pesa", "Visa / Mastercard"])
             with mpesa_tab:
+                _marks(MPESA)
                 st.caption("You get a prompt on your phone to enter your M-Pesa PIN.")
                 with st.form("mpesa"):
                     phone = st.text_input("Safaricom number", placeholder="0712 345 678")
@@ -80,6 +100,7 @@ def render(sub_counties: list[str], waiting_farmers: int) -> None:
                         except api.ApiError as exc:
                             auth.show_error(exc)
             with card_tab:
+                _marks(VISA, MASTERCARD)
                 st.caption("You pay on the card processor's secure page; card numbers never reach this app.")
                 outcome = st.selectbox("Simulated result", ["success", "declined"], key="card-sim",
                                        disabled=modes["card"]["mode"] != "simulator")

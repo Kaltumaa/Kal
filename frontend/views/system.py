@@ -5,6 +5,8 @@ import pandas as pd
 import streamlit as st
 
 import api_client as api
+import channels
+import auth
 import ui
 
 
@@ -73,67 +75,111 @@ def activity_log() -> None:
                      height=360)
 
 
+def _farm_pick(key: str, hids: list[str], prefer: str) -> str:
+    farms = sorted(st.session_state.get("farm_info", {}))
+    order = list(dict.fromkeys([h for h in hids if h] + farms))
+    default = order.index(prefer) if prefer in order and not hids else 0
+    return st.selectbox("Farmer's phone", order, index=default, key=key, format_func=ui.farm_label)
+
+
 def outbox() -> None:
-    ui.header("Sent messages", "Officer-signed messages (simulated SMS and WhatsApp), and the backup form for when the database is down.")
+    ui.header("Sent messages", "What farmers receive by SMS and WhatsApp, and the backup form for when the database "
+                               "is down.")
     degraded = not api.health()["ok"]
-    t_sent, t_wa, t_backup = st.tabs(["Sent", "WhatsApp", "Manual backup form"])
+    t_sent, t_wa, t_backup = st.tabs(["SMS", "WhatsApp", "Manual backup form"])
     with t_sent:
         if degraded:
             st.warning("Unavailable while the database is degraded. Use the manual backup form.")
         else:
-            out = api.outbox()
-            if not out:
-                st.caption("No messages sent yet.")
-            for o in out:
-                with ui.section():
+            out, other, dl = api.outbox(), api.sms_messages(), api.sms_deliveries()
+            sent_state = {(d["source"], d["source_id"]): d for d in dl["deliveries"]}
+
+            def state(source: str, sid: int) -> str:
+                d = sent_state.get((source, sid))
+                return d["status"] if d else "SIMULATED"
+            statuses = [d["status"] for d in dl["deliveries"]]
+            channels.header("sms", "SMS", dl["status"]["live"], dl["status"]["channel"] + " · reaches every phone, "
+                            "no data needed", [("Signed advice", len(out)), ("Other SMS", len(other)),
+                                               ("Delivered", statuses.count("SENT")),
+                                               ("Failed", statuses.count("FAILED"))])
+            left, right = st.columns([1, 1.3], gap="large")
+            with left:
+                hid = _farm_pick("sms-farm", [o["household_id"] for o in out] + [m["household_id"] for m in other],
+                                 "HH-DS-003")
+                thread = [("in", o["queued_at"], o["message"], state("advice", o["id"]))
+                          for o in out if o["household_id"] == hid]
+                thread += [("in" if m["direction"] == "OUT" else "out", m["created_at"], m["body"],
+                            state("message", m["id"]) if m["direction"] == "OUT" else "RECEIVED")
+                           for m in other if m["household_id"] == hid]
+                thread.sort(key=lambda t: t[1])
+                info = st.session_state.get("farm_info", {}).get(hid, {})
+                channels.phone("sms", ui.farm_label(hid), "Text Message" + (
+                    " · feature phone" if info.get("phone_type") == "feature" else ""), thread)
+            with right:
+                st.markdown("##### All SMS")
+                if not out and not other:
+                    st.caption("No SMS yet. Signed advice, photo results and replies to farmers' SMS commands "
+                               "appear here.")
+                for o in out[:30]:
                     lang = {"sw": "Kiswahili"}.get(o.get("language"), "English")
-                    st.markdown(f"**{ui.farm_label(o['household_id'])}** <span class='cp-muted'>· signed by {o['officer_signature']}"
-                                f" · {o['queued_at'][:16].replace('T', ' ')} UTC · {lang} · SMS"
-                                + (f", {o['sms_parts']} part{'s' if o['sms_parts'] != 1 else ''}" if o.get("sms_parts")
-                                   else "") + "</span>", unsafe_allow_html=True)
-                    st.write(o["message"])
-            other = api.sms_messages()
-            if other:
-                st.markdown("##### Other SMS (photo results, confirmed reports, farmers' SMS commands)")
+                    st.markdown(f"<span class='cp-muted'>{o['queued_at'][:16].replace('T', ' ')} · → "
+                                f"{ui.farm_label(o['household_id'])} · advice signed by {o['officer_signature']} · "
+                                f"{lang} · {(o.get('sms_parts') or 1)} part(s) · "
+                                f"{state('advice', o['id']).lower()}</span>  \n{o['message']}",
+                                unsafe_allow_html=True)
                 for m in other[:40]:
                     arrow = "← from" if m["direction"] == "IN" else "→ to"
-                    st.markdown(f"<span class='cp-muted'>{m['created_at'][:16].replace('T', ' ')} UTC · {arrow} "
+                    st.markdown(f"<span class='cp-muted'>{m['created_at'][:16].replace('T', ' ')} · {arrow} "
                                 f"{ui.farm_label(m['household_id'])} · {m['kind'].replace('_', ' ')}"
-                                + (f" · signed by {m['sent_by']}" if m.get("sent_by") not in (None, "system") else "")
-                                + f" · {m.get('sms_parts') or 1} SMS part(s)</span>  \n{m['body']}",
-                                unsafe_allow_html=True)
+                                + (f" · {state('message', m['id']).lower()}" if m["direction"] == "OUT" else "")
+                                + f"</span>  \n{m['body']}", unsafe_allow_html=True)
     with t_wa:
         if not degraded:
             wa = api.whatsapp_messages()
-            st.caption(f"{wa['status']['channel']}. Smartphone farmers get signed advice here as well as by SMS, and "
-                       "can send the same commands as SMS (LOG, REMIND, PROBLEM, HELP).")
-            with st.form("wa-try", clear_on_submit=True):
-                c = st.columns([1, 2, 1], vertical_alignment="bottom")
-                phone = c[0].text_input("Farmer's phone", value="+254700000002")
-                text = c[1].text_input("Message", placeholder="LOG WEEDING top field")
-                if c[2].form_submit_button("Send as farmer", width="stretch"):
-                    try:
-                        r = api.whatsapp_simulate(phone, text)
-                        st.success(f"Reply ({r['reply_status'].lower()}): {r['reply']}")
-                    except api.ApiError as exc:
-                        st.error(str(exc.detail))
-                wa = api.whatsapp_messages()          # include what was just sent
-            for m in wa["messages"][:50]:
-                arrow = "← from" if m["direction"] == "IN" else "→ to"
-                who = ui.farm_label(m["household_id"]) if m.get("household_id") else m["phone"]
-                st.markdown(f"<span class='cp-muted'>{m['created_at'][:16].replace('T', ' ')} UTC · {arrow} {who} · "
-                            f"{m['kind']} · {m['status'].lower()}"
-                            + (f" · signed by {m['sent_by']}" if m["kind"] == "advice" else "")
-                            + (f" · {m['error']}" if m.get("error") else "") + f"</span>  \n{m['body']}",
-                            unsafe_allow_html=True)
-            if not wa["messages"]:
-                st.caption("No WhatsApp messages yet.")
+            msgs = wa["messages"]
+            channels.header("whatsapp", "WhatsApp", wa["status"]["live"],
+                            wa["status"]["channel"] + " · for farmers with a smartphone, next to SMS",
+                            [("Messages", len(msgs)), ("From farmers", sum(m["direction"] == "IN" for m in msgs)),
+                             ("Delivered", sum(m["status"] == "SENT" for m in msgs)),
+                             ("Failed", sum(m["status"] == "FAILED" for m in msgs))])
+            left, right = st.columns([1, 1.3], gap="large")
+            with right:
+                st.markdown("##### Try it as a farmer")
+                st.caption("Commands: LOG, REMIND, PROBLEM, HELP (or REKODI, KUMBUSHA, SHIDA, MSAADA).")
+                with st.form("wa-try", clear_on_submit=True):
+                    c = st.columns([1, 2], vertical_alignment="bottom")
+                    phone = c[0].text_input("Farmer's phone", value="+254700000002")
+                    text = c[1].text_input("Message", placeholder="LOG WEEDING top field")
+                    if st.form_submit_button("Send as farmer", type="primary", width="stretch"):
+                        try:
+                            r = api.whatsapp_simulate(phone, text)
+                            st.session_state["wa-farm"] = r.get("household_id") or st.session_state.get("wa-farm")
+                            st.success(f"Reply ({r['reply_status'].lower()}): {r['reply']}")
+                        except api.ApiError as exc:
+                            st.error(str(exc.detail))
+                    msgs = api.whatsapp_messages()["messages"]
+                st.markdown("##### All WhatsApp messages")
+                for m in msgs[:50]:
+                    arrow = "← from" if m["direction"] == "IN" else "→ to"
+                    who = ui.farm_label(m["household_id"]) if m.get("household_id") else m["phone"]
+                    st.markdown(f"<span class='cp-muted'>{m['created_at'][:16].replace('T', ' ')} · {arrow} {who} · "
+                                f"{m['kind']} · {m['status'].lower()}"
+                                + (f" · signed by {m['sent_by']}" if m["kind"] == "advice" else "")
+                                + (f" · {m['error']}" if m.get("error") else "") + f"</span>  \n{m['body']}",
+                                unsafe_allow_html=True)
+                if not msgs:
+                    st.caption("No WhatsApp messages yet.")
+            with left:
+                hid = _farm_pick("wa-farm", [m["household_id"] for m in msgs], "HH-DS-002")
+                thread = [("in" if m["direction"] == "OUT" else "out", m["created_at"], m["body"], m["status"])
+                          for m in reversed(msgs) if m.get("household_id") == hid]
+                channels.phone("whatsapp", ui.farm_label(hid), "online · official advice channel", thread)
     with t_backup:
         if degraded:
             st.error("Database failed its integrity check. Record decisions here; they sync later.")
         with st.form("manual"):
             c = st.columns(3)
-            name = c[0].text_input("Your full name")
+            name = c[0].text_input("Your full name", value=auth.signer_name())
             hid = c[1].text_input("Household ID")
             verdict = c[2].selectbox("Decision", ["HOLD", "PLANT", "SPRAY"])
             note = st.text_area("Field note", max_chars=500, height=80)
