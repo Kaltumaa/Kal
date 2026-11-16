@@ -423,14 +423,13 @@ Bring your own data by pointing `CROP_PILOT_DB` at a database with the same sche
 
 This is one conversation, not a study, and it did not test the app itself.
 
-**We spoke with Johnson, a young farmer in Murang'a County**, and with **extension officers working in Murang'a**.
-They told us one officer serves about 13,000 farmers in their area, and that farmers there mostly don't know the best
+**We spoke with Johnson, a young farmer in Murang'a County**, and with **two extension officers working in Murang'a, Dennis and
+Wilson**. They told us one officer serves about 13,000 farmers in their area, and that farmers there mostly don't know the best
 time to plant or what to do when pests or odd rains arrive. That is why **Murang'a is our pilot county**.
 
-**We also spoke with two extension officers, Dennis and Wilson, from Kiambu County** (the county next to Nairobi;
-the demo desk is modelled on Dagoretti South).
+(The demo desk's wards are modelled on Dagoretti South, Nairobi; the code is not tied to one office.)
 
-> **TODO before submitting: add what Dennis and Wilson said** (how many farmers each covers, how they advise today,
+> **TODO before submitting: add the rest of what Dennis and Wilson said** (how they advise today,
 > what they liked or doubted, whether their office would pay). Until then this section only records that the two
 > conversations happened.
 

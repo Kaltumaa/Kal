@@ -69,7 +69,7 @@ the optimal time: +7–10% yield, up to +20% for late planters; data from Kenya,
 
 | Check | Status |
 |---|---|
-| Evidenced | Johnson, a farmer in Murang'a; extension officers in Murang'a (about 1 officer : 13,000 farmers in their area); published ratios with sources above; two Kiambu officers, Dennis and Wilson (**TODO: their points**) |
+| Evidenced | Johnson, a farmer in Murang'a; two extension officers in Murang'a, Dennis and Wilson (about 1 officer : 13,000 farmers in their area; farmers don't know the best time to plant); published ratios with sources above (**TODO:** the rest of their points) |
 | Named user | Extension officer at a county agriculture department; the farmer receives the advice |
 | Sized | Farmers per officer: about 13,000 (field), 1 : 6,000 (published, Murang'a), 1 : 1,380 (Kenya). Yield at stake from timing: 7–10%, up to 20%. **TODO:** advisories a week, time per farm by hand |
 | Today's workaround | **TODO with the officers:** how they advise today (visits, WhatsApp groups, barazas) and why it fails |
@@ -124,8 +124,8 @@ pay nothing. **TODO:** the budget line the officers named.
   hosting falls with scale, SMS stays flat, officer review grows linearly).
 - **Measured at scale:** `make load-test`: the weekly plan for 5,000 farms in under 2 s; 25 officers at once, no
   errors (`evals/results/load-*.md`).
-- **Rollout path:** **pilot in Murang'a County** (where we spoke with officers and farmers; not yet an agreement) → Kiambu
-  (Dennis and Wilson) → other counties; languages beyond Kiswahili and English; USSD and Airtel Money as channels.
+- **Rollout path:** **pilot in Murang'a County** (where we spoke with Dennis, Wilson and Johnson; not yet an agreement) →
+  neighbouring counties (Kiambu, Nyeri, Kirinyaga) → other counties; languages beyond Kiswahili and English; USSD and Airtel Money as channels.
 - **Oversight at scale:** review by ward in batches, escalations routed to the right sub-county officer, AI assurance
   page counting sign-offs and overrides.
 - **Impact metrics (tracked in the audit tables, baseline from the officers):** days from signal to signed advice;

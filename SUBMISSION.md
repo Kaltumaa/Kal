@@ -35,6 +35,6 @@ signs in, and the API enforces it.
 **Honest AI.** Unsure (bad photo, low confidence, forecasts disagreeing, missing data, advice an officer rejected
 before), the agent says so and asks the officer. It retries and fails over when tools fail.
 
-**Honesty.** Farm data is synthetic. We spoke with Johnson and extension officers in Murang'a, and two Kiambu County
-officers, Dennis and Wilson. [TODO: Dennis and Wilson's key points.] `make check-integrations`, `make demo-live` and `make load-test` show what runs
+**Honesty.** Farm data is synthetic. We spoke with Johnson and two Murang'a extension officers, Dennis and Wilson.
+[TODO: the rest of Dennis and Wilson's points.] `make check-integrations`, `make demo-live` and `make load-test` show what runs
 live; EVALS.md reports 8 tasks × 5 runs, variation, cost and unfixed failures.

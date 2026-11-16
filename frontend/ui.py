@@ -792,7 +792,7 @@ RATIOS = [
     ("FAO recommends", 400, "https://farmbizafrica.com/muranga-gives-extension-to-12000-farmers-a-year-by-funding-agripreneurs/"),
     ("Kenya, national (Extension Manual)", 1380, "https://fsrp.go.ke/sites/default/files/2025-08/Agriculture%20Extension%20Manual%20v1%20final.pdf"),
     ("Murang'a County, published (2025)", 6000, "https://farmbizafrica.com/muranga-gives-extension-to-12000-farmers-a-year-by-funding-agripreneurs/"),
-    ("Murang'a, what officers told us", 13000, None),
+    ("Murang'a, what officers Dennis & Wilson told us", 13000, None),
 ]
 
 
@@ -851,8 +851,8 @@ def story() -> None:
         "<a href='https://fsrp.go.ke/sites/default/files/2025-08/Agriculture%20Extension%20Manual%20v1%20final.pdf' "
         "target='_blank' rel='noopener'>MoALD Agriculture Extension Manual</a>; yields, "
         "<a href='https://www.frontiersin.org/articles/10.3389/fclim.2022.993511' target='_blank' "
-        "rel='noopener'>Black et al., Frontiers in Climate, 2023</a>. 1:13,000 is what extension officers in "
-        "Murang'a told us about their own area; published county figures range from 1:1,500 to about 1:8,000.</div>"
+        "rel='noopener'>Black et al., Frontiers in Climate, 2023</a>. 1:13,000 is what Dennis and Wilson, extension "
+        "officers in Murang'a, told us about their own area; published county figures range from 1:1,500 to about 1:8,000.</div>"
         "</div>",
         unsafe_allow_html=True)
 
