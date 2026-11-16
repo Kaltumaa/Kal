@@ -1,8 +1,8 @@
 """Accounts for the three roles: farmer, extension officer, institution (County Agric Department, cooperative, NGO).
 
 * Farmers and institutions register themselves.
-* Extension officers are onboarded by their institution (crop_pilot.institutions.service), which needs an active,
-  paid subscription with a free seat. An officer always belongs to an institution, a county and a sub-county.
+* Extension officers sign up themselves and can work at once, independently. They may name the institution they
+  work with; that institution then sees their work (read only). An officer always has a county and a sub-county.
 * A Lead Farmer is a farmer account an institution designates; it is linked to that institution, county and
   sub-county, and to the Lead Farmer cell the household leads.
 """
@@ -157,27 +157,32 @@ def list_institutions() -> list[dict]:
         return [dict(r) for r in conn.execute("SELECT id, name, kind, county FROM institutions ORDER BY name")]
 
 
-def register_officer(email: str, password: str, full_name: str, institution_id: int, county: str, sub_county: str,
-                     wards: list[str] | None = None, phone: str | None = None) -> dict:
-    """An extension officer signs up. The account stays inactive until their institution approves it, which uses
-    one of the institution's paid seats (institutions.service.decide_officer)."""
-    with connect() as conn:
-        inst = conn.execute("SELECT id, name, county FROM institutions WHERE id = ?", (int(institution_id),)).fetchone()
-    if inst is None:
-        raise AccountError("Choose your institution.")
-    if inst["county"].lower() != _place(county, "county").lower():
-        raise AccountError(f"{inst['name']} works in {inst['county']} County only.")
+def register_officer(email: str, password: str, full_name: str, institution_id: int | None, county: str,
+                     sub_county: str, wards: list[str] | None = None, phone: str | None = None) -> dict:
+    """An extension officer signs up and is signed in at once. Officers are independent: `institution_id` is optional
+    and only lets that institution see the officer's work; it never approves or blocks the account."""
+    county_name = _place(county, "county")
+    inst = None
+    if institution_id:
+        with connect() as conn:
+            inst = conn.execute("SELECT id, name, county FROM institutions WHERE id = ?",
+                                (int(institution_id),)).fetchone()
+        if inst is None:
+            raise AccountError("That institution was not found.")
+        if inst["county"].lower() != county_name.lower():
+            raise AccountError(f"{inst['name']} works in {inst['county']} County only.")
     clean_wards = sorted({sanitizer.normalise_zone(w) for w in wards or [] if sanitizer.normalise_zone(w)})
     with connect() as conn:
         uid = _insert_user(conn, email=_email(email), password_hash=hash_password(password),
-                           full_name=_name(full_name), role="extension_officer", institution_id=inst["id"],
-                           county=_place(county, "county"), sub_county=_place(sub_county, "sub-county"),
-                           wards=",".join(clean_wards) or None, phone=phone, active=0, approval_status="pending")
-        user = public(conn.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone())
-    telemetry.record(f"inst-{inst['id']}", "accounts", "officer_signup", {"sub_county": user["sub_county"]},
-                     {"user_id": uid, "status": "pending"}, latency_ms=0, actor=user["full_name"])
-    return {"user": user, "status": "pending",
-            "message": f"Account created. {inst['name']} must approve it before you can sign in."}
+                           full_name=_name(full_name), role="extension_officer",
+                           institution_id=inst["id"] if inst else None, county=county_name,
+                           sub_county=_place(sub_county, "sub-county"), wards=",".join(clean_wards) or None,
+                           phone=phone)
+        user = dict(conn.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone())
+    telemetry.record(f"officer-{uid}", "accounts", "officer_signup",
+                     {"sub_county": user["sub_county"], "institution_id": user["institution_id"]},
+                     {"user_id": uid, "independent": inst is None}, latency_ms=0, actor=user["full_name"])
+    return _session(user)
 
 
 def designate_lead_farmer(institution_id: int, household_id: str) -> dict:
@@ -199,8 +204,8 @@ def designate_lead_farmer(institution_id: int, household_id: str) -> dict:
                      "WHERE lead_household_id = ?", (int(institution_id), county, sub_county, hid))
         cells = [r["cell_id"] for r in conn.execute("SELECT cell_id FROM lead_farmer_cells WHERE lead_household_id = ?",
                                                     (hid,))]
-        updated = public(conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone())
-    return {"lead_farmer": updated, "cells": cells}
+        row = dict(conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone())
+    return {"lead_farmer": public(row), "cells": cells}     # public() reads again: only after this write commits
 
 
 def login(email: str, password: str) -> dict:

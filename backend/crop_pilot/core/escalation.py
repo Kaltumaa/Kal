@@ -56,3 +56,16 @@ def escalate(run_id: str, household_id: str, reasons: list[str], question: str,
     return {"ok": True, "escalation_id": cur.lastrowid, "sub_county": sub_county,
             "assigned_officer": officer and {"id": officer["id"], "full_name": officer["full_name"]},
             "note": "Queued for the sub-county extension officer. Nothing was sent to the farmer."}
+
+
+def officer_corrections(household_id: str, limit: int = 3) -> list[dict]:
+    """The most recent drafts an officer REJECTED for this farm: what the agent advised, when, and why it was wrong.
+    The agent reads these before advising again so it can admit a past mistake instead of repeating it."""
+    hid = sanitizer.normalise_text(household_id).upper()[:32]
+    with connect() as conn:
+        rows = conn.execute("SELECT id, verdict, rule_verdict, reviewed_at, officer_signature, review_note "
+                            "FROM pending_advisories WHERE household_id = ? AND status = 'REJECTED' "
+                            "ORDER BY reviewed_at DESC LIMIT ?", (hid, int(limit))).fetchall()
+    return [{"advisory_id": r["id"], "verdict": r["verdict"] or r["rule_verdict"],
+             "reviewed_at": (r["reviewed_at"] or "")[:10], "officer": r["officer_signature"],
+             "reason": sanitizer.scrub_free_text(r["review_note"] or "", 200)[0]} for r in rows]

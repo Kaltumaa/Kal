@@ -194,6 +194,10 @@ def household_profile(household_id: str):
     return _req("GET", f"/households/{household_id}/profile")
 
 
+def refresh_weather():
+    return _req("POST", "/weather/refresh")
+
+
 def update_forecast(zone_id: str, rain_24h_mm: float, rain_72h_mm: float, rain_7d_mm: float, storm_risk: str):
     return _req("POST", f"/weather/{zone_id}", json={"rain_24h_mm": rain_24h_mm, "rain_72h_mm": rain_72h_mm,
                                                     "rain_7d_mm": rain_7d_mm, "storm_risk": storm_risk,
@@ -269,6 +273,14 @@ def review_report(post_id: int, officer_name: str, decision: str, pest: str | No
 
 def sms_inbound(household_id: str, text: str):
     return _req("POST", "/sms/inbound", json={"household_id": household_id, "text": text})
+
+
+def whatsapp_messages():
+    return _req("GET", "/whatsapp")
+
+
+def whatsapp_simulate(phone: str, text: str):
+    return _req("POST", "/whatsapp/simulate", json={"phone": phone, "text": text})
 
 
 def sms_messages(household_id: str | None = None):

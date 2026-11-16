@@ -22,3 +22,4 @@ backend/plant_ai/*.pth
 data/demo_accounts.md
 data/PlantVillage-Dataset/
 data/PlantDoc-Dataset/
+data/my_logins.md

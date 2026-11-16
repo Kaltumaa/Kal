@@ -74,9 +74,9 @@ def activity_log() -> None:
 
 
 def outbox() -> None:
-    ui.header("Sent messages", "Officer-signed messages (simulated SMS), and the backup form for when the database is down.")
+    ui.header("Sent messages", "Officer-signed messages (simulated SMS and WhatsApp), and the backup form for when the database is down.")
     degraded = not api.health()["ok"]
-    t_sent, t_backup = st.tabs(["Sent", "Manual backup form"])
+    t_sent, t_wa, t_backup = st.tabs(["Sent", "WhatsApp", "Manual backup form"])
     with t_sent:
         if degraded:
             st.warning("Unavailable while the database is degraded. Use the manual backup form.")
@@ -102,6 +102,32 @@ def outbox() -> None:
                                 + (f" · signed by {m['sent_by']}" if m.get("sent_by") not in (None, "system") else "")
                                 + f" · {m.get('sms_parts') or 1} SMS part(s)</span>  \n{m['body']}",
                                 unsafe_allow_html=True)
+    with t_wa:
+        if not degraded:
+            wa = api.whatsapp_messages()
+            st.caption(f"{wa['status']['channel']}. Smartphone farmers get signed advice here as well as by SMS, and "
+                       "can send the same commands as SMS (LOG, REMIND, PROBLEM, HELP).")
+            with st.form("wa-try", clear_on_submit=True):
+                c = st.columns([1, 2, 1], vertical_alignment="bottom")
+                phone = c[0].text_input("Farmer's phone", value="+254700000002")
+                text = c[1].text_input("Message", placeholder="LOG WEEDING top field")
+                if c[2].form_submit_button("Send as farmer", width="stretch"):
+                    try:
+                        r = api.whatsapp_simulate(phone, text)
+                        st.success(f"Reply ({r['reply_status'].lower()}): {r['reply']}")
+                    except api.ApiError as exc:
+                        st.error(str(exc.detail))
+                wa = api.whatsapp_messages()          # include what was just sent
+            for m in wa["messages"][:50]:
+                arrow = "← from" if m["direction"] == "IN" else "→ to"
+                who = ui.farm_label(m["household_id"]) if m.get("household_id") else m["phone"]
+                st.markdown(f"<span class='cp-muted'>{m['created_at'][:16].replace('T', ' ')} UTC · {arrow} {who} · "
+                            f"{m['kind']} · {m['status'].lower()}"
+                            + (f" · signed by {m['sent_by']}" if m["kind"] == "advice" else "")
+                            + (f" · {m['error']}" if m.get("error") else "") + f"</span>  \n{m['body']}",
+                            unsafe_allow_html=True)
+            if not wa["messages"]:
+                st.caption("No WhatsApp messages yet.")
     with t_backup:
         if degraded:
             st.error("Database failed its integrity check. Record decisions here; they sync later.")

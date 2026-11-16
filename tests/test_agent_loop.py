@@ -44,6 +44,31 @@ def test_forecasts_that_agree_are_cross_verified(live):
     assert _recoveries(live, "w1") == []
 
 
+def test_ward_forecasts_refresh_from_both_providers(live):
+    from crop_pilot.core import weather_sources as ws
+    assert ws.needs_refresh()                                  # the seeded forecast is synthetic
+    out = ws.refresh_ward_forecasts("r1", now=NOW, fetchers={
+        ws.PRIMARY: lambda lat, lon: _hours(rain_at=range(10, 40), mm=2.0),
+        ws.SECONDARY: lambda lat, lon: (_hours(rain_at=range(11, 40), mm=1.5), [])})
+    assert out["kept"] == {} and {u["agreement"] for u in out["updated"]} == {"AGREE"}
+    row = sqlite3.connect(live).execute(
+        "SELECT rain_24h_mm, rain_72h_mm, storm_risk, source, dry_hours_ahead FROM weather_cache WHERE zone_id='RIRUTA'"
+    ).fetchone()
+    assert row == (28.0, 60.0, "HIGH", "Live: Open-Meteo + Visual Crossing (agree)", 10)   # the cautious reading
+    assert not ws.needs_refresh()
+
+
+def test_ward_forecast_kept_when_both_providers_are_down(live):
+    from crop_pilot.core import weather_sources as ws
+    before = sqlite3.connect(live).execute("SELECT rain_72h_mm, source FROM weather_cache ORDER BY zone_id").fetchall()
+    def down(lat, lon):
+        raise httpx.ConnectError("offline")
+    out = ws.refresh_ward_forecasts("r2", now=NOW, fetchers={ws.PRIMARY: down, ws.SECONDARY: down})
+    assert out["updated"] == [] and len(out["kept"]) == len(before)
+    assert sqlite3.connect(live).execute("SELECT rain_72h_mm, source FROM weather_cache ORDER BY zone_id").fetchall() \
+        == before
+
+
 def test_forecasts_that_disagree_on_spray_window_are_flagged(live):
     from crop_pilot.core import weather_sources as ws
     out = ws.dual_forecast("RIRUTA", run_id="w2", now=NOW, fetchers={
@@ -129,6 +154,12 @@ def test_uncertainty_rules():
     assert codes({"verdict": "HOLD"}, {"live_weather": disagree}) == []          # only sprays need the cross-check
     closed = {"agreement": "AGREE", "consensus": {"spray_window_ok": False}}
     assert codes({"verdict": "SPRAY"}, {"live_weather": closed}) == ["live_forecast_closes_spray_window"]
+    # it says when it does not know the farm, and when an officer already told it this advice was wrong
+    assert codes({"verdict": None}, {"plot": {"found": True, "profile_complete": False}}) == ["missing_farm_data"]
+    corrected = {"verdict": "SPRAY", "evidence": {"officer_corrections": [
+        {"verdict": "SPRAY", "reviewed_at": "2026-10-14", "reason": "it is maize streak, not armyworm"}]}}
+    assert codes(corrected, {}) == ["officer_corrected_before"]
+    assert codes(dict(corrected, verdict="HOLD"), {}) == []
 
 
 def _scan(db, hid, quality, candidates, model="moondream"):
@@ -209,3 +240,22 @@ def test_unsure_photo_escalates_instead_of_guessing(temp_db):
     assert "field_scans:#" in adv[2]
     esc = conn.execute("SELECT household_id, sub_county, status, question FROM escalations").fetchone()
     assert esc[:3] == ("HH-DS-003", "Dagoretti South", "OPEN") and "No treatment" in esc[3]
+
+
+def test_agent_learns_from_an_officer_rejection(temp_db):
+    """Grace (HH-DS-003) gets SPRAY; the officer rejects it. Next time the agent admits it may be wrong and asks."""
+    from langgraph.checkpoint.memory import InMemorySaver
+    from crop_pilot.agent import workflow
+    from crop_pilot.dispatch import approval
+    graph = workflow.build_graph(InMemorySaver())
+    first = asyncio.run(workflow.start_run(graph, "HH-DS-003"))
+    assert first["advisory"]["status"] == "PENDING_REVIEW"
+    verdict = sqlite3.connect(temp_db).execute("SELECT verdict FROM pending_advisories").fetchone()[0]
+    approval.reject(first["advisory"]["advisory_id"], "Wanjiru Kamau", "wrong pest: this is maize streak")
+    second = asyncio.run(workflow.start_run(graph, "HH-DS-003"))
+    assert second["self_check"]["outcome"] == "escalate"
+    assert "officer_corrected_before" in {u["code"] for u in second["self_check"]["uncertainty"]}
+    assert second["escalation"]["ok"]
+    row = sqlite3.connect(temp_db).execute(
+        "SELECT verdict, rationale FROM pending_advisories ORDER BY id DESC LIMIT 1").fetchone()
+    assert row[0] is None and f"rejected the same {verdict} advice" in row[1] and "maize streak" in row[1]

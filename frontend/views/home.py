@@ -252,11 +252,24 @@ with st.expander("All rainfall numbers", icon=":material/table:"):
                                 "Storm": z["storm_risk"].title(), "Wind (km/h)": z.get("wind_kmh"),
                                 "Spraying": ui.spray_status(z)[0], "Spray score": z["spray_safety_index"],
                                 "Season vs normal": f"{z['pattern'].get('season_anomaly_pct', 0):+d}%",
-                                "Forecast issued": str(z["forecast_issued_at"])[:10]} for z in ov["zones"]]),
+                                "Source": z.get("source") or "",
+                                "Forecast issued": str(z["forecast_issued_at"])[:16].replace("T", " ")}
+                               for z in ov["zones"]]),
                  hide_index=True, width="stretch",
                  column_config={"Spray score": st.column_config.ProgressColumn("Spray score", min_value=0,
                                                                                max_value=100, format="%d")})
-    st.caption("Synthetic CHIRPS-style forecast. A spray score below 40 means do not spray.")
+    st.caption("Live forecasts from Open-Meteo and Visual Crossing; where they differ the more cautious number is used. "
+               "A spray score below 40 means do not spray.")
+    if st.button("Refresh live forecast", icon=":material/refresh:"):
+        with st.spinner("Asking Open-Meteo and Visual Crossing…"):
+            try:
+                res = api.refresh_weather()
+                st.toast(f"Updated {len(res['updated'])} ward(s)."
+                         + (f" Kept the old forecast for {', '.join(z.title() for z in res['kept'])}."
+                            if res["kept"] else ""), icon=":material/cloud_done:")
+                st.rerun()
+            except api.ApiError as exc:
+                st.error(str(exc.detail))
 with st.expander("A new forecast arrived? Record it", icon=":material/edit_note:"):
     with st.form("new-forecast"):
         st.markdown("Record it; drafts built on the old one are blocked until re-run.")

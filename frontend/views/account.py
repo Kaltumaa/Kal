@@ -103,19 +103,20 @@ def _officer_form() -> None:
     except api.ApiError as exc:
         auth.show_error(exc)
         return
-    if not insts:
-        st.info("No institution is on TALO yet. Your County Agriculture Department, cooperative or NGO creates its "
-                "account first (Institution tab); then you can join it here.", icon=":material/apartment:")
-        return
-    st.caption("Join the institution you work for. It approves your account before you can sign in.")
+    st.caption("Work on your own: your account is ready as soon as you sign up. If you work with a County Agriculture "
+               "Department, cooperative or NGO you can name it, and it will be able to see your work.")
 
     # Outside the form, so the rest of the form follows the chosen institution and sub-county.
-    inst = st.selectbox("Institution you work for", insts,
-                        format_func=lambda i: f"{i['name']} · {i['county']} County")
-    county = inst["county"]
-    options = SUB_COUNTIES.get(county.title(), [])
+    inst = st.selectbox("Institution (optional)", [None] + insts,
+                        format_func=lambda i: "None, I work independently" if i is None
+                        else f"{i['name']} · {i['county']} County")
     c = st.columns(2)
-    c[0].text_input("County", value=county, disabled=True, help="Set by your institution")
+    if inst:
+        county = inst["county"]
+        c[0].text_input("County", value=county, disabled=True, help="Set by the institution you chose")
+    else:
+        county = c[0].text_input("County", value=COUNTY_DEFAULT)
+    options = SUB_COUNTIES.get((county or "").strip().title(), [])
     if options:
         sub_county = c[1].selectbox("Sub-county you work in", options,
                                     index=options.index(SUB_COUNTY_DEFAULT) if SUB_COUNTY_DEFAULT in options else 0,
@@ -130,10 +131,10 @@ def _officer_form() -> None:
     with st.form("officer-signup"):
         name = st.text_input("Full name", placeholder="Wanjiru Kamau")
         c = st.columns(2)
-        email = c[0].text_input("Work e-mail")
+        email = c[0].text_input("E-mail")
         phone = c[1].text_input("Phone (optional)", placeholder="0712 345 678")
         pw = _password_pair("officer")
-        if st.form_submit_button("Send to my institution for approval", type="primary", width="stretch"):
+        if st.form_submit_button("Create officer account", type="primary", width="stretch"):
             if pw is None:
                 st.error("The two passwords do not match.")
                 return
@@ -142,15 +143,16 @@ def _officer_form() -> None:
                 return
             try:
                 _done(api.register({"role": "extension_officer", "email": email, "password": pw, "full_name": name,
-                                    "phone": phone or None, "institution_id": inst["id"], "county": county,
-                                    "sub_county": sub_county, "wards": [w.upper() for w in wards] or None}))
+                                    "phone": phone or None, "institution_id": inst["id"] if inst else None,
+                                    "county": county, "sub_county": sub_county,
+                                    "wards": [w.upper() for w in wards] or None}))
             except api.ApiError as exc:
                 auth.show_error(exc)
 
 
 def _institution_form() -> None:
-    st.caption("For a County Agriculture Department, cooperative or NGO that runs extension officers. Institutions are "
-               "the only ones who pay: KES 50 a month for each farmer you give access to, by M-Pesa or card.")
+    st.caption("For a County Agriculture Department, cooperative or NGO. You see the work of the extension officers "
+               "who name you when they sign up. Institutions are the only ones who pay: KES 50 a month for each farmer you give access to, by M-Pesa or card.")
     with st.form("institution-signup"):
         inst_name = st.text_input("Institution name", placeholder="Nairobi County Agriculture Department")
         c = st.columns(2)

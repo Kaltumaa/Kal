@@ -162,12 +162,21 @@ def approve(advisory_id: int, officer_name: str, final_message: str | None = Non
                                            officer)
         except ApprovalError as exc:
             voice = {"call_id": None, "status": "FAILED", "error": str(exc)}
+    whatsapp_sent = []
+    try:       # smartphone farmers also get it on WhatsApp; SMS above is always queued
+        from crop_pilot.dispatch import whatsapp
+        for lang in langs:
+            w = whatsapp.send_advice(row["household_id"], sent[lang], advisory_id, officer)
+            if w:
+                whatsapp_sent.append(w | {"language": lang})
+    except Exception as exc:  # noqa: BLE001 - the advice is signed and the SMS queued; never hide that
+        whatsapp_sent.append({"status": "FAILED", "error": str(exc)[:200]})
     telemetry.record(row["run_id"], "officer", "approve_and_dispatch", {"advisory_id": advisory_id, "citation": cited},
-                     {"outbox_ids": outbox_ids, "channel": "SMS_SIMULATED", "messages": sent,
+                     {"outbox_ids": outbox_ids, "channel": "SMS_SIMULATED", "messages": sent, "whatsapp": whatsapp_sent,
                       "call_id": voice and voice["call_id"]},
                      latency_ms=(time.perf_counter() - started) * 1000, actor=officer, approved_by=officer)
     return {"advisory_id": advisory_id, "run_id": row["run_id"], "status": "APPROVED", "officer": officer,
-            "outbox_id": outbox_ids[0], "outbox_ids": outbox_ids, "languages": langs,
+            "outbox_id": outbox_ids[0], "outbox_ids": outbox_ids, "languages": langs, "whatsapp": whatsapp_sent,
             "message": sent.get("en") or sent["sw"], "messages": sent, "call": voice}
 
 

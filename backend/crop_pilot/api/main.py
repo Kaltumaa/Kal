@@ -39,6 +39,22 @@ logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logging.getLogger("crop_pilot.audit").setLevel(logging.INFO)   # audit trail in the backend terminal
 
 
+def _refresh_weather_in_background() -> None:
+    """Pull live ward forecasts (Open-Meteo + Visual Crossing) without delaying start-up."""
+    import threading
+
+    from crop_pilot.core import weather_sources
+
+    def run() -> None:
+        try:
+            if weather_sources.needs_refresh():
+                weather_sources.refresh_ward_forecasts("startup-weather")
+        except Exception as exc:  # noqa: BLE001 - the stored forecast stays in use
+            logging.getLogger(__name__).warning("live weather refresh failed: %s", exc)
+
+    threading.Thread(target=run, name="weather-refresh", daemon=True).start()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config.CHECKPOINT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -49,6 +65,7 @@ async def lifespan(app: FastAPI):
                 seed_missing(conn)
     except Exception:  # noqa: BLE001
         pass
+    _refresh_weather_in_background()
     async with AsyncSqliteSaver.from_conn_string(str(config.CHECKPOINT_DB_PATH)) as saver:
         app.state.graph = build_graph(saver)
         yield
@@ -518,7 +535,9 @@ def integrations():
     """Which optional outside services are switched on (keys are never returned)."""
     from crop_pilot.core import weather_sources
     from crop_pilot.payments import card, mpesa
+    from crop_pilot.dispatch import whatsapp
     return {"deepleaf": deepleaf.status(), "voice": voice_calls.status(), "weather": weather_sources.status(),
+            "whatsapp": whatsapp.status(),
             "mpesa": mpesa.status(), "card": card.status()}
 
 
@@ -565,6 +584,26 @@ def sms_inbound(req: InboundSms):
         return sms.receive(req.household_id, req.text)
     except approval.ApprovalError as exc:
         raise HTTPException(400, detail=str(exc))
+
+
+class WhatsAppInbound(BaseModel):
+    phone: str = Field(..., max_length=20)
+    text: str = Field(..., max_length=300)
+
+
+@app.post("/whatsapp/simulate")
+def whatsapp_simulate(req: WhatsAppInbound):
+    """Local test: act as a farmer sending a WhatsApp message (no Meta account needed)."""
+    _require_db()
+    from crop_pilot.dispatch import whatsapp
+    return whatsapp.receive(req.phone, req.text)
+
+
+@app.get("/whatsapp")
+def whatsapp_messages(household_id: str | None = None):
+    _require_db()
+    from crop_pilot.dispatch import whatsapp
+    return {"status": whatsapp.status(), "messages": whatsapp.list_messages(household_id)}
 
 
 @app.get("/sms")
@@ -705,6 +744,17 @@ class ForecastUpdate(BaseModel):
     peak_rain_mm_h: float | None = Field(None, ge=0, le=300)   # heaviest hour of rain (intensity)
     peak_rain_date: str | None = Field(None, max_length=10)     # past = observed, today or later = forecast
     dry_hours_ahead: float | None = Field(None, ge=0, le=240)   # hours until the next rain (spray rain-fastness)
+
+
+@app.post("/weather/refresh")
+def refresh_weather():
+    """Fetch live forecasts for every ward from Open-Meteo and Visual Crossing and store them."""
+    _require_db()
+    from crop_pilot.core import weather_sources
+    out = weather_sources.refresh_ward_forecasts("refresh-weather")
+    out["drafts_now_out_of_date"] = [a["id"] for a in approval.list_advisories("PENDING_REVIEW")
+                                     if a.get("forecast_changed")]
+    return out
 
 
 @app.post("/weather/{zone_id}")

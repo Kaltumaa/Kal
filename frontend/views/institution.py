@@ -1,4 +1,5 @@
-"""Institution home: the extension officers it manages (performance and workload by sub-county, sign-ups to approve),
+"""Institution home: a read-only view of the extension officers who work with it (performance and workload by
+sub-county; officers sign up and work independently, no approval),
 the farmers it pays for and the payment gateway (KES 50 per farmer, M-Pesa or card), Lead Farmers and bulk alerts."""
 from __future__ import annotations
 
@@ -12,13 +13,12 @@ import payments_panel
 import ui
 
 u = auth.require("institution")
-ui.header("My extension officers", "The officers you manage, their workload in each sub-county, and the farmers "
-                                   "you pay for.")
+ui.header("My extension officers", "The officers who work with you, their workload in each sub-county, and the "
+                                   "farmers you pay for.")
 
 try:
     data = api.institution_officers(auth.token())
     farmer_lists = api.institution_farmers(auth.token())
-    pending = api.pending_officers(auth.token())
 except api.ApiError as exc:
     auth.show_error(exc)
     st.stop()
@@ -26,7 +26,7 @@ officers, workload, sub = data["officers"], data["sub_county_workload"], data["s
 covered, waiting = farmer_lists["covered"], farmer_lists["waiting"]
 
 if not sub["active"]:
-    st.warning("Not paid yet: your farmers cannot use TALO, and you cannot approve officers or send alerts. "
+    st.warning("Not paid yet: your farmers cannot use TALO, and you cannot send alerts. "
                "Open **Farmers & payment** to pay KES 50 per farmer by M-Pesa or card.",
                icon=":material/credit_card_off:")
 else:
@@ -36,8 +36,7 @@ else:
 pending_total = sum(o["pending_approvals"]["total"] for o in officers)
 times = [o["avg_response_minutes"] for o in officers if o["avg_response_minutes"] is not None]
 c = st.columns(5)
-c[0].metric("Officers", len(officers), delta=f"{len(pending)} to approve" if pending else None,
-            delta_color="off")
+c[0].metric("Officers", len(officers))
 c[1].metric("Sub-counties", len(workload))
 c[2].metric("Farmers with access", len(covered), delta=f"{len(waiting)} waiting" if waiting else None,
             delta_color="off")
@@ -48,29 +47,9 @@ tab_officers, tab_pay, tab_tools = st.tabs(["Extension officers", "Farmers & pay
 
 # --- officers -----------------------------------------------------------------------------------------------------
 with tab_officers:
-    if pending:
-        with ui.section():
-            st.subheader(f"Officer sign-ups to approve ({len(pending)})")
-            for p in pending:
-                row = st.columns([3, 2, 2, 1, 1], vertical_alignment="center")
-                row[0].markdown(f"**{p['full_name']}**  \n<span class='cp-muted'>{p['email']}</span>",
-                                unsafe_allow_html=True)
-                row[1].write(f"{p['sub_county']}, {p['county']}")
-                row[2].write(p["wards"].replace(",", ", ").title() if p.get("wards") else "Whole sub-county")
-                if row[3].button("Approve", key=f"ap-{p['id']}", type="primary"):
-                    try:
-                        api.decide_officer(auth.token(), p["id"], True)
-                        st.toast(f"{p['full_name']} approved", icon=":material/check:")
-                        st.rerun()
-                    except api.ApiError as exc:
-                        auth.show_error(exc)
-                if row[4].button("Reject", key=f"rj-{p['id']}"):
-                    api.decide_officer(auth.token(), p["id"], False)
-                    st.rerun()
-
     if not officers:
-        st.info("No approved officers yet. Officers sign up on the sign-in page, choose your institution, and appear "
-                "above for you to approve.", icon=":material/group_add:")
+        st.info("No officers yet. Extension officers sign up on their own on the sign-in page; those who name your "
+                "institution appear here.", icon=":material/group_add:")
     else:
         with ui.section():
             st.subheader("Workload by sub-county")

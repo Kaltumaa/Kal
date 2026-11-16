@@ -312,7 +312,7 @@ def test_no_nyumba_kumi_left_in_backend():
     assert hits == []
 
 
-def test_officer_self_signup_waits_for_paid_approval(client):
+def test_officer_signs_up_independently_and_institution_only_views(client):
     inst = _institution(client)
     token = inst["access_token"]
     assert [i["name"] for i in client.get("/api/institutions").json()] == ["Nairobi County Agric Department"]
@@ -320,25 +320,40 @@ def test_officer_self_signup_waits_for_paid_approval(client):
               "full_name": "Kevin Otieno", "institution_id": inst["institution"]["id"], "county": "Nairobi",
               "sub_county": "Dagoretti South", "wards": ["riruta"]}
     r = client.post("/api/auth/register", json=signup)
-    assert r.status_code == 201 and r.json()["status"] == "pending"
+    assert r.status_code == 201 and r.json()["user"]["active"] and r.json()["access_token"]   # no approval, no payment
     wrong = client.post("/api/auth/register", json=dict(signup, email="x@county.example", county="Mombasa"))
     assert wrong.status_code == 400
-    login = client.post("/api/auth/login", json={"email": "kevin@county.example", "password": PASSWORD})
-    assert login.status_code == 401 and "waiting" in login.json()["detail"]
-    pending = client.get("/api/institution/officers/pending", headers=_auth(token)).json()
-    assert [p["full_name"] for p in pending] == ["Kevin Otieno"]
-    oid = pending[0]["id"]
-    assert client.post(f"/api/institution/officers/{oid}/approve", headers=_auth(token)).status_code == 402
-    _pay_mpesa(client, token)
-    ok = client.post(f"/api/institution/officers/{oid}/approve", headers=_auth(token)).json()
-    assert ok["approval_status"] == "approved" and ok["active"]
     officer = client.post("/api/auth/login", json={"email": "kevin@county.example", "password": PASSWORD}).json()
     assert officer["user"]["role"] == "extension_officer"
-    stats = client.get("/api/institution/officers", headers=_auth(officer["access_token"])).json()
+    stats = client.get("/api/institution/officers", headers=_auth(token)).json()      # the institution sees them
+    assert [o["full_name"] for o in stats["officers"]] == ["Kevin Otieno"]
     assert stats["officers"][0]["wards"] == ["RIRUTA"] and stats["pending_officer_signups"] == 0
-    # another institution cannot approve or see this officer
-    other = _institution(client, "Riruta Farmers Cooperative", "coop@coop.example")["access_token"]
-    assert client.post(f"/api/institution/officers/{oid}/approve", headers=_auth(other)).status_code == 400
+    # an independent officer: no institution at all, signed in at once
+    solo = client.post("/api/auth/register", json=dict(signup, email="solo@example.com", full_name="Amos Kiprono",
+                                                       institution_id=None, county="Kiambu", sub_county="Kikuyu"))
+    assert solo.status_code == 201 and solo.json()["user"]["institution_id"] is None
+    assert client.get("/api/institution/officers", headers=_auth(solo.json()["access_token"])).status_code == 403
+    stats = client.get("/api/institution/officers", headers=_auth(token)).json()
+    assert "Amos Kiprono" not in [o["full_name"] for o in stats["officers"]]
+
+
+def test_old_users_table_lets_officers_go_independent(tmp_path, monkeypatch):
+    from crop_pilot import config
+    from crop_pilot.database.init_db import SCHEMA, ensure_schema
+    old = SCHEMA.replace("CHECK (role != 'extension_officer' OR (county IS NOT NULL AND sub_county IS NOT NULL)),",
+                         "CHECK (role != 'extension_officer' OR (institution_id IS NOT NULL AND county IS NOT NULL\n"
+                         "                                           AND sub_county IS NOT NULL)),")
+    assert old != SCHEMA
+    conn = sqlite3.connect(tmp_path / "old.db")
+    conn.executescript(old)
+    conn.execute("INSERT INTO institutions (name, kind, county, created_at) VALUES ('X', 'ngo', 'Nairobi', 'x')")
+    conn.execute("INSERT INTO users (email, password_hash, full_name, role, institution_id, county, sub_county, "
+                 "created_at) VALUES ('a@b.co', 'h', 'Ann Bee', 'extension_officer', 1, 'Nairobi', 'Kibra', 'x')")
+    ensure_schema(conn)
+    conn.execute("INSERT INTO users (email, password_hash, full_name, role, county, sub_county, created_at) "
+                 "VALUES ('c@d.co', 'h', 'Cee Dee', 'extension_officer', 'Nairobi', 'Kibra', 'x')")
+    assert [r[0] for r in conn.execute("SELECT email FROM users ORDER BY id")] == ["a@b.co", "c@d.co"]
+    assert conn.execute("SELECT name FROM sqlite_master WHERE name='users_old'").fetchone() is None
 
 
 def test_old_subscriptions_table_is_rebuilt_for_per_farmer(tmp_path):

@@ -45,7 +45,7 @@ class RegisterRequest(BaseModel):
     institution_name: str | None = Field(None, max_length=120)     # institution
     institution_kind: str | None = Field(None, max_length=40)
     county: str | None = Field(None, max_length=60)
-    institution_id: int | None = None                              # extension officer: who employs them
+    institution_id: int | None = None                              # extension officer: optional, can view their work
     sub_county: str | None = Field(None, max_length=60)
     wards: list[str] | None = Field(None, max_length=30)
 
@@ -66,8 +66,8 @@ def register(req: RegisterRequest):
                 raise accounts.AccountError("institution_name, institution_kind and county are required.")
             return accounts.register_institution(req.institution_name, req.institution_kind, req.county, req.email,
                                                  req.password, req.full_name, req.phone)
-        if not (req.institution_id and req.county and req.sub_county):
-            raise accounts.AccountError("institution_id, county and sub_county are required.")
+        if not (req.county and req.sub_county):
+            raise accounts.AccountError("county and sub_county are required.")
         return accounts.register_officer(req.email, req.password, req.full_name, req.institution_id, req.county,
                                          req.sub_county, req.wards, req.phone)
     except (accounts.AccountError, AuthError) as exc:
@@ -108,6 +108,8 @@ class OfficerRequest(BaseModel):
 def institution_officers(user: dict = Depends(staff)):
     """Each officer's caseload, pending human approvals, average response time, resolved vs escalated cases, and
     the workload per sub-county."""
+    if user["institution_id"] is None:
+        raise HTTPException(403, detail="You work independently, so there is no institution view.")
     return institutions.officer_analytics(user["institution_id"])
 
 

@@ -51,6 +51,14 @@ DEEPLEAF_ID_SALT = os.environ.get("DEEPLEAF_ID_SALT") or "mkulima-hub"
 
 # --- Voice calls to feature phones: Africa's Talking Voice -------------------------------------------------------
 # All four must be set for real calls; otherwise calls are SIMULATED (logged, answered from the officer's screen).
+# --- WhatsApp Cloud API (Meta). Empty token = simulated (messages stored, not sent). ----------------------------------
+WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")      # for Meta's webhook handshake
+WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET", "")          # verifies X-Hub-Signature-256 on inbound
+WHATSAPP_TEMPLATE = os.environ.get("WHATSAPP_TEMPLATE", "")              # approved template for advice (1 body param)
+WHATSAPP_TEMPLATE_LANG = os.environ.get("WHATSAPP_TEMPLATE_LANG", "en")
+WHATSAPP_API_VERSION = os.environ.get("WHATSAPP_API_VERSION", "v21.0")
 AT_USERNAME = os.environ.get("AT_USERNAME", "")
 AT_API_KEY = os.environ.get("AT_API_KEY", "")
 AT_VOICE_NUMBER = os.environ.get("AT_VOICE_NUMBER", "")          # your Africa's Talking voice number, +254...

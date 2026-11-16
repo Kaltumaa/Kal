@@ -35,7 +35,7 @@ from langgraph.types import Command, interrupt
 from crop_pilot import config
 from crop_pilot.agent import llm
 from crop_pilot.agent.toolbox import open_toolbox
-from crop_pilot.core import agronomy, history, resilience, sanitizer, telemetry
+from crop_pilot.core import agronomy, escalation, history, resilience, sanitizer, telemetry
 
 MAX_AGENT_TURNS = 10
 GATHER_TOOLS = {"get_plot_context", "get_rainfall_outlook", "get_pest_reports", "get_weather_pattern",
@@ -678,6 +678,16 @@ async def advisory_compiler_node(state: RunState) -> dict:
         rationale += (f" Outbreak cluster in {cluster.get('sub_county')}: "
                       + "; ".join(f"{c['pest']} ({c['reports']} reports in {', '.join(c['wards'])})" for c in hot[:3])
                       + ".")
+    try:
+        corrections = escalation.officer_corrections(state["household_id"])
+    except Exception:  # noqa: BLE001 - feedback is a bonus; never block a draft on it
+        corrections = []
+    if corrections:
+        last = corrections[0]
+        rationale += (f" Learning from feedback: an officer ({last['officer']}) rejected my "
+                      f"{last['verdict'] or 'earlier'} advice for this farm on {last['reviewed_at']}"
+                      + (f" because: {last['reason']}" if last["reason"] else "") + ".")
+        flags.append("officer_feedback_considered")
     lead = plot.get("lead_farmer")
     if decision["verdict"] and lead and not lead.get("is_self"):
         rationale += (f" Lead Farmer advisory: {lead.get('farmer_name') or lead['household_id']} "
@@ -697,6 +707,9 @@ async def advisory_compiler_node(state: RunState) -> dict:
                 message = farmer_sms(composed.get("farmer_message")) or message
             else:
                 flags.append(f"model_disagreement:{model_verdict}->{decision['verdict']}")
+                rationale += (f" Self-correction: the language model suggested {model_verdict or 'no verdict'}, but the "
+                              f"safety rules say {decision['verdict']}. The model was wrong or unsure here, so I "
+                              f"followed the rules; please check this one.")
     elif decision["status"] != "PENDING_REVIEW":
         flags.append(f"llm_skipped_status_{decision['status'].lower()}")
     if pattern.get("onset") == "FALSE_START_RISK":
@@ -751,6 +764,7 @@ async def advisory_compiler_node(state: RunState) -> dict:
         "outbreak_cluster": {"sub_county": cluster.get("sub_county"), "active": cluster.get("active_cluster"),
                              "clusters": cluster.get("clusters", [])[:3]} if cluster else None,
         "lead_farmer": plot.get("lead_farmer"),
+        "officer_corrections": corrections,
     }
     if (rain or {}).get("stale"):
         flags.append("weather_forecast_stale")
@@ -803,6 +817,17 @@ def assess_uncertainty(draft: dict, evidence: dict) -> list[dict]:
             out.append({"code": "low_confidence",
                         "detail": f"the leaf classifier is only {float(leaf.get('confidence') or 0):.0%} confident{guess}, "
                                   f"below the {config.LEAF_CONFIDENCE_MIN:.0%} needed"})
+    plot = evidence.get("plot") or {}
+    if plot.get("found") and not plot.get("profile_complete") and not plot.get("injection_detected"):
+        out.append({"code": "missing_farm_data",
+                    "detail": "I do not know this farm's crop or ward yet, so I cannot advise it"})
+    repeat = next((c for c in (draft.get("evidence") or {}).get("officer_corrections") or []
+                   if draft.get("verdict") and c.get("verdict") == draft.get("verdict")), None)
+    if repeat:
+        out.append({"code": "officer_corrected_before",
+                    "detail": f"an officer rejected the same {repeat['verdict']} advice for this farm on "
+                              f"{repeat['reviewed_at']}" + (f" ({repeat['reason']})" if repeat["reason"] else "")
+                              + ", so I may be making the same mistake"})
     if draft.get("verdict") == "SPRAY":
         if lw.get("agreement") == "DISAGREE":
             out.append({"code": "weather_disagreement",

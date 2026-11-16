@@ -280,3 +280,54 @@ def dual_forecast(zone_id: str | None = None, lat: float | None = None, lon: flo
                 f"{LABELS[next(iter(live))]} only" if agreement == "SINGLE_SOURCE" else None),
             "recovery": recovery,
             "citation": f"live_weather:{zone}@{stamp}" if live else (base or {}).get("citation")}
+
+
+# --- ward forecasts for the screens and rules ---------------------------------------------------------------------
+LIVE_SOURCE_PREFIX = "Live: "
+REFRESH_AFTER_HOURS = 12      # the API refreshes on start when the stored forecast is older than this
+
+
+def _storm_risk(c: dict) -> str:
+    if (c["rain_24h_mm"] >= config.SEVERE_RAIN_24H_MM or c["rain_72h_mm"] >= config.WASHOUT_RAIN_72H_MM
+            or c["wind_24h_max_kmh"] >= config.SEVERE_WIND_KMH):
+        return "HIGH"
+    if c["rain_72h_mm"] >= 10 or (c.get("rain_prob_24h_max") or 0) >= 60:
+        return "MODERATE"
+    return "LOW"
+
+
+def refresh_ward_forecasts(run_id: str = "weather-refresh", *, fetchers: dict[str, Fetcher] | None = None,
+                           now: datetime | None = None) -> dict:
+    """Ask Open-Meteo and Visual Crossing for every ward and store the cautious combined reading in weather_cache,
+    which the dashboard, farm pages and rules read. A ward with no live answer keeps its last forecast. Storing a
+    newer forecast blocks drafts built on the old one until they are re-run (dispatch.approval)."""
+    with connect() as conn:
+        zones = [r["zone_id"] for r in conn.execute("SELECT zone_id FROM weather_cache ORDER BY zone_id")]
+    updated, kept = [], {}
+    for zone in zones:
+        f = dual_forecast(zone, run_id=f"{run_id}-{zone}", fetchers=fetchers, now=now)
+        if not f.get("ok") or not f.get("sources") or (f.get("degraded_source") or "").startswith("cached"):
+            kept[zone] = f.get("error") or f.get("degraded_source") or "no live forecast"
+            continue
+        c = f["consensus"]
+        names = " + ".join(f["sources"])
+        note = {"AGREE": "agree", "DISAGREE": "disagree", "SINGLE_SOURCE": "single source"}.get(f["agreement"], "")
+        with connect() as conn:
+            conn.execute("UPDATE weather_cache SET rain_24h_mm=?, rain_72h_mm=?, rain_7d_mm=?, storm_risk=?, source=?, "
+                         "issued_at=?, wind_kmh=?, dry_hours_ahead=? WHERE zone_id=?",
+                         (c["rain_24h_mm"], c["rain_72h_mm"], c["rain_7d_mm"], _storm_risk(c),
+                          f"{LIVE_SOURCE_PREFIX}{names} ({note})"[:80], now_iso(), c["wind_spray_window_kmh"],
+                          c["dry_hours_ahead"], zone))
+        updated.append({"zone_id": zone, "sources": list(f["sources"]), "agreement": f["agreement"],
+                        "rain_72h_mm": c["rain_72h_mm"]})
+    return {"updated": updated, "kept": kept, "provider_status": status()}
+
+
+def needs_refresh() -> bool:
+    """True when live weather is on and any ward's forecast is synthetic or older than REFRESH_AFTER_HOURS."""
+    if not config.LIVE_WEATHER:
+        return False
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=REFRESH_AFTER_HOURS)).isoformat()
+    with connect() as conn:
+        rows = conn.execute("SELECT source, issued_at FROM weather_cache").fetchall()
+    return any(not (r["source"] or "").startswith(LIVE_SOURCE_PREFIX) or str(r["issued_at"]) < cutoff for r in rows)

@@ -87,8 +87,9 @@ def _say(lang: str, en: str, sw: str) -> str:
     return sw if lang == "sw" else en
 
 
-def receive(household_id: str, text: str) -> dict:
-    """Handle one inbound SMS. Returns the command understood and the reply queued to the farmer."""
+def receive(household_id: str, text: str, channel: str = "sms") -> dict:
+    """Handle one inbound SMS (or, with channel="whatsapp", a WhatsApp text: the caller stores it and sends the reply
+    on WhatsApp, so nothing is written to the SMS log). Returns the command understood and the reply."""
     from crop_pilot.community import forum          # local import: forum imports nothing from here
     from crop_pilot.plots import actions, reminders
 
@@ -96,11 +97,13 @@ def receive(household_id: str, text: str) -> dict:
     farm = _farm(hid)
     lang = "sw" if farm.get("language") == "sw" else "en"
     body, hits = sanitizer.scrub_free_text(text, 300)
-    with connect() as conn:
-        _ensure(conn)
-        in_id = conn.execute("INSERT INTO sms_messages (household_id, direction, body, kind, created_at, sms_parts) "
-                             "VALUES (?,?,?,?,?,?)", (hid, "IN", body or "(empty)", "command", telemetry.now_iso(),
-                                                      sms_parts(body))).lastrowid
+    in_id = None
+    if channel == "sms":
+        with connect() as conn:
+            _ensure(conn)
+            in_id = conn.execute("INSERT INTO sms_messages (household_id, direction, body, kind, created_at, "
+                                 "sms_parts) VALUES (?,?,?,?,?,?)", (hid, "IN", body or "(empty)", "command",
+                                                                     telemetry.now_iso(), sms_parts(body))).lastrowid
     words = body.split()
     command = COMMANDS.get(words[0].upper()) if words and not hits else None
     try:
@@ -137,7 +140,7 @@ def receive(household_id: str, text: str) -> dict:
             reply, result = HELP[lang], {"command": "HELP"}
     except (ApprovalError, ValueError) as exc:
         reply, result = str(exc), {"command": command or "HELP", "error": True}
-    out_id = queue_out(hid, reply, "reply", in_id)
-    telemetry.record(f"sms-{hid}", "sms", "inbound_sms", {"household_id": hid, "command": result["command"]},
+    out_id = queue_out(hid, reply, "reply", in_id) if channel == "sms" else None
+    telemetry.record(f"{channel}-{hid}", channel, f"inbound_{channel}", {"household_id": hid, "command": result["command"]},
                      {"reply_id": out_id}, latency_ms=0, actor=farm.get("farmer_name") or hid)
     return result | {"reply": reply, "in_id": in_id, "reply_id": out_id}

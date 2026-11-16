@@ -174,6 +174,8 @@ def bulk_alert(user: dict, sub_county: str, message: str, wards: list[str] | Non
     """A named institution user or officer sends one alert to every farm with a phone in a sub-county (by SMS).
     Human-written and signed by the account holder; the agent has no route here."""
     inst = user["institution_id"]
+    if inst is None:
+        raise ApprovalError("Bulk SMS alerts are paid for by an institution; independent officers cannot send them.")
     subscriptions.require_active(inst, sub_county=sub_county)
     if user["role"] == "extension_officer" and (user["sub_county"] or "").lower() != sub_county.strip().lower():
         raise ApprovalError("Officers can only alert farms in their own sub-county.")

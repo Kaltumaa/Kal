@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS institutions (
     created_at    TEXT NOT NULL
 );
 
--- Accounts. Officers and Lead Farmers belong to an institution and serve one county + sub-county.
+-- Accounts. Officers serve one county + sub-county and may work independently (institution_id NULL) or for an
+-- institution, which can then see their work. Lead Farmers belong to an institution.
 CREATE TABLE IF NOT EXISTS users (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     email          TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -83,8 +84,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at     TEXT NOT NULL,
     last_login_at  TEXT,
     CHECK (role = 'farmer' OR is_lead_farmer = 0),
-    CHECK (role != 'extension_officer' OR (institution_id IS NOT NULL AND county IS NOT NULL
-                                           AND sub_county IS NOT NULL)),
+    CHECK (role != 'extension_officer' OR (county IS NOT NULL AND sub_county IS NOT NULL)),
     CHECK (role != 'institution' OR institution_id IS NOT NULL),
     CHECK (is_lead_farmer = 0 OR (household_id IS NOT NULL AND institution_id IS NOT NULL
                                   AND sub_county IS NOT NULL))
@@ -447,12 +447,25 @@ def migrate_legacy(conn: sqlite3.Connection) -> None:
         conn.executescript(create[: create.index(");") + 2])
         conn.execute("INSERT INTO subscriptions SELECT * FROM subscriptions_old")
         conn.execute("DROP TABLE subscriptions_old")
+    # users: officers no longer need an institution (independent officers). Rebuild to drop that CHECK; ensure_schema
+    # creates the new table and copies the rows back.
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()
+    if row and "institution_id IS NOT NULL AND county" in " ".join(row[0].split()):
+        conn.execute("PRAGMA legacy_alter_table = ON")      # escalations keep pointing at `users`
+        conn.execute("ALTER TABLE users RENAME TO users_old")
+        conn.execute("PRAGMA legacy_alter_table = OFF")
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
     """Create missing tables/columns on an existing database (safe to run every start)."""
     migrate_legacy(conn)
     conn.executescript(SCHEMA)
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users_old'").fetchone():
+        new_cols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
+        old_cols = {r[1] for r in conn.execute("PRAGMA table_info(users_old)")}
+        cols = ", ".join(c for c in new_cols if c in old_cols)
+        conn.execute(f"INSERT INTO users ({cols}) SELECT {cols} FROM users_old")   # column names from the schema
+        conn.execute("DROP TABLE users_old")
     user_cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
     if "approval_status" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'")

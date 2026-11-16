@@ -166,7 +166,8 @@ if not officer:
         st.bar_chart(pd.DataFrame([{"Period": d["period"], "This year (mm)": d["rain_mm"],
                                     "Normal (mm)": d["normal_mm"]} for d in pat["dekads"]]).set_index("Period"),
                      stack=False, color=["#2F6417", "#E8E8E2"], height=220)
-    st.caption("CHIRPS-style rainfall data (synthetic for this demo).")
+    st.caption("Rain forecasts: live from Open-Meteo and Visual Crossing. 10-day pattern: CHIRPS-style data "
+               "(synthetic for this demo).")
 
     sent = [a for a in p["advisories"] if a["status"] == "APPROVED"]
     st.subheader("Advice from your extension officer")
