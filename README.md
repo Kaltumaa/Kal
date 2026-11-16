@@ -627,6 +627,13 @@ tests/         unit, gate and architecture-boundary tests
 * A larger, field-tested vision model for crop photos.
 * More sub-counties: add their wards and households as data (see "Why one office").
 
+## Deploy on a server (with the AI)
+
+`deploy/` runs the whole of TALO on one Linux server (4 vCPU, 8 GB RAM) with Docker: the Control Desk, the local
+models, the webhooks and automatic HTTPS, with only the desk, the provider webhooks and the payment callbacks public.
+One command once `.env` is filled in: `docker compose --env-file .env -f deploy/docker-compose.yml up -d --build`.
+Step by step, provider URLs, backups and pilot settings: [deploy/README.md](deploy/README.md).
+
 ## Online demo (free hosting)
 
 The live link runs on Streamlit Community Cloud. It is free, so it has no room for the local AI models: drafts come

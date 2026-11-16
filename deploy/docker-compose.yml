@@ -1,0 +1,56 @@
+# TALO on one Linux server (4 vCPU, 8 GB RAM). From the repo root:
+#   docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+# Steps and checks: deploy/README.md
+name: talo
+
+services:
+  talo:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file: ../.env                       # keys stay on the server, never in the image or the repo
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      PUBLIC_BASE_URL: https://${TALO_DOMAIN:?set TALO_DOMAIN in .env}
+      VOICE_PUBLIC_URL: https://${TALO_DOMAIN}
+      MPESA_CALLBACK_URL: ""                # built from PUBLIC_BASE_URL (+ the callback token), not an old ngrok URL
+      # Demo: pinned to the synthetic data's date. Pilot: put an empty `CROP_PILOT_TODAY=` in .env for real dates.
+      CROP_PILOT_TODAY: ${CROP_PILOT_TODAY-2026-10-15}
+      VOICE_AUTO_SIMULATE: ${VOICE_AUTO_SIMULATE:-1}
+    volumes:
+      - talo-data:/app/data                 # database, photos, paper-form backup
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.40.4
+    environment:
+      OLLAMA_KEEP_ALIVE: 5m
+      OLLAMA_MAX_LOADED_MODELS: "1"         # 8 GB: one model in memory at a time
+    volumes:
+      - ollama-models:/root/.ollama         # models survive restarts and rebuilds
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.11.9
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      TALO_DOMAIN: ${TALO_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data                    # HTTPS certificates
+      - caddy-config:/config
+    depends_on:
+      - talo
+    restart: unless-stopped
+
+volumes:
+  talo-data:
+  ollama-models:
+  caddy-data:
+  caddy-config:

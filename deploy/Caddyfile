@@ -1,0 +1,24 @@
+# One public address. Caddy gets and renews the HTTPS certificate itself (ports 80 and 443 must be open).
+# Only three things are public: the Control Desk, the provider webhooks and the payment callbacks.
+# The rest of the API (:8000) is reachable only inside the server.
+{$TALO_DOMAIN} {
+	encode zstd gzip
+
+	# Africa's Talking voice and Meta WhatsApp webhooks (each verified by token or signature in the app)
+	@hooks path /voice/callback /voice/dtmf /whatsapp/webhook
+	reverse_proxy @hooks talo:8001
+
+	# M-Pesa callback (shared token + known CheckoutRequestID) and card provider webhook / return page
+	@payments path /api/payments/mpesa/callback /api/payments/card/webhook /api/payments/card/return
+	reverse_proxy @payments talo:8000
+
+	# Everything else is the Control Desk (Streamlit, including its websocket)
+	reverse_proxy talo:8501
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
