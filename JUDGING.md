@@ -53,15 +53,25 @@ each). A county farmer registry is an import into one table plus an MCP read too
 
 ## 2. Problem relevance & local insight (20%)
 
-**Problem in one line:** a Kenyan county extension officer (e.g. Dagoretti South, Nairobi) must turn rainfall,
-pest and farm-history signals into Plant / Spray / Hold advice for over a thousand smallholders, and does it by hand,
-so advice comes late or not at all.
+**Problem in one line:** in Murang'a County one extension officer serves thousands of smallholders (about 13,000 in
+the area officers described to us; 1 : 6,000 published for the county, against FAO's 1 : 400), so farmers like Johnson
+decide when to plant, spray or hold without advice, and advice comes late or not at all.
+
+**Pilot: Murang'a County.** Johnson, a young farmer there, and officers there told us farmers mostly don't know the best
+time to plant. Planting at the optimal time alone is estimated at +7–10% yield, up to +20% for late planters.
+Sources: [FarmBiz Africa, Jan 2025](https://farmbizafrica.com/muranga-gives-extension-to-12000-farmers-a-year-by-funding-agripreneurs/)
+(Murang'a 1:6,000; FAO recommends 1:400; 22 ward agriculture officers);
+[MoALD Agriculture Extension Manual](https://fsrp.go.ke/sites/default/files/2025-08/Agriculture%20Extension%20Manual%20v1%20final.pdf)
+(Kenya about 1:1,380, target 1:600); [CGIAR](https://cgspace.cgiar.org/server/api/core/bitstreams/c1933d15-2928-4bbe-b901-647e2b6ea0e7/content)
+(Murang'a about 1:3,500, most wards have a single extension worker);
+[Black et al., Frontiers in Climate 2023](https://www.frontiersin.org/articles/10.3389/fclim.2022.993511) (planting at
+the optimal time: +7–10% yield, up to +20% for late planters; data from Kenya, Rwanda, Uganda, Zambia, Malawi).
 
 | Check | Status |
 |---|---|
-| Evidenced | One smallholder farmer; two extension officers, Dennis and Wilson, Kiambu County. **TODO: their points** (README, "Field validation") |
+| Evidenced | Johnson, a farmer in Murang'a; extension officers in Murang'a (about 1 officer : 13,000 farmers in their area); published ratios with sources above; two Kiambu officers, Dennis and Wilson (**TODO: their points**) |
 | Named user | Extension officer at a county agriculture department; the farmer receives the advice |
-| Sized | **TODO with the officers:** farmers per officer, advisories a week, time per farm by hand, losses from a wrong spray (with sources) |
+| Sized | Farmers per officer: about 13,000 (field), 1 : 6,000 (published, Murang'a), 1 : 1,380 (Kenya). Yield at stake from timing: 7–10%, up to 20%. **TODO:** advisories a week, time per farm by hand |
 | Today's workaround | **TODO with the officers:** how they advise today (visits, WhatsApp groups, barazas) and why it fails |
 | Local reality | Kiswahili and English; feature phones (SMS, voice keypad), Nyumba Kumi lead farmers; data cost (SMS needs none); M-Pesa; Kenya Data Protection Act (gaps listed in README) |
 | Why agentic | Each advisory needs several sources checked in order (photo, outbreak cluster, two forecasts, crop stage, rotation, guidance), a judgement on whether it is safe, and asking a human when unsure: a form or chatbot cannot do that |
@@ -114,8 +124,8 @@ pay nothing. **TODO:** the budget line the officers named.
   hosting falls with scale, SMS stays flat, officer review grows linearly).
 - **Measured at scale:** `make load-test`: the weekly plan for 5,000 farms in under 2 s; 25 officers at once, no
   errors (`evals/results/load-*.md`).
-- **Rollout path:** Dagoretti South desk → **Kiambu County** (where we spoke with two officers; not yet an agreement)
-  → other counties; languages beyond Kiswahili and English; USSD and Airtel Money as channels.
+- **Rollout path:** **pilot in Murang'a County** (where we spoke with officers and farmers; not yet an agreement) → Kiambu
+  (Dennis and Wilson) → other counties; languages beyond Kiswahili and English; USSD and Airtel Money as channels.
 - **Oversight at scale:** review by ward in batches, escalations routed to the right sub-county officer, AI assurance
   page counting sign-offs and overrides.
 - **Impact metrics (tracked in the audit tables, baseline from the officers):** days from signal to signed advice;

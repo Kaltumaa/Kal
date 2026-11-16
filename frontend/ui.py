@@ -786,6 +786,77 @@ def partners() -> None:
         unsafe_allow_html=True)
 
 
+# Farmers per extension officer, longest last. Published figures carry their source; the field figure is what officers
+# in Murang'a told us, not a published statistic.
+RATIOS = [
+    ("FAO recommends", 400, "https://farmbizafrica.com/muranga-gives-extension-to-12000-farmers-a-year-by-funding-agripreneurs/"),
+    ("Kenya, national (Extension Manual)", 1380, "https://fsrp.go.ke/sites/default/files/2025-08/Agriculture%20Extension%20Manual%20v1%20final.pdf"),
+    ("Murang'a County, published (2025)", 6000, "https://farmbizafrica.com/muranga-gives-extension-to-12000-farmers-a-year-by-funding-agripreneurs/"),
+    ("Murang'a, what officers told us", 13000, None),
+]
+
+
+def story() -> None:
+    """Why TALO exists, told through one farmer, with the numbers behind it. Shown on the sign-in page."""
+    top = max(n for _, n, _ in RATIOS)
+
+    def bar(label: str, n: int, url: str | None) -> str:
+        name = (f'<a href="{html.escape(url)}" target="_blank" rel="noopener">{html.escape(label)}</a>' if url
+                else html.escape(label))
+        hot = " hot" if url is None else ""
+        return (f'<div class="st-row"><div class="st-label">{name}</div><div class="st-track">'
+                f'<div class="st-fill{hot}" style="width:{max(3, n / top * 100):.1f}%"></div></div>'
+                f'<div class="st-n{hot}">1 : {n:,}</div></div>')
+    rows = "".join(bar(*r) for r in RATIOS)
+    st.markdown(
+        "<style>"
+        ".st-wrap{margin:34px 0 8px;padding:26px 0 4px;border-top:1px solid #E7E7E2}"
+        ".st-kick{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:#71717A}"
+        ".st-wrap h3{font-size:1.45rem;line-height:1.25;color:#18181B;margin:.35rem 0 .7rem;font-weight:700}"
+        ".st-wrap p{color:#3F3F46;font-size:.95rem;line-height:1.6;margin:0 0 .8rem}"
+        ".st-wrap p b{color:#18181B}"
+        ".st-row{display:grid;grid-template-columns:minmax(120px,38%) 1fr auto;gap:10px;align-items:center;"
+        "margin:7px 0}"
+        ".st-label{font-size:.78rem;color:#52525B}.st-label a{color:#52525B;text-decoration:underline dotted}"
+        ".st-track{height:10px;background:#F4F4F2;border-radius:99px;overflow:hidden}"
+        ".st-fill{height:100%;background:#A1A1AA;border-radius:99px;animation:st-grow 1.4s ease-out both}"
+        ".st-fill.hot{background:#C2410C}"
+        "@keyframes st-grow{from{width:0}}"
+        "@media (prefers-reduced-motion:reduce){.st-fill{animation:none}}"
+        ".st-n{font-family:var(--mono,monospace);font-size:.75rem;color:#52525B;min-width:68px;text-align:right}"
+        ".st-n.hot{color:#C2410C;font-weight:700}"
+        ".st-pilot{display:inline-block;margin-top:.4rem;padding:5px 12px;border-radius:99px;background:#18181B;"
+        "color:#fff;font-size:.74rem;letter-spacing:.04em}"
+        ".st-src{font-size:.7rem;color:#A1A1AA;margin-top:.6rem}.st-src a{color:#A1A1AA}"
+        "</style>"
+        '<div class="st-wrap">'
+        '<div class="st-kick">Why we built TALO</div>'
+        "<h3>Johnson farms in Murang'a. He shares one extension officer with about 13,000 other farmers.</h3>"
+        "<p>Johnson is young, and like most farmers around him he is working the season out on his own. "
+        "When the first rains come, nobody tells him whether they are real or a false start. When a pest shows up "
+        "next door, nobody tells him whether to spray or to wait. <b>The knowledge exists. It just never "
+        "reaches him in time.</b></p>"
+        "<p>It is not that the officers don't care. One person simply cannot walk to thirteen thousand farms "
+        "before the rain does.</p>"
+        f"{rows}"
+        "<p style='margin-top:1rem'>Timing alone matters: across Kenya and four neighbouring countries, planting at "
+        "the right time is estimated to lift yields <b>7–10%, and up to 20% for farmers who plant late</b>. "
+        "TALO checks every farm's rain, pests and crop stage every week and drafts the advice; "
+        "<b>an officer reads it, signs it, and it reaches Johnson's phone by SMS</b>, with no smartphone "
+        "or data needed.</p>"
+        "<span class='st-pilot'>Our pilot: Murang'a County</span>"
+        "<div class='st-src'>Sources: FAO 1:400 and Murang'a 1:6,000, "
+        "<a href='https://farmbizafrica.com/muranga-gives-extension-to-12000-farmers-a-year-by-funding-agripreneurs/' "
+        "target='_blank' rel='noopener'>FarmBiz Africa, Jan 2025</a>; Kenya 1:1,380, "
+        "<a href='https://fsrp.go.ke/sites/default/files/2025-08/Agriculture%20Extension%20Manual%20v1%20final.pdf' "
+        "target='_blank' rel='noopener'>MoALD Agriculture Extension Manual</a>; yields, "
+        "<a href='https://www.frontiersin.org/articles/10.3389/fclim.2022.993511' target='_blank' "
+        "rel='noopener'>Black et al., Frontiers in Climate, 2023</a>. 1:13,000 is what extension officers in "
+        "Murang'a told us about their own area; published county figures range from 1:1,500 to about 1:8,000.</div>"
+        "</div>",
+        unsafe_allow_html=True)
+
+
 def header(title: str, subtitle: str, hero: bool = False) -> None:
     """Page header. Only landing pages get the large version, so working pages start with the work."""
     role = st.session_state.get("role")

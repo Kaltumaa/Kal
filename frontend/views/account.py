@@ -194,4 +194,5 @@ with mid:
         _officer_form()
     with tabs[3]:
         _institution_form()
+    ui.story()
     ui.partners()

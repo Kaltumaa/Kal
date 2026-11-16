@@ -27,12 +27,33 @@ per outcome, margin at pilot / 10× / 100×) · [EVALS.md](EVALS.md) · `make ch
 
 ## Problem statement
 
-In Kenya, one extension officer can cover over a thousand smallholder farms. Farmers depend on that officer to know
-when to plant, when to spray and when to hold off. The short rains have become unreliable (late starts, false starts,
-early stops) and pests like Fall Armyworm spread fast between small plots. Good advice means checking each farm's
-rainfall, nearby pest reports, plot history and crop stage, and no officer has time to do that for every farm every
-week. So advice comes late, generic, or not at all, and a wrong planting or spraying decision costs a smallholder
-household seed, money and part of the harvest. The bottleneck is officer time, not knowledge.
+**Johnson is a young farmer in Murang'a County.** Extension officers there told us that, in their area, one officer
+serves about **13,000 farmers**. So nobody tells Johnson whether the first rains are real or a false start, when the
+best time to plant is, or whether the pest next door means he should spray or wait. People around him don't really
+know either. The knowledge exists; it just never reaches the farm in time.
+
+The published numbers say the same thing, if less starkly:
+
+| Farmers per extension officer | Figure |
+|---|---|
+| FAO recommendation | 1 : 400 |
+| Kenya, national | about 1 : 1,380 (target 1 : 600) |
+| Murang'a County, published | 1 : 6,000 (2025); other reports 1 : 1,500 to 1 : 7,950 |
+| Murang'a, what officers told us about their area | about 1 : 13,000 |
+
+Timing alone matters: planting at the optimal time is estimated to raise yields by 7–10%, and by up to 20% for farmers
+who plant late. Meanwhile the short rains have become unreliable (late starts, false starts, early stops) and pests
+like Fall Armyworm spread fast between small plots. Good advice means checking each farm's rainfall, nearby pest
+reports, plot history and crop stage, and no officer can do that for thousands of farms every week. **The bottleneck is
+officer time, not knowledge.** That is why our pilot is **Murang'a County**.
+
+Sources: [FarmBiz Africa, Jan 2025](https://farmbizafrica.com/muranga-gives-extension-to-12000-farmers-a-year-by-funding-agripreneurs/)
+(Murang'a 1:6,000; FAO recommends 1:400; 22 ward agriculture officers);
+[MoALD Agriculture Extension Manual](https://fsrp.go.ke/sites/default/files/2025-08/Agriculture%20Extension%20Manual%20v1%20final.pdf)
+(Kenya about 1:1,380, target 1:600); [CGIAR](https://cgspace.cgiar.org/server/api/core/bitstreams/c1933d15-2928-4bbe-b901-647e2b6ea0e7/content)
+(Murang'a about 1:3,500, most wards have a single extension worker);
+[Black et al., Frontiers in Climate 2023](https://www.frontiersin.org/articles/10.3389/fclim.2022.993511) (planting at
+the optimal time: +7–10% yield, up to +20% for late planters; data from Kenya, Rwanda, Uganda, Zambia, Malawi).
 
 ## Solution overview
 
@@ -402,8 +423,12 @@ Bring your own data by pointing `CROP_PILOT_DB` at a database with the same sche
 
 This is one conversation, not a study, and it did not test the app itself.
 
+**We spoke with Johnson, a young farmer in Murang'a County**, and with **extension officers working in Murang'a**.
+They told us one officer serves about 13,000 farmers in their area, and that farmers there mostly don't know the best
+time to plant or what to do when pests or odd rains arrive. That is why **Murang'a is our pilot county**.
+
 **We also spoke with two extension officers, Dennis and Wilson, from Kiambu County** (the county next to Nairobi;
-our desk is modelled on Dagoretti South).
+the demo desk is modelled on Dagoretti South).
 
 > **TODO before submitting: add what Dennis and Wilson said** (how many farmers each covers, how they advise today,
 > what they liked or doubted, whether their office would pay). Until then this section only records that the two
@@ -541,7 +566,7 @@ tests/         unit, gate and architecture-boundary tests
   as a suggestion the officer confirms on the visit, instead of entering both by hand.
 * Swahili messages reviewed by native-speaker officers, a stronger local translation model, and other local languages.
 * Officer and farmer logins, with a verified officer ID as the signature.
-* Field validation with Dagoretti South extension officers and farmers, then tuning thresholds on real outcomes.
+* A pilot in Murang'a County with its extension officers and farmers (load Murang'a's wards and farms through `CROP_PILOT_DB`), then tuning thresholds on real outcomes.
 * A larger, field-tested vision model for crop photos.
 * More sub-counties: add their wards and households as data (see "Why one office").
 
